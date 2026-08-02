@@ -1,0 +1,22 @@
+{
+  "itemGroup.patina_pandemonium": "锈色狂欢",
+  "block.patina_pandemonium.composed": "%1$s%2$s%3$s",
+  "patina_pandemonium.stage.fresh": "",
+  "patina_pandemonium.stage.exposed": "斑驳的",
+  "patina_pandemonium.stage.weathered": "锈蚀的",
+  "patina_pandemonium.stage.oxidized": "氧化的",
+  "patina_pandemonium.stage.waxed_fresh": "涂蜡的",
+  "patina_pandemonium.stage.waxed_exposed": "涂蜡的斑驳",
+  "patina_pandemonium.stage.waxed_weathered": "涂蜡的锈蚀",
+  "patina_pandemonium.stage.waxed_oxidized": "涂蜡的氧化",
+  "patina_pandemonium.form.full": "",
+  "patina_pandemonium.form.slab": "台阶",
+  "patina_pandemonium.form.stairs": "楼梯",
+  "patina_pandemonium.form.wall": "墙",
+  "patina_pandemonium.form.fence": "栅栏",
+  "patina_pandemonium.form.fence_gate": "栅栏门",
+  "patina_pandemonium.form.button": "按钮",
+  "patina_pandemonium.form.pressure_plate": "压力板",
+  "patina_pandemonium.form.sign": "告示牌",
+  "patina_pandemonium.form.wall_sign": "墙上告示牌"
+}

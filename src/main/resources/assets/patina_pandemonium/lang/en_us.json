@@ -1,0 +1,22 @@
+{
+  "itemGroup.patina_pandemonium": "Patina Pandemonium",
+  "block.patina_pandemonium.composed": "%1$s%2$s%3$s",
+  "patina_pandemonium.stage.fresh": "",
+  "patina_pandemonium.stage.exposed": "Exposed ",
+  "patina_pandemonium.stage.weathered": "Weathered ",
+  "patina_pandemonium.stage.oxidized": "Oxidized ",
+  "patina_pandemonium.stage.waxed_fresh": "Waxed ",
+  "patina_pandemonium.stage.waxed_exposed": "Waxed Exposed ",
+  "patina_pandemonium.stage.waxed_weathered": "Waxed Weathered ",
+  "patina_pandemonium.stage.waxed_oxidized": "Waxed Oxidized ",
+  "patina_pandemonium.form.full": "",
+  "patina_pandemonium.form.slab": " Slab",
+  "patina_pandemonium.form.stairs": " Stairs",
+  "patina_pandemonium.form.wall": " Wall",
+  "patina_pandemonium.form.fence": " Fence",
+  "patina_pandemonium.form.fence_gate": " Fence Gate",
+  "patina_pandemonium.form.button": " Button",
+  "patina_pandemonium.form.pressure_plate": " Pressure Plate",
+  "patina_pandemonium.form.sign": " Sign",
+  "patina_pandemonium.form.wall_sign": " Wall Sign"
+}
