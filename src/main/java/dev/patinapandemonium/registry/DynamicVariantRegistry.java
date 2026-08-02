@@ -15,30 +15,14 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.EmptyBlockGetter;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.ButtonBlock;
-import net.minecraft.world.level.block.DoorBlock;
-import net.minecraft.world.level.block.FenceBlock;
-import net.minecraft.world.level.block.FenceGateBlock;
-import net.minecraft.world.level.block.PressurePlateBlock;
-import net.minecraft.world.level.block.SignBlock;
-import net.minecraft.world.level.block.SlabBlock;
-import net.minecraft.world.level.block.StairBlock;
-import net.minecraft.world.level.block.TrapDoorBlock;
-import net.minecraft.world.level.block.WallBlock;
+import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.event.BlockEntityTypeAddBlocksEvent;
 import net.neoforged.neoforge.registries.RegisterEvent;
 import org.slf4j.Logger;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class DynamicVariantRegistry {
 
@@ -66,8 +50,8 @@ public class DynamicVariantRegistry {
 
     public static void onBlockEntityTypeAddBlocks(BlockEntityTypeAddBlocksEvent event) {
         Block[] signs = GENERATED.stream()
-            .filter(entry -> entry.data().form() == VariantForm.SIGN || entry.data().form() == VariantForm.WALL_SIGN)
-            .map(VariantEntry::block).toArray(Block[]::new);
+                .filter(entry -> entry.data().form() == VariantForm.SIGN || entry.data().form() == VariantForm.WALL_SIGN)
+                .map(VariantEntry::block).toArray(Block[]::new);
         event.modify(BlockEntityType.SIGN, signs);
     }
 
@@ -80,7 +64,7 @@ public class DynamicVariantRegistry {
         PatinaRules rules = PatinaRules.INSTANCE;
         List<Map.Entry<ResourceKey<Block>, Block>> snapshot = new ArrayList<>(BuiltInRegistries.BLOCK.entrySet());
         List<Map.Entry<ResourceKey<Block>, Block>> sources = snapshot.stream()
-            .filter(entry -> isSource(entry.getKey().identifier(), entry.getValue(), rules)).toList();
+                .filter(entry -> isSource(entry.getKey().identifier(), entry.getValue(), rules)).toList();
 
         for (Map.Entry<ResourceKey<Block>, Block> sourceEntry : sources) {
             registerFamily(event, sourceEntry.getKey().identifier(), sourceEntry.getValue(), rules);
@@ -88,8 +72,8 @@ public class DynamicVariantRegistry {
 
         RuntimePack.updateEntries(ENTRIES);
         LOGGER.info(
-            "Patina Pandemonium found {} full-block sources and registered {} missing blocks",
-            PROCESSED_SOURCES.size(), GENERATED.size());
+                "Patina Pandemonium found {} full-block sources and registered {} missing blocks",
+                PROCESSED_SOURCES.size(), GENERATED.size());
     }
 
     private static void registerFamily(RegisterEvent event, Identifier sourceId, Block source, PatinaRules rules) {
@@ -178,22 +162,21 @@ public class DynamicVariantRegistry {
 
             if (entry.data().form() == VariantForm.SIGN) {
                 VariantData wallData = new VariantData(
-                    entry.data().sourceId(),
-                    entry.data().stage(),
-                    entry.data().waxed(),
-                    VariantForm.WALL_SIGN
+                        entry.data().sourceId(),
+                        entry.data().stage(),
+                        entry.data().waxed(),
+                        VariantForm.WALL_SIGN
                 );
                 VariantEntry wall = lookup.get(entryKey(wallData));
                 if (wall == null) {
                     throw new IllegalStateException("Missing wall sign partner for " + entry.blockId());
                 }
                 item = new GeneratedSignItem(
-                    entry.block(),
-                    wall.block(),
-                    entry.source(),
-                    entry.data(),
-                    properties
-                );
+                        entry.block(),
+                        wall.block(),
+                        entry.source(),
+                        entry.data(),
+                        properties);
             } else {
                 item = new GeneratedBlockItem(entry.block(), entry.source(), entry.data(), properties);
             }
@@ -204,29 +187,29 @@ public class DynamicVariantRegistry {
 
     private static boolean isSource(Identifier id, Block block, PatinaRules rules) {
         if (!rules.namespaceAllowed(id.getNamespace())
-            || (rules.excludedBlocks != null && rules.excludedBlocks.contains(id.toString()))
-            || block == Blocks.AIR) {
+                || (rules.excludedBlocks != null && rules.excludedBlocks.contains(id.toString()))
+                || block == Blocks.AIR) {
             return false;
         }
 
         if (block instanceof SlabBlock
-            || block instanceof StairBlock
-            || block instanceof WallBlock
-            || block instanceof FenceBlock
-            || block instanceof FenceGateBlock
-            || block instanceof ButtonBlock
-            || block instanceof PressurePlateBlock
-            || block instanceof DoorBlock
-            || block instanceof TrapDoorBlock
-            || block instanceof SignBlock) {
+                || block instanceof StairBlock
+                || block instanceof WallBlock
+                || block instanceof FenceBlock
+                || block instanceof FenceGateBlock
+                || block instanceof ButtonBlock
+                || block instanceof PressurePlateBlock
+                || block instanceof DoorBlock
+                || block instanceof TrapDoorBlock
+                || block instanceof SignBlock) {
             return false;
         }
 
         String path = id.getPath();
         if (path.startsWith("exposed_")
-            || path.startsWith("weathered_")
-            || path.startsWith("oxidized_")
-            || path.startsWith("waxed_")) {
+                || path.startsWith("weathered_")
+                || path.startsWith("oxidized_")
+                || path.startsWith("waxed_")) {
             return false;
         }
 
@@ -240,8 +223,8 @@ public class DynamicVariantRegistry {
 
     private static Identifier generatedId(Identifier source, OxidationStage stage, boolean waxed, VariantForm form) {
         return PatinaPandemonium.id(
-            "generated/" + source.getNamespace() + "/" + source.getPath() + "/"
-                + (waxed ? "waxed_" : "") + stage.id() + "/" + form.id());
+                "generated/" + source.getNamespace() + "/" + source.getPath() + "/"
+                        + (waxed ? "waxed_" : "") + stage.id() + "/" + form.id());
     }
 
     private static String key(OxidationStage stage, boolean waxed, VariantForm form) {

@@ -19,7 +19,7 @@ public final class ModCreativeTab {
         TABS.register("main", () -> CreativeModeTab.builder()
                 .title(Component.translatable("itemGroup.patina_pandemonium"))
                 .icon(Items.HONEYCOMB::getDefaultInstance)
-                .displayItems((parameters, output) -> {
+                .displayItems((_, output) -> {
                     LinkedHashSet<Item> seen = new LinkedHashSet<>();
                     for (VariantEntry entry : DynamicVariantRegistry.entries()) {
                         if (entry.data().form() == VariantForm.WALL_SIGN) {

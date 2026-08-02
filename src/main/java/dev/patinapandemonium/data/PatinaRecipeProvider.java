@@ -1,19 +1,25 @@
 package dev.patinapandemonium.data;
 
 import net.minecraft.data.PackOutput;
+import net.minecraft.server.packs.PackType;
 
-public final class PatinaRecipeProvider extends AbstractGeneratedProvider {
+/**
+ * Optional exporter for every generated server-data resource.
+ */
+public class PatinaRecipeProvider extends AbstractGeneratedProvider {
 
-    public PatinaRecipeProvider(PackOutput o) {
-        super(o);
+    public PatinaRecipeProvider(PackOutput output) {
+        super(output, PackType.SERVER_DATA);
     }
 
-    protected boolean accepts(String p) {
-        return p.contains("/recipe/") || p.contains("/loot_table/");
+    @Override
+    protected boolean accepts(String path) {
+        return path.startsWith("data/");
     }
 
+    @Override
     public String getName() {
-        return "Patina recipes and loot tables";
+        return "Patina optional server-data export";
     }
 
 }

@@ -1,10 +1,6 @@
 package dev.patinapandemonium.resource;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
+import com.google.gson.*;
 import dev.patinapandemonium.PatinaPandemonium;
 import dev.patinapandemonium.registry.DynamicWoodTypes;
 import dev.patinapandemonium.registry.VariantData;
@@ -12,32 +8,21 @@ import dev.patinapandemonium.registry.VariantEntry;
 import dev.patinapandemonium.registry.VariantForm;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.PackType;
+import org.jspecify.annotations.Nullable;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
 
 /**
  * A single deterministic writer is shared by runData and the runtime compatibility packs.
- * The returned map intentionally has no pack.mcmeta; RuntimePack creates separate client and
- * server ZIPs with the correct resource/data pack versions.
+ * The returned map intentionally has no pack.mcmeta. RuntimePack exposes these resources through
+ * an in-memory pack, while runData can still export a selected pack type for inspection.
  */
 public class GeneratedPackWriter {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-    public static Map<String, byte[]> build(List<VariantEntry> entries) {
-        return build(entries, null);
-    }
-
-    static Map<String, byte[]> build(List<VariantEntry> entries, PackType packType) {
+    public static Map<String, byte[]> build(List<VariantEntry> entries, @Nullable PackType packType) {
         boolean clientResources = packType == null || packType == PackType.CLIENT_RESOURCES;
         boolean serverData = packType == null || packType == PackType.SERVER_DATA;
         Map<String, byte[]> output = new TreeMap<>();
@@ -73,22 +58,23 @@ public class GeneratedPackWriter {
     }
 
     private static void writeAssets(
-        Map<String, byte[]> output,
-        VariantEntry entry,
-        AssetResolver.ModelInfo modelInfo,
-        Set<String> writtenTextures,
-        Set<String> writtenSignTextures
+            Map<String, byte[]> output,
+            VariantEntry entry,
+            AssetResolver.ModelInfo modelInfo,
+            Set<String> writtenTextures,
+            Set<String> writtenSignTextures
     ) {
         Identifier blockId = entry.blockId();
         VariantData data = entry.data();
         String namespace = blockId.getNamespace();
         String path = blockId.getPath();
         int stage = data.stage().ordinal();
+
         LinkedHashMap<String, String> textures = new LinkedHashMap<>();
         for (Map.Entry<String, Identifier> textureEntry : modelInfo.textures().entrySet()) {
             Identifier sourceTexture = textureEntry.getValue();
             String generatedTexture = "generated/" + data.sourceId().getNamespace() + "/"
-                + data.sourceId().getPath() + "/" + data.stage().id() + "/" + sanitize(textureEntry.getKey());
+                    + data.sourceId().getPath() + "/" + data.stage().id() + "/" + sanitize(textureEntry.getKey());
             String generatedFile = "assets/" + PatinaPandemonium.MOD_ID + "/textures/" + generatedTexture + ".png";
             if (stage > 0 && writtenTextures.add(generatedFile)) {
                 byte[] png = AssetResolver.tinted(sourceTexture, stage);
@@ -102,8 +88,8 @@ public class GeneratedPackWriter {
             }
 
             String selected = stage > 0 && output.containsKey(generatedFile)
-                ? PatinaPandemonium.MOD_ID + ":" + generatedTexture
-                : sourceTexture.toString();
+                    ? PatinaPandemonium.MOD_ID + ":" + generatedTexture
+                    : sourceTexture.toString();
             textures.put(textureEntry.getKey(), selected);
         }
 
@@ -120,7 +106,12 @@ public class GeneratedPackWriter {
             case FENCE_GATE -> fenceGate(output, namespace, path, primary);
             case BUTTON -> button(output, namespace, path, primary);
             case PRESSURE_PLATE -> pressurePlate(output, namespace, path, primary);
-            case SIGN, WALL_SIGN -> sign(output, entry, sourcePrimary, primary, writtenSignTextures);
+            case SIGN, WALL_SIGN -> sign(
+                    output,
+                    entry,
+                    sourcePrimary,
+                    primary,
+                    writtenSignTextures);
         }
 
         if (data.form().hasItem()) {
@@ -128,17 +119,18 @@ public class GeneratedPackWriter {
                 case FULL, SLAB, STAIRS, PRESSURE_PLATE -> modelPath;
                 default -> modelPath + "_inventory";
             };
+
             putJson(output, "assets/" + namespace + "/items/" + path + ".json",
-                Map.of("model", Map.of("type", "minecraft:model", "model", namespace + ":" + inventoryModel)));
+                    Map.of("model", Map.of("type", "minecraft:model", "model", namespace + ":" + inventoryModel)));
         }
     }
 
     private static void full(
-        Map<String, byte[]> output,
-        String namespace,
-        String path,
-        AssetResolver.ModelInfo modelInfo,
-        LinkedHashMap<String, String> textures
+            Map<String, byte[]> output,
+            String namespace,
+            String path,
+            AssetResolver.ModelInfo modelInfo,
+            LinkedHashMap<String, String> textures
     ) {
         Map<String, Object> model = new LinkedHashMap<>();
         model.put("parent", modelInfo.model() == null ? "minecraft:block/cube_all" : modelInfo.model().toString());
@@ -151,10 +143,11 @@ public class GeneratedPackWriter {
         templateModel(output, namespace, path, "minecraft:block/slab", texture);
         templateModel(output, namespace, path + "_top", "minecraft:block/slab_top", texture);
         templateModel(output, namespace, path + "_double", "minecraft:block/cube_all", texture);
-        putJson(output, "assets/" + namespace + "/blockstates/" + path + ".json", Map.of("variants", Map.of(
-                "type=bottom", Map.of("model", namespace + ":block/" + path),
-                "type=top", Map.of("model", namespace + ":block/" + path + "_top"),
-                "type=double", Map.of("model", namespace + ":block/" + path + "_double"))));
+        putJson(output, "assets/" + namespace + "/blockstates/" + path + ".json", Map.of(
+                "variants", Map.of(
+                        "type=bottom", Map.of("model", namespace + ":block/" + path),
+                        "type=top", Map.of("model", namespace + ":block/" + path + "_top"),
+                        "type=double", Map.of("model", namespace + ":block/" + path + "_double"))));
     }
 
     private static void stairs(Map<String, byte[]> output, String namespace, String path, String texture) {
@@ -223,7 +216,6 @@ public class GeneratedPackWriter {
         templateModel(output, namespace, path + "_post", "minecraft:block/fence_post", texture);
         templateModel(output, namespace, path + "_side", "minecraft:block/fence_side", texture);
         templateModel(output, namespace, path + "_inventory", "minecraft:block/fence_inventory", texture);
-
         List<Object> multipart = new ArrayList<>();
         multipart.add(Map.of("apply", Map.of("model", namespace + ":block/" + path + "_post")));
         for (int index = 0; index < 4; index++) {
@@ -277,6 +269,7 @@ public class GeneratedPackWriter {
         templateModel(output, namespace, path, "minecraft:block/button", texture);
         templateModel(output, namespace, path + "_pressed", "minecraft:block/button_pressed", texture);
         templateModel(output, namespace, path + "_inventory", "minecraft:block/button_inventory", texture);
+
         JsonObject variants = new JsonObject();
         for (String face : new String[]{"floor", "wall", "ceiling"}) {
             for (String facing : new String[]{"north", "east", "south", "west"}) {
@@ -310,27 +303,29 @@ public class GeneratedPackWriter {
     private static void pressurePlate(Map<String, byte[]> output, String namespace, String path, String texture) {
         templateModel(output, namespace, path, "minecraft:block/pressure_plate_up", texture);
         templateModel(output, namespace, path + "_down", "minecraft:block/pressure_plate_down", texture);
-        putJson(output, "assets/" + namespace + "/blockstates/" + path + ".json", Map.of("variants", Map.of(
-                "powered=false", Map.of("model", namespace + ":block/" + path),
-                "powered=true", Map.of("model", namespace + ":block/" + path + "_down"))));
+        putJson(output, "assets/" + namespace + "/blockstates/" + path + ".json", Map.of(
+                "variants", Map.of(
+                        "powered=false", Map.of("model", namespace + ":block/" + path),
+                        "powered=true", Map.of("model", namespace + ":block/" + path + "_down"))));
     }
 
     private static void sign(
-        Map<String, byte[]> output,
-        VariantEntry entry,
-        Identifier sourceTexture,
-        String particleTexture,
-        Set<String> writtenSignTextures
+            Map<String, byte[]> output,
+            VariantEntry entry,
+            Identifier sourceTexture,
+            String particleTexture,
+            Set<String> writtenSignTextures
     ) {
         String namespace = entry.blockId().getNamespace();
         String path = entry.blockId().getPath();
         String modelId = namespace + ":block/" + path;
         putJson(output, "assets/" + namespace + "/models/block/" + path + ".json", Map.of(
-            "textures", Map.of("particle", particleTexture)));
+                "textures", Map.of("particle", particleTexture)));
         putJson(output, "assets/" + namespace + "/blockstates/" + path + ".json", Map.of(
-            "multipart", List.of(Map.of("apply", Map.of("model", modelId)))));
+                "multipart", List.of(Map.of("apply", Map.of("model", modelId)))));
         Identifier woodTexture = DynamicWoodTypes.textureId(entry.data());
-        String entityTexturePath = "assets/" + woodTexture.getNamespace() + "/textures/entity/signs/" + woodTexture.getPath() + ".png";
+        String entityTexturePath = "assets/" + woodTexture.getNamespace() + "/textures/entity/signs/"
+                + woodTexture.getPath() + ".png";
         if (writtenSignTextures.add(entityTexturePath)) {
             byte[] png = AssetResolver.tiledSignTexture(sourceTexture, entry.data().stage().ordinal());
             if (png != null) {
@@ -367,57 +362,72 @@ public class GeneratedPackWriter {
     }
 
     private static void templateModel(
-        Map<String, byte[]> output,
-        String namespace,
-        String path,
-        String parent,
-        String texture
+            Map<String, byte[]> output,
+            String namespace,
+            String path,
+            String parent,
+            String texture
     ) {
         Map<String, String> textures = new LinkedHashMap<>();
         for (String key : new String[]{"texture", "all", "side", "top", "bottom", "wall", "particle"}) {
             textures.put(key, texture);
         }
 
-        putJson(output, "assets/" + namespace + "/models/block/" + path + ".json", Map.of(
-            "parent", parent, "textures", textures));
+        putJson(output, "assets/" + namespace + "/models/block/" + path + ".json",
+                Map.of("parent", parent, "textures", textures));
     }
 
-    private static void simpleBlockState(Map<String, byte[]> output, String namespace, String path, String model) {
-        putJson(output, "assets/" + namespace + "/blockstates/" + path + ".json", Map.of(
-            "variants", Map.of("", Map.of("model", namespace + ":" + model))));
+    private static void simpleBlockState(
+            Map<String, byte[]> output,
+            String namespace,
+            String path,
+            String model
+    ) {
+        putJson(output, "assets/" + namespace + "/blockstates/" + path + ".json",
+                Map.of("variants", Map.of("", Map.of("model", namespace + ":" + model))));
     }
 
     private static void writeLoot(
-        Map<String, byte[]> output,
-        VariantEntry entry,
-        Map<String, VariantEntry> lookup
+            Map<String, byte[]> output,
+            VariantEntry entry,
+            Map<String, VariantEntry> lookup
     ) {
         String dropId = entry.blockId().toString();
         if (entry.data().form() == VariantForm.WALL_SIGN) {
             VariantEntry standing = lookup.get(key(new VariantData(
-                entry.data().sourceId(),
-                entry.data().stage(),
-                entry.data().waxed(),
-                VariantForm.SIGN
-            )));
+                    entry.data().sourceId(),
+                    entry.data().stage(),
+                    entry.data().waxed(),
+                    VariantForm.SIGN)));
             if (standing != null) {
                 dropId = standing.blockId().toString();
             }
         }
-
         putJson(
-            output, "data/" + entry.blockId().getNamespace() + "/loot_table/blocks/" + entry.blockId().getPath() + ".json",
-            Map.of("type", "minecraft:block",
-                "pools", List.of(Map.of(
-                    "rolls", 1, "bonus_rolls", 0,
-                    "entries", List.of(Map.of("type", "minecraft:item", "name", dropId)),
-                    "conditions", List.of(Map.of("condition", "minecraft:survives_explosion"))))));
+                output,
+                "data/" + entry.blockId().getNamespace() + "/loot_table/blocks/" + entry.blockId().getPath() + ".json",
+                Map.of(
+                        "type", "minecraft:block",
+                        "pools", List.of(Map.of(
+                                "rolls", 1,
+                                "bonus_rolls", 0,
+                                "entries", List.of(Map.of("type", "minecraft:item", "name", dropId)),
+                                "conditions", List.of(Map.of("condition", "minecraft:survives_explosion"))
+                        ))));
     }
 
-    private static void writeRecipes(Map<String, byte[]> output, VariantEntry entry, Map<String, VariantEntry> lookup) {
+    private static void writeRecipes(
+            Map<String, byte[]> output,
+            VariantEntry entry,
+            Map<String, VariantEntry> lookup
+    ) {
         VariantData data = entry.data();
         if (data.form() != VariantForm.FULL && data.form() != VariantForm.WALL_SIGN) {
-            VariantEntry base = lookup.get(key(new VariantData(data.sourceId(), data.stage(), data.waxed(), VariantForm.FULL)));
+            VariantEntry base = lookup.get(key(new VariantData(
+                    data.sourceId(),
+                    data.stage(),
+                    data.waxed(),
+                    VariantForm.FULL)));
             if (base != null) {
                 Map<String, Object> shaped = formRecipe(data.form(), base.blockId().toString(), entry.blockId().toString());
                 if (shaped != null) {
@@ -427,63 +437,90 @@ public class GeneratedPackWriter {
         }
 
         if (data.waxed() && data.form().hasItem()) {
-            VariantEntry unwaxed = lookup.get(key(new VariantData(data.sourceId(), data.stage(), false, data.form())));
+            VariantEntry unwaxed = lookup.get(key(new VariantData(
+                    data.sourceId(),
+                    data.stage(),
+                    false,
+                    data.form())));
             if (unwaxed != null) {
-                putJson(output, "data/" + entry.blockId().getNamespace() + "/recipe/" + entry.blockId().getPath() + "_from_honeycomb.json",
-                    Map.of("type", "minecraft:crafting_shapeless", "category", "building",
-                        "ingredients", List.of(unwaxed.blockId().toString(), "minecraft:honeycomb"),
-                        "result", Map.of("id", entry.blockId().toString(), "count", 1)));
+                putJson(
+                        output,
+                        "data/" + entry.blockId().getNamespace() + "/recipe/" + entry.blockId().getPath()
+                                + "_from_honeycomb.json",
+                        Map.of(
+                                "type", "minecraft:crafting_shapeless",
+                                "category", "building",
+                                "ingredients", List.of(unwaxed.blockId().toString(), "minecraft:honeycomb"),
+                                "result", Map.of("id", entry.blockId().toString(), "count", 1)));
             }
         }
     }
 
+    @Nullable
     private static Map<String, Object> formRecipe(VariantForm form, String base, String result) {
         return switch (form) {
             case SLAB -> shaped(List.of("###"), Map.of("#", base), result, 6);
             case STAIRS -> shaped(List.of("#  ", "## ", "###"), Map.of("#", base), result, 4);
             case WALL -> shaped(List.of("###", "###"), Map.of("#", base), result, 6);
             case FENCE -> shaped(
-                List.of("#S#", "#S#"),
-                Map.of("#", base, "S", "minecraft:stick"),
-                result, 3);
+                    List.of("#S#", "#S#"),
+                    Map.of("#", base, "S", "minecraft:stick"),
+                    result, 3);
             case FENCE_GATE -> shaped(
-                List.of("S#S", "S#S"),
-                Map.of("#", base, "S", "minecraft:stick"),
-                result, 1);
+                    List.of("S#S", "S#S"),
+                    Map.of("#", base, "S", "minecraft:stick"),
+                    result, 1);
             case BUTTON -> shaped(List.of("#"), Map.of("#", base), result, 1);
             case PRESSURE_PLATE -> shaped(List.of("##"), Map.of("#", base), result, 1);
             case SIGN -> shaped(
-                List.of("###", "###", " S "),
-                Map.of("#", base, "S", "minecraft:stick"),
-                result, 3);
+                    List.of("###", "###", " S "),
+                    Map.of("#", base, "S", "minecraft:stick"),
+                    result, 3);
             default -> null;
         };
     }
 
-    private static Map<String, Object> shaped(List<String> pattern, Map<String, String> ingredients, String result, int count) {
+    private static Map<String, Object> shaped(
+            List<String> pattern,
+            Map<String, String> ingredients,
+            String result,
+            int count
+    ) {
         Map<String, Object> key = new LinkedHashMap<>(ingredients);
         return Map.of(
-            "type", "minecraft:crafting_shaped",
-            "category", "building",
-            "pattern", pattern,
-            "key", key,
-            "result", Map.of("id", result, "count", count));
+                "type", "minecraft:crafting_shaped",
+                "category", "building",
+                "pattern", pattern,
+                "key", key,
+                "result", Map.of("id", result, "count", count));
     }
 
-    private static void writeDataMaps(Map<String, byte[]> output, List<VariantEntry> entries, Map<String, VariantEntry> lookup) {
+    private static void writeDataMaps(
+            Map<String, byte[]> output,
+            List<VariantEntry> entries,
+            Map<String, VariantEntry> lookup
+    ) {
         Map<String, Object> oxidizables = new TreeMap<>();
         Map<String, Object> waxables = new TreeMap<>();
         for (VariantEntry entry : entries) {
             VariantData data = entry.data();
             if (!data.waxed() && data.stage().next() != null) {
-                VariantEntry next = lookup.get(key(new VariantData(data.sourceId(), data.stage().next(), false, data.form())));
+                VariantEntry next = lookup.get(key(new VariantData(
+                        data.sourceId(),
+                        data.stage().next(),
+                        false,
+                        data.form())));
                 if (next != null) {
                     oxidizables.put(entry.blockId().toString(), Map.of("next_oxidation_stage", next.blockId().toString()));
                 }
             }
 
             if (!data.waxed()) {
-                VariantEntry waxed = lookup.get(key(new VariantData(data.sourceId(), data.stage(), true, data.form())));
+                VariantEntry waxed = lookup.get(key(new VariantData(
+                        data.sourceId(),
+                        data.stage(),
+                        true,
+                        data.form())));
                 if (waxed != null) {
                     waxables.put(entry.blockId().toString(), Map.of("waxed", waxed.blockId().toString()));
                 }
@@ -518,7 +555,8 @@ public class GeneratedPackWriter {
                     add(blockTags, "wall_signs", id);
                     add(blockTags, "all_signs", id);
                 }
-                default -> {}
+                default -> {
+                }
             }
         }
 
@@ -532,9 +570,11 @@ public class GeneratedPackWriter {
     }
 
     private static void addBoth(
-        Map<String, LinkedHashSet<String>> blocks,
-        Map<String, LinkedHashSet<String>> items,
-        String tag, String id) {
+            Map<String, LinkedHashSet<String>> blocks,
+            Map<String, LinkedHashSet<String>> items,
+            String tag,
+            String id
+    ) {
         add(blocks, tag, id);
         add(items, tag, id);
     }
@@ -544,30 +584,27 @@ public class GeneratedPackWriter {
     }
 
     private static void tag(
-        Map<String, byte[]> output,
-        String registry,
-        String name,
-        Set<String> values) {
+            Map<String, byte[]> output,
+            String registry,
+            String name,
+            Set<String> values
+    ) {
         putJson(output, "data/minecraft/tags/" + registry + "/" + name + ".json",
                 Map.of("replace", false, "values", values));
     }
 
     private static void writeManifest(Map<String, byte[]> output, List<VariantEntry> entries) {
         putJson(output, "data/" + PatinaPandemonium.MOD_ID + "/patina_manifest.json", Map.of(
-            "entry_count", entries.size(),
-            "generated_count", entries.stream().filter(VariantEntry::generated).count(),
-            "generated", entries.stream()
-                .filter(VariantEntry::generated)
-                .map(entry -> entry.blockId().toString())
-                .toList()));
+                "entry_count", entries.size(),
+                "generated_count", entries.stream().filter(VariantEntry::generated).count(),
+                "generated", entries.stream().filter(VariantEntry::generated)
+                        .map(entry -> entry.blockId().toString()).toList()));
     }
 
     private static String choosePrimaryTexture(Map<String, String> textures, String fallback) {
         for (String preferred : new String[]{"all", "texture", "side", "top", "end", "particle"}) {
             String found = textures.get(preferred);
-            if (found != null) {
-                return found;
-            }
+            if (found != null) return found;
         }
 
         return textures.values().stream().findFirst().orElse(fallback);

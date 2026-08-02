@@ -8,21 +8,13 @@ import net.minecraft.resources.Identifier;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.jarcontents.JarContents;
 import net.neoforged.neoforgespi.language.IModFileInfo;
+import org.jspecify.annotations.Nullable;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -33,7 +25,8 @@ class AssetResolver {
 
     private static final Map<String, Optional<byte[]>> RESOURCE_CACHE = new ConcurrentHashMap<>();
 
-    record ModelInfo(Identifier model, LinkedHashMap<String, Identifier> textures) {}
+    record ModelInfo(@Nullable Identifier model, LinkedHashMap<String, Identifier> textures) {
+    }
 
     static ModelInfo resolve(Identifier blockId) {
         Identifier model = firstModel(blockId);
@@ -54,21 +47,19 @@ class AssetResolver {
     static Identifier primaryTexture(ModelInfo info, Identifier sourceId) {
         for (String preferred : new String[]{"all", "texture", "side", "top", "end", "particle"}) {
             Identifier found = info.textures().get(preferred);
-            if (found != null) {
-                return found;
-            }
+            if (found != null) return found;
         }
 
         return info.textures().values().stream().findFirst()
-            .orElse(Identifier.fromNamespaceAndPath(sourceId.getNamespace(), "block/" + sourceId.getPath()));
+                .orElse(Identifier.fromNamespaceAndPath(sourceId.getNamespace(), "block/" + sourceId.getPath()));
     }
 
-    static byte[] tinted(Identifier texture, int stage) {
+    static byte @Nullable [] tinted(Identifier texture, int stage) {
         BufferedImage image = readAndTint(texture, stage);
         return image == null ? null : png(image);
     }
 
-    static byte[] textureMetadata(Identifier texture) {
+    static byte @Nullable [] textureMetadata(Identifier texture) {
         String path = "assets/" + texture.getNamespace() + "/textures/" + texture.getPath() + ".png.mcmeta";
         return RESOURCE_CACHE.computeIfAbsent(path, AssetResolver::findResource).orElse(null);
     }
@@ -77,7 +68,7 @@ class AssetResolver {
      * Sign render layers require a 64x32 atlas-shaped texture. The source texture is tiled with
      * nearest-neighbour sampling, so the result remains a pure recolour of the source artwork.
      */
-    static byte[] tiledSignTexture(Identifier texture, int stage) {
+    static byte @Nullable [] tiledSignTexture(Identifier texture, int stage) {
         BufferedImage source = readAndTint(texture, stage);
         if (source == null) return null;
         BufferedImage output = new BufferedImage(64, 32, BufferedImage.TYPE_INT_ARGB);
@@ -90,6 +81,7 @@ class AssetResolver {
         return png(output);
     }
 
+    @Nullable
     private static BufferedImage readAndTint(Identifier texture, int stage) {
         String path = "assets/" + texture.getNamespace() + "/textures/" + texture.getPath() + ".png";
         try (InputStream input = open(path)) {
@@ -136,7 +128,7 @@ class AssetResolver {
         }
     }
 
-    private static byte[] png(BufferedImage image) {
+    private static byte @Nullable [] png(BufferedImage image) {
         try {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             ImageIO.write(image, "PNG", output);
@@ -159,14 +151,15 @@ class AssetResolver {
             JsonElement root = JsonParser.parseReader(new InputStreamReader(input, StandardCharsets.UTF_8));
             Identifier found = findModel(root);
             return found == null
-                ? Identifier.fromNamespaceAndPath(blockId.getNamespace(), "block/" + blockId.getPath())
-                : found;
+                    ? Identifier.fromNamespaceAndPath(blockId.getNamespace(), "block/" + blockId.getPath())
+                    : found;
         } catch (Exception ignored) {
             return Identifier.fromNamespaceAndPath(blockId.getNamespace(), "block/" + blockId.getPath());
         }
     }
 
-    private static Identifier findModel(JsonElement element) {
+    @Nullable
+    private static Identifier findModel(@Nullable JsonElement element) {
         if (element == null) return null;
         if (element.isJsonObject()) {
             JsonObject object = element.getAsJsonObject();
@@ -235,12 +228,14 @@ class AssetResolver {
         }
     }
 
+    @Nullable
     private static Identifier override(Identifier blockId) {
         if (PatinaRules.INSTANCE.textureOverrides == null) return null;
         JsonElement value = PatinaRules.INSTANCE.textureOverrides.get(blockId.toString());
         return value != null && value.isJsonPrimitive() ? Identifier.tryParse(value.getAsString()) : null;
     }
 
+    @Nullable
     private static InputStream open(String path) {
         byte[] bytes = RESOURCE_CACHE.computeIfAbsent(path, AssetResolver::findResource).orElse(null);
         return bytes == null ? null : new ByteArrayInputStream(bytes);
@@ -275,7 +270,7 @@ class AssetResolver {
         return Optional.ofNullable(bytes);
     }
 
-    private static byte[] read(IModFileInfo modFile, String path) {
+    private static byte @Nullable [] read(@Nullable IModFileInfo modFile, String path) {
         if (modFile == null) return null;
         JarContents contents = modFile.getFile().getContents();
         try {
@@ -285,7 +280,7 @@ class AssetResolver {
         }
     }
 
-    private static byte[] read(ClassLoader classLoader, String path) {
+    private static byte @Nullable [] read(@Nullable ClassLoader classLoader, String path) {
         if (classLoader == null) return null;
         try (InputStream input = classLoader.getResourceAsStream(path)) {
             return input == null ? null : input.readAllBytes();
