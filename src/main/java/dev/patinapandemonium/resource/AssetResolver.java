@@ -5,40 +5,49 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.patinapandemonium.config.PatinaRules;
 import net.minecraft.resources.Identifier;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.jarcontents.JarContents;
+import net.neoforged.neoforgespi.language.IModFileInfo;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Best-effort reader for vanilla and mod resources already present on the game class path.
- * Custom-loader models can opt into a known source texture through textureOverrides.
+ * Reads packaged assets directly from the installed mod files, including composite development
+ * outputs. The class-loader fallback remains for game resources not represented by a mod file.
  */
 class AssetResolver {
 
-    record ModelInfo(Identifier model, LinkedHashMap<String, Identifier> textures) { }
+    private static final Map<String, Optional<byte[]>> RESOURCE_CACHE = new ConcurrentHashMap<>();
+
+    record ModelInfo(Identifier model, LinkedHashMap<String, Identifier> textures) {}
 
     static ModelInfo resolve(Identifier blockId) {
         Identifier model = firstModel(blockId);
         LinkedHashMap<String, Identifier> textures = new LinkedHashMap<>();
-        if (model != null) {
-            collectModel(model, textures, new HashSet<>());
-        }
-
+        collectModel(model, textures, new HashSet<>());
         Identifier override = override(blockId);
         if (override != null) {
             textures.put("all", override);
         }
+
         if (textures.isEmpty()) {
             textures.put("all", Identifier.fromNamespaceAndPath(blockId.getNamespace(), "block/" + blockId.getPath()));
         }
+
         return new ModelInfo(model, textures);
     }
 
@@ -51,12 +60,17 @@ class AssetResolver {
         }
 
         return info.textures().values().stream().findFirst()
-                .orElse(Identifier.fromNamespaceAndPath(sourceId.getNamespace(), "block/" + sourceId.getPath()));
+            .orElse(Identifier.fromNamespaceAndPath(sourceId.getNamespace(), "block/" + sourceId.getPath()));
     }
 
     static byte[] tinted(Identifier texture, int stage) {
         BufferedImage image = readAndTint(texture, stage);
         return image == null ? null : png(image);
+    }
+
+    static byte[] textureMetadata(Identifier texture) {
+        String path = "assets/" + texture.getNamespace() + "/textures/" + texture.getPath() + ".png.mcmeta";
+        return RESOURCE_CACHE.computeIfAbsent(path, AssetResolver::findResource).orElse(null);
     }
 
     /**
@@ -65,10 +79,7 @@ class AssetResolver {
      */
     static byte[] tiledSignTexture(Identifier texture, int stage) {
         BufferedImage source = readAndTint(texture, stage);
-        if (source == null) {
-            return null;
-        }
-
+        if (source == null) return null;
         BufferedImage output = new BufferedImage(64, 32, BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < output.getHeight(); y++) {
             for (int x = 0; x < output.getWidth(); x++) {
@@ -116,7 +127,6 @@ class AssetResolver {
                         green = (int) (green * 0.45 + 155 * 0.55);
                         blue = (int) (blue * 0.45 + 145 * 0.55);
                     }
-
                     image.setRGB(x, y, alpha << 24 | clamp(red) << 16 | clamp(green) << 8 | clamp(blue));
                 }
             }
@@ -146,20 +156,18 @@ class AssetResolver {
             if (input == null) {
                 return Identifier.fromNamespaceAndPath(blockId.getNamespace(), "block/" + blockId.getPath());
             }
-            JsonElement root = JsonParser.parseReader(new InputStreamReader(input));
+            JsonElement root = JsonParser.parseReader(new InputStreamReader(input, StandardCharsets.UTF_8));
             Identifier found = findModel(root);
             return found == null
-                    ? Identifier.fromNamespaceAndPath(blockId.getNamespace(), "block/" + blockId.getPath())
-                    : found;
+                ? Identifier.fromNamespaceAndPath(blockId.getNamespace(), "block/" + blockId.getPath())
+                : found;
         } catch (Exception ignored) {
             return Identifier.fromNamespaceAndPath(blockId.getNamespace(), "block/" + blockId.getPath());
         }
     }
 
     private static Identifier findModel(JsonElement element) {
-        if (element == null) {
-            return null;
-        }
+        if (element == null) return null;
         if (element.isJsonObject()) {
             JsonObject object = element.getAsJsonObject();
             if (object.has("model") && object.get("model").isJsonPrimitive()) {
@@ -183,19 +191,12 @@ class AssetResolver {
         return null;
     }
 
-    private static void collectModel(
-            Identifier model,
-            LinkedHashMap<String, Identifier> output,
-            Set<Identifier> visited) {
-        if (!visited.add(model)) {
-            return;
-        }
+    private static void collectModel(Identifier model, LinkedHashMap<String, Identifier> output, Set<Identifier> visited) {
+        if (!visited.add(model)) return;
         String path = "assets/" + model.getNamespace() + "/models/" + model.getPath() + ".json";
         try (InputStream input = open(path)) {
-            if (input == null) {
-                return;
-            }
-            JsonObject object = JsonParser.parseReader(new InputStreamReader(input)).getAsJsonObject();
+            if (input == null) return;
+            JsonObject object = JsonParser.parseReader(new InputStreamReader(input, StandardCharsets.UTF_8)).getAsJsonObject();
             if (object.has("parent")) {
                 Identifier parent = Identifier.tryParse(object.get("parent").getAsString());
                 if (parent != null) {
@@ -204,15 +205,30 @@ class AssetResolver {
             }
 
             if (object.has("textures")) {
+                Map<String, String> aliases = new LinkedHashMap<>();
                 for (Map.Entry<String, JsonElement> entry : object.getAsJsonObject("textures").entrySet()) {
                     String value = entry.getValue().getAsString();
-                    if (!value.startsWith("#")) {
-                        Identifier texture = Identifier.tryParse(value);
-                        if (texture != null) {
-                            output.put(entry.getKey(), texture);
-                        }
+                    if (value.startsWith("#")) {
+                        aliases.put(entry.getKey(), value.substring(1));
+                        continue;
+                    }
+                    Identifier texture = Identifier.tryParse(value);
+                    if (texture != null) {
+                        output.put(entry.getKey(), texture);
                     }
                 }
+
+                boolean resolved;
+                do {
+                    resolved = aliases.entrySet().removeIf(entry -> {
+                        Identifier texture = output.get(entry.getValue());
+                        if (texture != null) {
+                            output.put(entry.getKey(), texture);
+                            return true;
+                        }
+                        return false;
+                    });
+                } while (resolved && !aliases.isEmpty());
             }
         } catch (Exception ignored) {
             // A custom model loader can still be handled by textureOverrides.
@@ -226,9 +242,62 @@ class AssetResolver {
     }
 
     private static InputStream open(String path) {
+        byte[] bytes = RESOURCE_CACHE.computeIfAbsent(path, AssetResolver::findResource).orElse(null);
+        return bytes == null ? null : new ByteArrayInputStream(bytes);
+    }
+
+    private static Optional<byte[]> findResource(String path) {
+        ModList modList = ModList.get();
+        if (modList != null) {
+            IModFileInfo preferred = modList.getModFileById(namespace(path));
+            byte[] bytes = read(preferred, path);
+            if (bytes != null) {
+                return Optional.of(bytes);
+            }
+
+            List<IModFileInfo> modFiles = modList.getModFiles();
+            for (IModFileInfo modFile : modFiles) {
+                if (modFile == preferred) {
+                    continue;
+                }
+                bytes = read(modFile, path);
+                if (bytes != null) {
+                    return Optional.of(bytes);
+                }
+            }
+        }
+
         ClassLoader context = Thread.currentThread().getContextClassLoader();
-        InputStream input = context == null ? null : context.getResourceAsStream(path);
-        return input != null ? input : AssetResolver.class.getClassLoader().getResourceAsStream(path);
+        byte[] bytes = read(context, path);
+        if (bytes == null) {
+            bytes = read(AssetResolver.class.getClassLoader(), path);
+        }
+        return Optional.ofNullable(bytes);
+    }
+
+    private static byte[] read(IModFileInfo modFile, String path) {
+        if (modFile == null) return null;
+        JarContents contents = modFile.getFile().getContents();
+        try {
+            return contents.readFile(path);
+        } catch (IOException ignored) {
+            return null;
+        }
+    }
+
+    private static byte[] read(ClassLoader classLoader, String path) {
+        if (classLoader == null) return null;
+        try (InputStream input = classLoader.getResourceAsStream(path)) {
+            return input == null ? null : input.readAllBytes();
+        } catch (IOException ignored) {
+            return null;
+        }
+    }
+
+    private static String namespace(String path) {
+        int namespaceStart = path.indexOf('/') + 1;
+        int namespaceEnd = path.indexOf('/', namespaceStart);
+        return namespaceStart > 0 && namespaceEnd > namespaceStart ? path.substring(namespaceStart, namespaceEnd) : "";
     }
 
 }

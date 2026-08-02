@@ -18,5 +18,9 @@
   "patina_pandemonium.form.button": "按钮",
   "patina_pandemonium.form.pressure_plate": "压力板",
   "patina_pandemonium.form.sign": "告示牌",
-  "patina_pandemonium.form.wall_sign": "墙上告示牌"
+  "patina_pandemonium.form.wall_sign": "墙上告示牌",
+  "resourcePack.patina_pandemonium.generated_client": "锈色狂欢动态客户端资源",
+  "resourcePack.patina_pandemonium.generated_client.description": "为运行时发现的方块生成模型与氧化着色贴图",
+  "resourcePack.patina_pandemonium.generated_server": "锈色狂欢动态服务端数据",
+  "resourcePack.patina_pandemonium.generated_server.description": "为运行时发现的方块生成配方、掉落物、标签与数据映射"
 }
