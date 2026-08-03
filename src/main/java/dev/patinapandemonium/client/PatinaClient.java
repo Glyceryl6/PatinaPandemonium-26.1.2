@@ -21,6 +21,7 @@ import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.Map;
 
 /** Replaces every carrier descriptor with one shared component/model-data aware model wrapper per logical form. */
@@ -48,6 +49,7 @@ public class PatinaClient {
         ModelBakery.BakingResult result = event.getBakingResult();
         Map<BlockState, BlockStateModel> blockModels = result.blockStateModels();
         Map<Identifier, ItemModel> itemModels = result.itemStackModels();
+        Map<Identifier, ItemModel> originalItemModels = new HashMap<>(itemModels);
         BlockStateModel fallbackBlock = blockModels.get(Blocks.STONE.defaultBlockState());
         ItemModel fallbackItem = itemModels.get(BuiltInRegistries.ITEM.getKey(Items.STONE));
         PatinaBlockStateModel.clearCache();
@@ -70,6 +72,12 @@ public class PatinaClient {
             for (BlockState state : block.getStateDefinition().getPossibleStates()) blockModels.put(state, blockModel);
             Item item = block.asItem();
             if (item != Items.AIR) itemModels.put(BuiltInRegistries.ITEM.getKey(item), sharedItemModels.get(form));
+        }
+
+        for (Item item : DynamicVariantRegistry.standaloneVariantItems()) {
+            Identifier id = BuiltInRegistries.ITEM.getKey(item);
+            ItemModel delegate = originalItemModels.get(id);
+            if (delegate != null) itemModels.put(id, new PatinaItemModel(delegate, fallbackBlock));
         }
     }
 

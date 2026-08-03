@@ -48,8 +48,9 @@ public class VariantTagInheritance {
         for (DynamicVariantRegistry.CarrierBinding binding : DynamicVariantRegistry.sourceBindings()) {
             Block sourceBlock = BuiltInRegistries.BLOCK.getValue(binding.sourceId());
             Item source = sourceBlock.asItem();
-            if (source == Items.AIR) continue;
-            collect(BuiltInRegistries.ITEM, source, binding.item(), additions);
+            Item target = binding.item();
+            if (source == Items.AIR || target == null) continue;
+            collect(BuiltInRegistries.ITEM, source, target, additions);
         }
         return apply(BuiltInRegistries.ITEM, additions);
     }
@@ -71,7 +72,9 @@ public class VariantTagInheritance {
             tag.bind(new ArrayList<>(merged));
             memberships += merged.size() - previousSize;
         }
-        if (memberships > 0 && registry instanceof MappedRegistry<?> mappedRegistry) mappedRegistry.refreshTagsInHolders();
+        if (memberships > 0 && registry instanceof MappedRegistry<?> mappedRegistry) {
+            mappedRegistry.refreshTagsInHolders();
+        }
         return memberships;
     }
 

@@ -25,6 +25,8 @@ public class PatinaPandemonium {
         NeoForge.EVENT_BUS.addListener(PatinaCommands::onRegisterCommands);
         NeoForge.EVENT_BUS.addListener(PatinaGameplayEvents::onRightClickBlock);
         NeoForge.EVENT_BUS.addListener(PatinaGameplayEvents::onBlockDrops);
+        NeoForge.EVENT_BUS.addListener(PatinaGameplayEvents::onBlockPlaced);
+        NeoForge.EVENT_BUS.addListener(PatinaGameplayEvents::onItemTooltip);
         NeoForge.EVENT_BUS.addListener(EventPriority.HIGHEST, VariantTagInheritance::onTagsUpdated);
     }
 

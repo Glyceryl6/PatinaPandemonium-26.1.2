@@ -1,0 +1,61 @@
+package dev.patinapandemonium.registry;
+
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
+import org.jspecify.annotations.Nullable;
+
+public record ItemVariantData(Identifier sourceId, OxidationStage stage, boolean waxed, @Nullable DyeColor dyeColor) {
+
+    private static final int NO_DYE = -1;
+    public static final Codec<ItemVariantData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+        Identifier.CODEC.fieldOf("source").forGetter(ItemVariantData::sourceId),
+        Codec.intRange(0, OxidationStage.values().length - 1).fieldOf("stage").forGetter(data -> data.stage().ordinal()),
+        Codec.BOOL.fieldOf("waxed").forGetter(ItemVariantData::waxed),
+        Codec.intRange(NO_DYE, DyeColor.VALUES.size() - 1).fieldOf("dye").forGetter(ItemVariantData::dyeId)
+    ).apply(instance, ItemVariantData::decode));
+
+    public ItemVariantData normalized(Item item) {
+        Item source = BuiltInRegistries.ITEM.getValue(this.sourceId);
+        Identifier sourceId = source == Items.AIR ? BuiltInRegistries.ITEM.getKey(item) : BuiltInRegistries.ITEM.getKey(source);
+        return new ItemVariantData(sourceId, this.stage, this.waxed, this.dyeColor);
+    }
+
+    public VariantData forBlock(Identifier sourceId) {
+        return new VariantData(sourceId, this.stage, this.waxed, VariantForm.FULL, this.dyeColor);
+    }
+
+    public String stageKey() {
+        return "patina_pandemonium.stage." + (this.waxed ? "waxed_" : "") + this.stage.id();
+    }
+
+    public String dyeKey() {
+        return this.dyeColor == null ? "patina_pandemonium.dye.none" : "patina_pandemonium.dye." + this.dyeColor.getSerializedName();
+    }
+
+    public int tint() {
+        int oxidation = 0xFF000000 | this.stage.fallbackColor();
+        return this.dyeColor == null ? oxidation : multiply(oxidation, this.dyeColor.getTextureDiffuseColor());
+    }
+
+    public int dyeId() {
+        return this.dyeColor == null ? NO_DYE : this.dyeColor.getId();
+    }
+
+    private static ItemVariantData decode(Identifier sourceId, int stage, boolean waxed, int dye) {
+        return new ItemVariantData(sourceId, OxidationStage.byOrdinal(stage), waxed, VariantData.dyeById(dye));
+    }
+
+    private static int multiply(int color, int tint) {
+        int alpha = color >>> 24;
+        int red = ((color >>> 16) & 0xFF) * ((tint >>> 16) & 0xFF) / 0xFF;
+        int green = ((color >>> 8) & 0xFF) * ((tint >>> 8) & 0xFF) / 0xFF;
+        int blue = (color & 0xFF) * (tint & 0xFF) / 0xFF;
+        return alpha << 24 | red << 16 | green << 8 | blue;
+    }
+
+}

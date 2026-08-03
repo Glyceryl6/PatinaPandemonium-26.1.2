@@ -2,6 +2,7 @@ package dev.patinapandemonium.client;
 
 import dev.patinapandemonium.config.PatinaRules;
 import dev.patinapandemonium.registry.DynamicVariantRegistry;
+import dev.patinapandemonium.registry.ItemVariantData;
 import dev.patinapandemonium.registry.VariantData;
 import dev.patinapandemonium.registry.VariantForm;
 import it.unimi.dsi.fastutil.ints.IntList;
@@ -47,6 +48,7 @@ public class PatinaItemModel implements ItemModel {
     private final VariantForm form;
     private final ItemModel fallback;
     private final BlockStateModel fallbackBlock;
+    private final @Nullable ItemModel standalone;
 
     public PatinaItemModel(Map<BlockState, BlockStateModel> blockModels, Map<Identifier, ItemModel> itemModels,
                            Block template, VariantForm form, ItemModel fallback, BlockStateModel fallbackBlock) {
@@ -56,6 +58,17 @@ public class PatinaItemModel implements ItemModel {
         this.form = form;
         this.fallback = fallback;
         this.fallbackBlock = fallbackBlock;
+        this.standalone = null;
+    }
+
+    public PatinaItemModel(ItemModel standalone, BlockStateModel fallbackBlock) {
+        this.blockModels = Map.of();
+        this.itemModels = Map.of();
+        this.template = Blocks.STONE;
+        this.form = VariantForm.FULL;
+        this.fallback = standalone;
+        this.fallbackBlock = fallbackBlock;
+        this.standalone = standalone;
     }
 
     public static void clearCache() {
@@ -67,13 +80,20 @@ public class PatinaItemModel implements ItemModel {
     @Override
     public void update(ItemStackRenderState renderState, ItemStack stack, ItemModelResolver resolver, ItemDisplayContext displayContext,
                        @Nullable ClientLevel level, @Nullable ItemOwner owner, int seed) {
-        RenderContext context = this.context(DynamicVariantRegistry.data(stack, this.form));
-        ItemModel delegate = this.itemDelegate(context.source());
+        ItemVariantData itemData = DynamicVariantRegistry.itemData(stack);
+        if (this.standalone != null && itemData == null) {
+            this.standalone.update(renderState, stack, resolver, displayContext, level, owner, seed);
+            return;
+        }
+        RenderContext context = this.standalone == null
+            ? this.context(DynamicVariantRegistry.data(stack, this.form))
+            : this.context(itemData);
+        ItemModel delegate = this.standalone == null ? this.itemDelegate(context.source()) : this.standalone;
         renderState.appendModelIdentityElement(this);
         renderState.appendModelIdentityElement(context);
         TransformingRenderState transformed = new TransformingRenderState(renderState, context);
         delegate.update(transformed, stack, resolver, displayContext, level, owner, seed);
-        if (transformed.usesSpecialModel() && delegate != this.fallback) {
+        if (this.standalone == null && transformed.usesSpecialModel() && delegate != this.fallback) {
             renderState.clear();
             renderState.appendModelIdentityElement(this);
             renderState.appendModelIdentityElement(context);
@@ -89,6 +109,10 @@ public class PatinaItemModel implements ItemModel {
         List<Integer> sourceTints = Minecraft.getInstance().getBlockColors().getTintSources(sourceState)
                 .stream().map(tint -> tint.color(sourceState)).toList();
         return new RenderContext(source, sourceModel.particleMaterial(), data.tint(), sourceTints);
+    }
+
+    private RenderContext context(ItemVariantData data) {
+        return new RenderContext(Blocks.AIR, this.fallbackBlock.particleMaterial(), data.tint(), List.of());
     }
 
     private ItemModel itemDelegate(Block source) {
