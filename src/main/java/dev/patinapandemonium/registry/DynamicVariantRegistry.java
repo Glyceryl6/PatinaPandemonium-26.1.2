@@ -24,8 +24,9 @@ import net.minecraft.world.item.Items;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.entity.BlockEntityType;
-import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredBlock;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -187,7 +188,7 @@ public class DynamicVariantRegistry {
         if (normalized.form() == VariantForm.FULL && normalized.stage() == OxidationStage.FRESH
             && !normalized.waxed() && normalized.dyeColor() == null) {
             Block source = BuiltInRegistries.BLOCK.getValue(normalized.sourceId());
-            if (source != Blocks.AIR && source.asItem() != Items.AIR) {
+            if (source != null && source != Blocks.AIR && source.asItem() != Items.AIR) {
                 return new ItemStack(source, Math.max(1, count));
             }
         }
@@ -219,6 +220,11 @@ public class DynamicVariantRegistry {
             LOGGER.info(
                 "Patina Pandemonium exposes {} logical variants from {} full-block sources through {} carriers and {} carrier states",
                 variants, sourceIds.size(), generated().size(), states);
+            if (rules.maximumCreativeTabItems > 0 || rules.maximumCreativePreviewSources > 0) {
+                LOGGER.warn(
+                    "Creative tab previews are limited to {} items and {} source blocks; set both values to 0 in the rules file to display every source",
+                    rules.maximumCreativeTabItems, rules.maximumCreativePreviewSources);
+            }
             return sourceIds;
         }
     }
@@ -261,7 +267,10 @@ public class DynamicVariantRegistry {
     }
 
     private static DeferredItem<GeneratedBlockItem> carrierItem(String name, Supplier<? extends Block> block, VariantForm form) {
-        return ITEMS.registerItem(name, properties -> new GeneratedBlockItem(block.get(), form, properties), Item.Properties::useBlockDescriptionPrefix);
+        return ITEMS.registerItem(
+            name,
+            properties -> new GeneratedBlockItem(block.get(), form, properties),
+            properties -> properties.useBlockDescriptionPrefix());
     }
 
     private static Map<VariantForm, Supplier<? extends Block>> carriers() {
@@ -322,7 +331,7 @@ public class DynamicVariantRegistry {
 
     private static boolean requiresNonOccludingCarrier(Identifier sourceId) {
         Block source = BuiltInRegistries.BLOCK.getValue(sourceId);
-        return source != Blocks.AIR && !source.defaultBlockState().canOcclude();
+        return source != null && source != Blocks.AIR && !source.defaultBlockState().canOcclude();
     }
 
 }

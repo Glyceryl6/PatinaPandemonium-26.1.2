@@ -22,7 +22,7 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 8;
+    public int schemaVersion = 9;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
     public int maximumCreativeTabItems = 0;
@@ -41,11 +41,27 @@ public class PatinaRules {
     private static PatinaRules load() {
         try {
             Files.createDirectories(FILE.getParent());
-            PatinaRules rules = Files.exists(FILE)
-                ? GSON.fromJson(JsonParser.parseString(Files.readString(FILE)), PatinaRules.class)
-                : new PatinaRules();
+            JsonObject source = Files.exists(FILE)
+                ? JsonParser.parseString(Files.readString(FILE)).getAsJsonObject()
+                : new JsonObject();
+            PatinaRules rules = GSON.fromJson(source, PatinaRules.class);
             if (rules == null) rules = new PatinaRules();
-            rules.schemaVersion = 8;
+            int previousSchema = source.has("schemaVersion") ? source.get("schemaVersion").getAsInt() : 0;
+            if (previousSchema < 9) {
+                int legacyMaximumCreativeTabItems = 4_096;
+                int legacyMaximumCreativePreviewSources = 256;
+                if (source.has("maximumCreativeTabItems")
+                    && source.get("maximumCreativeTabItems").getAsInt() == legacyMaximumCreativeTabItems) {
+                    rules.maximumCreativeTabItems = 0;
+                }
+
+                if (source.has("maximumCreativePreviewSources")
+                    && source.get("maximumCreativePreviewSources").getAsInt() == legacyMaximumCreativePreviewSources) {
+                    rules.maximumCreativePreviewSources = 0;
+                }
+            }
+
+            rules.schemaVersion = 9;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
             if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
             if (rules.textureOverrides == null) rules.textureOverrides = new JsonObject();
@@ -54,7 +70,7 @@ public class PatinaRules {
             rules.maximumCreativePreviewSources = Math.max(0, rules.maximumCreativePreviewSources);
             rules.maximumCachedModelParts = Math.max(0, rules.maximumCachedModelParts);
             rules.maximumCachedItemQuads = Math.max(0, rules.maximumCachedItemQuads);
-            rules.oxidationAttemptChance = Math.max(0.0D, Math.min(1.0D, rules.oxidationAttemptChance));
+            rules.oxidationAttemptChance = Math.clamp(rules.oxidationAttemptChance, 0.0D, 1.0D);
             Files.writeString(FILE, GSON.toJson(rules));
             return rules;
         } catch (IOException | RuntimeException error) {
@@ -62,4 +78,5 @@ public class PatinaRules {
             return new PatinaRules();
         }
     }
+
 }
