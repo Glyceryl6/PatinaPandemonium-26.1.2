@@ -22,16 +22,19 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 3;
+    public int schemaVersion = 5;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
-    public int maximumGeneratedBlocks = 200_000;
-    public int maximumGeneratedBlockStates = 1_000_000;
-    public boolean memoryAwareBlockStateLimit = true;
+    public int warningGeneratedBlocks = 200_000;
+    public int warningGeneratedBlockStates = 5_000_000;
+    public boolean memoryAwareRegistrationWarning = true;
     public int estimatedBytesPerGeneratedBlock = 16_384;
     public int estimatedBytesPerGeneratedBlockState = 4_096;
-    public double maximumGeneratedHeapFraction = 0.35D;
-    public double dyedVariantBudgetFraction = 0.65D;
+    public double warningGeneratedHeapFraction = 0.60D;
+    public boolean abortWhenRegistrationEstimateExceedsWarnings = false;
+    public boolean registerEverySupportedVariant = true;
+    public boolean enableOptionalRunDataExport = false;
+    public int maximumCreativeTabItems = 0;
     public int maximumCachedModelParts = 512;
     public int maximumCachedItemQuads = 2_048;
     public boolean dyedVariants = true;
@@ -48,7 +51,7 @@ public class PatinaRules {
 
     public boolean namespaceAllowed(String namespace) {
         return !namespace.equals(PatinaPandemonium.MOD_ID)
-            && (excludedNamespaces == null || !excludedNamespaces.contains(namespace));
+            && (this.excludedNamespaces == null || !this.excludedNamespaces.contains(namespace));
     }
 
     private static PatinaRules load() {
@@ -59,11 +62,40 @@ public class PatinaRules {
                 PatinaRules loaded = GSON.fromJson(source, PatinaRules.class);
                 PatinaRules rules = loaded == null ? new PatinaRules() : loaded;
                 PatinaRules defaults = new PatinaRules();
-                if (!source.has("schemaVersion") && !source.has("estimatedBytesPerGeneratedBlock")) {
-                    if (rules.maximumGeneratedBlockStates == 250_000) rules.maximumGeneratedBlockStates = 1_000_000;
-                    if (rules.estimatedBytesPerGeneratedBlockState == 32_768) rules.estimatedBytesPerGeneratedBlockState = 4_096;
+                if (!source.has("warningGeneratedBlocks")) {
+                    rules.warningGeneratedBlocks = source.has("maximumGeneratedBlocks")
+                        ? Math.max(0, source.get("maximumGeneratedBlocks").getAsInt())
+                        : defaults.warningGeneratedBlocks;
                 }
-                if (!source.has("dyedVariantBudgetFraction")) rules.dyedVariantBudgetFraction = defaults.dyedVariantBudgetFraction;
+                if (!source.has("warningGeneratedBlockStates")) {
+                    rules.warningGeneratedBlockStates = source.has("maximumGeneratedBlockStates")
+                        ? Math.max(0, source.get("maximumGeneratedBlockStates").getAsInt())
+                        : defaults.warningGeneratedBlockStates;
+                }
+                if (!source.has("memoryAwareRegistrationWarning")) {
+                    rules.memoryAwareRegistrationWarning = !source.has("memoryAwareBlockStateLimit")
+                        || source.get("memoryAwareBlockStateLimit").getAsBoolean();
+                }
+                if (!source.has("warningGeneratedHeapFraction")) {
+                    rules.warningGeneratedHeapFraction = source.has("maximumGeneratedHeapFraction")
+                        ? source.get("maximumGeneratedHeapFraction").getAsDouble()
+                        : defaults.warningGeneratedHeapFraction;
+                }
+                if (!source.has("abortWhenRegistrationEstimateExceedsWarnings")) {
+                    rules.abortWhenRegistrationEstimateExceedsWarnings = defaults.abortWhenRegistrationEstimateExceedsWarnings;
+                }
+                if (!source.has("registerEverySupportedVariant")) {
+                    rules.registerEverySupportedVariant = defaults.registerEverySupportedVariant;
+                }
+                if (!source.has("enableOptionalRunDataExport")) {
+                    rules.enableOptionalRunDataExport = defaults.enableOptionalRunDataExport;
+                }
+                if (!source.has("maximumCreativeTabItems")) {
+                    rules.maximumCreativeTabItems = defaults.maximumCreativeTabItems;
+                }
+                if (!source.has("schemaVersion") && rules.estimatedBytesPerGeneratedBlockState == 32_768) {
+                    rules.estimatedBytesPerGeneratedBlockState = defaults.estimatedBytesPerGeneratedBlockState;
+                }
                 rules.schemaVersion = defaults.schemaVersion;
                 Files.writeString(FILE, GSON.toJson(rules));
                 return rules;

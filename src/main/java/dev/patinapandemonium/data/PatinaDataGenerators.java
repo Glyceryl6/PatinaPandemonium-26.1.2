@@ -1,6 +1,7 @@
 package dev.patinapandemonium.data;
 
 import dev.patinapandemonium.PatinaPandemonium;
+import dev.patinapandemonium.config.PatinaRules;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.data.event.GatherDataEvent;
@@ -14,7 +15,7 @@ public class PatinaDataGenerators {
 
     @SubscribeEvent
     public static void server(GatherDataEvent.Server event) {
-        event.createProvider(PatinaRecipeProvider::new);
+        if (PatinaRules.INSTANCE.enableOptionalRunDataExport) event.createProvider(PatinaRecipeProvider::new);
     }
 
 }

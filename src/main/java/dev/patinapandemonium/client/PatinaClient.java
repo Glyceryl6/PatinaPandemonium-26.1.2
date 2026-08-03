@@ -1,8 +1,9 @@
 package dev.patinapandemonium.client;
 
 import dev.patinapandemonium.PatinaPandemonium;
+import dev.patinapandemonium.block.PatinaOxidizable;
 import dev.patinapandemonium.registry.DynamicVariantRegistry;
-import dev.patinapandemonium.registry.VariantEntry;
+import dev.patinapandemonium.registry.VariantData;
 import dev.patinapandemonium.registry.VariantForm;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.item.ItemModel;
@@ -43,50 +44,56 @@ public class PatinaClient {
         ModelBakery.BakingResult result = event.getBakingResult();
         Map<BlockState, BlockStateModel> blockModels = result.blockStateModels();
         Map<Identifier, ItemModel> itemModels = result.itemStackModels();
-        Map<ModelKey, PatinaBlockStateModel> generatedBlockModels = new HashMap<>();
-        Map<ModelKey, PatinaItemModel> generatedItemModels = new HashMap<>();
+        Map<ModelKey, GeneratedModels> generatedModels = new HashMap<>();
         BlockStateModel fallbackBlock = blockModels.get(Blocks.STONE.defaultBlockState());
         ItemModel fallbackItem = itemModels.get(BuiltInRegistries.ITEM.getKey(Items.STONE));
         PatinaBlockStateModel.clearCache();
         PatinaItemModel.clearCache();
         if (fallbackBlock == null || fallbackItem == null) return;
 
-        for (VariantEntry entry : DynamicVariantRegistry.generated()) {
-            Block template = TEMPLATES.get(entry.data().form());
-            BlockStateModel sourceModel = blockModels.getOrDefault(entry.source().defaultBlockState(), fallbackBlock);
+        for (Block block : DynamicVariantRegistry.generated()) {
+            VariantData data = ((PatinaOxidizable) block).patinaData();
+            Block source = BuiltInRegistries.BLOCK.getValue(data.sourceId());
+            if (source == Blocks.AIR) source = Blocks.STONE;
+            Block template = TEMPLATES.get(data.form());
+            BlockStateModel sourceModel = blockModels.getOrDefault(source.defaultBlockState(), fallbackBlock);
             BlockStateModel templateModel = blockModels.getOrDefault(template.defaultBlockState(), fallbackBlock);
             Material.Baked sourceMaterial = sourceModel.particleMaterial();
-            int tint = entry.data().tint();
-            ModelKey key = new ModelKey(entry.source(), entry.data().form(), tint);
-            PatinaBlockStateModel blockModel = generatedBlockModels.computeIfAbsent(key, ignored -> new PatinaBlockStateModel(
-                blockModels,
-                entry.source(),
-                template,
-                entry.data().form(),
-                entry.data().form() == VariantForm.FULL ? sourceModel : templateModel,
-                sourceMaterial,
-                tint));
+            int tint = data.tint();
+            ModelKey key = new ModelKey(source, data.form(), tint);
+            Block modelSource = source;
+            GeneratedModels models = generatedModels.computeIfAbsent(key, ignored -> new GeneratedModels(
+                new PatinaBlockStateModel(
+                    blockModels,
+                    modelSource,
+                    template,
+                    data.form(),
+                    data.form() == VariantForm.FULL ? sourceModel : templateModel,
+                    sourceMaterial,
+                    tint),
+                new PatinaItemModel(
+                    itemDelegate(itemModels, modelSource, data.form(), template, fallbackItem),
+                    fallbackItem,
+                    data.form(),
+                    sourceMaterial,
+                    tint)));
 
-            for (BlockState state : entry.block().getStateDefinition().getPossibleStates()) {
-                blockModels.put(state, blockModel);
+            for (BlockState state : block.getStateDefinition().getPossibleStates()) {
+                blockModels.put(state, models.block());
             }
-
-            ItemModel delegate = itemDelegate(itemModels, entry, template, fallbackItem);
-            if (delegate != null) {
-                PatinaItemModel itemModel = generatedItemModels.computeIfAbsent(key,
-                    ignored -> new PatinaItemModel(delegate, fallbackItem, entry.data().form(), sourceMaterial, tint));
-                itemModels.put(entry.blockId(), itemModel);
-            }
+            itemModels.put(BuiltInRegistries.BLOCK.getKey(block), models.item());
         }
     }
 
-    private static ItemModel itemDelegate(Map<Identifier, ItemModel> itemModels, VariantEntry entry, Block template, ItemModel fallback) {
-        Item item = entry.data().form() == VariantForm.FULL ? entry.source().asItem() : template.asItem();
+    private static ItemModel itemDelegate(Map<Identifier, ItemModel> itemModels, Block source, VariantForm form, Block template, ItemModel fallback) {
+        Item item = form == VariantForm.FULL ? source.asItem() : template.asItem();
         if (item == Items.AIR) item = template.asItem();
         if (item == Items.AIR) item = Items.STONE;
         return itemModels.getOrDefault(BuiltInRegistries.ITEM.getKey(item), fallback);
     }
 
     private record ModelKey(Block source, VariantForm form, int tint) {}
+
+    private record GeneratedModels(PatinaBlockStateModel block, PatinaItemModel item) {}
 
 }

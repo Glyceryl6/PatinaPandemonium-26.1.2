@@ -4,9 +4,11 @@ import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
 import com.mojang.serialization.JsonOps;
 import dev.patinapandemonium.PatinaPandemonium;
-import dev.patinapandemonium.registry.VariantEntry;
+import dev.patinapandemonium.block.PatinaOxidizable;
+import dev.patinapandemonium.registry.VariantData;
 import dev.patinapandemonium.registry.VariantForm;
 import net.minecraft.SharedConstants;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.PackLocationInfo;
@@ -21,6 +23,7 @@ import net.minecraft.server.packs.repository.PackSource;
 import net.minecraft.server.packs.resources.IoSupplier;
 import net.minecraft.util.GsonHelper;
 import net.minecraft.util.InclusiveRange;
+import net.minecraft.world.level.block.Block;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.event.AddPackFindersEvent;
 import org.jspecify.annotations.Nullable;
@@ -33,7 +36,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.EnumMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,8 +44,8 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Supplies shared client discovery descriptors and compact runtime block/item tags for connection
- * behavior and cross-mod form discovery. Baked geometry remains flyweight and is installed by the client hook.
+ * Supplies shared client discovery descriptors and streams runtime tags without retaining one large
+ * JSON byte array per tag. Baked geometry remains flyweight and is installed by the client hook.
  */
 public class RuntimePack {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -57,11 +60,9 @@ public class RuntimePack {
         .getBytes(StandardCharsets.UTF_8);
     private static final byte[] ITEM_DESCRIPTOR = "{\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:block/stone\"}}"
         .getBytes(StandardCharsets.UTF_8);
-    private static final Map<VariantForm, List<Identifier>> BLOCK_TAGS = new EnumMap<>(VariantForm.class);
-    private static final Map<VariantForm, List<Identifier>> ITEM_TAGS = new EnumMap<>(VariantForm.class);
+    private static final Map<Identifier, VariantForm> SERVER_TAGS = new LinkedHashMap<>();
     private static final Set<String> SERVER_NAMESPACES = Set.of(MINECRAFT_NAMESPACE, "c");
-    private static volatile List<VariantEntry> entries = List.of();
-    private static volatile Map<Identifier, byte[]> serverResources = Map.of();
+    private static volatile List<Block> entries = List.of();
 
     static {
         addCommonTag(VariantForm.SLAB, "slabs");
@@ -76,7 +77,6 @@ public class RuntimePack {
 
     public static synchronized void bootstrap() {
         RuntimePack.entries = List.of();
-        RuntimePack.serverResources = Map.of();
         Path legacyDirectory = FMLPaths.CONFIGDIR.get().resolve(PatinaPandemonium.MOD_ID);
         for (String fileName : LEGACY_PACKS) {
             try {
@@ -87,44 +87,22 @@ public class RuntimePack {
         }
     }
 
-    public static synchronized void updateEntries(List<VariantEntry> updatedEntries) {
+    public static synchronized void updateEntries(List<Block> updatedEntries) {
         RuntimePack.entries = Collections.unmodifiableList(updatedEntries);
-        Map<Identifier, StringBuilder> tags = new LinkedHashMap<>();
-        for (VariantEntry entry : updatedEntries) {
-            appendTags(tags, BLOCK_TAG_DIRECTORY, BLOCK_TAGS.get(entry.data().form()), entry.blockId());
-            appendTags(tags, ITEM_TAG_DIRECTORY, ITEM_TAGS.get(entry.data().form()), entry.blockId());
-        }
-
-        Map<Identifier, byte[]> resources = new LinkedHashMap<>();
-        for (Map.Entry<Identifier, StringBuilder> tag : tags.entrySet()) {
-            resources.put(tag.getKey(), tag.getValue().append("]}").toString().getBytes(StandardCharsets.UTF_8));
-        }
-        RuntimePack.serverResources = Collections.unmodifiableMap(resources);
     }
 
     private static void addCommonTag(VariantForm form, String path) {
-        List<Identifier> tags = List.of(Identifier.fromNamespaceAndPath("c", path));
-        BLOCK_TAGS.put(form, tags);
-        ITEM_TAGS.put(form, tags);
+        addTag(form, Identifier.fromNamespaceAndPath("c", path));
     }
 
     private static void addTags(VariantForm form, String minecraftPath, String commonPath) {
-        List<Identifier> tags = List.of(
-            Identifier.fromNamespaceAndPath(MINECRAFT_NAMESPACE, minecraftPath),
-            Identifier.fromNamespaceAndPath("c", commonPath));
-        BLOCK_TAGS.put(form, tags);
-        ITEM_TAGS.put(form, tags);
+        addTag(form, Identifier.fromNamespaceAndPath(MINECRAFT_NAMESPACE, minecraftPath));
+        addTag(form, Identifier.fromNamespaceAndPath("c", commonPath));
     }
 
-    private static void appendTags(Map<Identifier, StringBuilder> output, String directory,
-                                   @Nullable List<Identifier> tags, Identifier value) {
-        if (tags == null) return;
-        for (Identifier tag : tags) {
-            Identifier resource = Identifier.fromNamespaceAndPath(tag.getNamespace(), directory + tag.getPath() + JSON_EXTENSION);
-            StringBuilder values = output.computeIfAbsent(resource, ignored -> new StringBuilder("{\"replace\":false,\"values\":["));
-            if (values.charAt(values.length() - 1) != '[') values.append(',');
-            values.append('\"').append(value).append('\"');
-        }
+    private static void addTag(VariantForm form, Identifier tag) {
+        SERVER_TAGS.put(Identifier.fromNamespaceAndPath(tag.getNamespace(), BLOCK_TAG_DIRECTORY + tag.getPath() + JSON_EXTENSION), form);
+        SERVER_TAGS.put(Identifier.fromNamespaceAndPath(tag.getNamespace(), ITEM_TAG_DIRECTORY + tag.getPath() + JSON_EXTENSION), form);
     }
 
     public static void onAddPackFinders(AddPackFindersEvent event) {
@@ -177,8 +155,8 @@ public class RuntimePack {
         public IoSupplier<InputStream> getResource(PackType packType, Identifier id) {
             if (packType != this.packType) return null;
             if (packType == PackType.SERVER_DATA) {
-                byte[] data = RuntimePack.serverResources.get(id);
-                return data == null ? null : () -> new ByteArrayInputStream(data);
+                VariantForm form = SERVER_TAGS.get(id);
+                return form == null ? null : () -> new TagInputStream(RuntimePack.entries.iterator(), form);
             }
             if (!id.getNamespace().equals(PatinaPandemonium.MOD_ID)) return null;
             String path = id.getPath();
@@ -192,18 +170,19 @@ public class RuntimePack {
             if (packType != this.packType) return;
             String prefix = startingPath.isEmpty() || startingPath.endsWith("/") ? startingPath : startingPath + "/";
             if (packType == PackType.SERVER_DATA) {
-                for (Map.Entry<Identifier, byte[]> resource : RuntimePack.serverResources.entrySet()) {
+                for (Map.Entry<Identifier, VariantForm> resource : SERVER_TAGS.entrySet()) {
                     if (resource.getKey().getNamespace().equals(namespace) && resource.getKey().getPath().startsWith(prefix)) {
-                        output.accept(resource.getKey(), () -> new ByteArrayInputStream(resource.getValue()));
+                        output.accept(resource.getKey(), () -> new TagInputStream(RuntimePack.entries.iterator(), resource.getValue()));
                     }
                 }
                 return;
             }
             if (!namespace.equals(PatinaPandemonium.MOD_ID)) return;
-            for (VariantEntry entry : RuntimePack.entries) {
-                Identifier blockState = PatinaPandemonium.id(BLOCKSTATE_DIRECTORY + entry.blockId().getPath() + JSON_EXTENSION);
+            for (Block block : RuntimePack.entries) {
+                Identifier blockId = BuiltInRegistries.BLOCK.getKey(block);
+                Identifier blockState = PatinaPandemonium.id(BLOCKSTATE_DIRECTORY + blockId.getPath() + JSON_EXTENSION);
                 if (blockState.getPath().startsWith(prefix)) output.accept(blockState, () -> new ByteArrayInputStream(BLOCKSTATE_DESCRIPTOR));
-                Identifier item = PatinaPandemonium.id(ITEM_DIRECTORY + entry.blockId().getPath() + JSON_EXTENSION);
+                Identifier item = PatinaPandemonium.id(ITEM_DIRECTORY + blockId.getPath() + JSON_EXTENSION);
                 if (item.getPath().startsWith(prefix)) output.accept(item, () -> new ByteArrayInputStream(ITEM_DESCRIPTOR));
             }
         }
@@ -229,4 +208,64 @@ public class RuntimePack {
         @Override
         public void close() {}
     }
+
+    private static class TagInputStream extends InputStream {
+
+        private static final byte[] PREFIX = "{\"replace\":false,\"values\":[".getBytes(StandardCharsets.UTF_8);
+        private static final byte[] SUFFIX = "]}".getBytes(StandardCharsets.UTF_8);
+        private final Iterator<Block> entries;
+        private final VariantForm form;
+        private byte[] chunk = PREFIX;
+        private int offset;
+        private boolean first = true;
+        private boolean suffixWritten;
+
+        private TagInputStream(Iterator<Block> entries, VariantForm form) {
+            this.entries = entries;
+            this.form = form;
+        }
+
+        @Override
+        public int read() {
+            while (this.chunk != null && this.offset >= this.chunk.length) this.advance();
+            return this.chunk == null ? -1 : this.chunk[this.offset++] & 0xFF;
+        }
+
+        @Override
+        public int read(byte[] output, int outputOffset, int length) {
+            if (length == 0) return 0;
+            int written = 0;
+            while (written < length) {
+                while (this.chunk != null && this.offset >= this.chunk.length) this.advance();
+                if (this.chunk == null) break;
+                int count = Math.min(length - written, this.chunk.length - this.offset);
+                System.arraycopy(this.chunk, this.offset, output, outputOffset + written, count);
+                this.offset += count;
+                written += count;
+            }
+            return written == 0 ? -1 : written;
+        }
+
+        private void advance() {
+            while (this.entries.hasNext()) {
+                Block block = this.entries.next();
+                VariantData data = ((PatinaOxidizable) block).patinaData();
+                if (data.form() != this.form) continue;
+                String value = (this.first ? "\"" : ",\"") + BuiltInRegistries.BLOCK.getKey(block) + "\"";
+                this.first = false;
+                this.chunk = value.getBytes(StandardCharsets.UTF_8);
+                this.offset = 0;
+                return;
+            }
+            if (!this.suffixWritten) {
+                this.suffixWritten = true;
+                this.chunk = SUFFIX;
+                this.offset = 0;
+                return;
+            }
+            this.chunk = null;
+            this.offset = 0;
+        }
+    }
+
 }

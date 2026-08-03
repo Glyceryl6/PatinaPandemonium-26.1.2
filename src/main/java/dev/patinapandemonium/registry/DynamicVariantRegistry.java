@@ -8,6 +8,7 @@ import dev.patinapandemonium.config.PatinaRules;
 import dev.patinapandemonium.item.GeneratedBlockItem;
 import dev.patinapandemonium.resource.RuntimePack;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
@@ -28,215 +29,163 @@ import net.minecraft.world.level.block.StairBlock;
 import net.minecraft.world.level.block.TrapDoorBlock;
 import net.minecraft.world.level.block.WallBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.data.loading.DatagenModLoader;
 import net.neoforged.neoforge.registries.RegisterEvent;
+import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 public class DynamicVariantRegistry {
 
     private static final Logger LOGGER = LogUtils.getLogger();
-    private static final List<VariantEntry> ENTRIES = new ArrayList<>();
-    private static final List<VariantEntry> GENERATED = new ArrayList<>();
+    private static final ArrayList<VariantEntry> ENTRIES = new ArrayList<>();
+    private static final ArrayList<Block> GENERATED = new ArrayList<>();
     private static final List<VariantForm> FORMS = List.of(VariantForm.values());
     private static final List<OxidationStage> STAGES = List.of(OxidationStage.values());
     private static final List<Boolean> WAX_STATES = List.of(false, true);
-    private static boolean blocksDone;
+    private static boolean registrationDone;
     private static long generatedBlockStates;
-    private static long plannedBlocks;
-    private static long plannedBlockStates;
-    private static long plannedBytes;
-    private static int limitedLanes;
 
     public static List<VariantEntry> entries() {
         return Collections.unmodifiableList(ENTRIES);
     }
 
-    public static List<VariantEntry> generated() {
+    public static List<Block> generated() {
         return Collections.unmodifiableList(GENERATED);
     }
 
     public static void onRegister(RegisterEvent event) {
-        if (event.getRegistryKey().equals(Registries.BLOCK)) {
-            registerBlocks(event);
-        } else if (event.getRegistryKey().equals(Registries.ITEM)) {
-            registerItems(event);
+        if (!event.getRegistryKey().equals(Registries.ITEM)) return;
+        PatinaRules rules = PatinaRules.INSTANCE;
+        if (DatagenModLoader.isRunningDataGen() && !rules.enableOptionalRunDataExport) {
+            registrationDone = true;
+            LOGGER.info("Patina Pandemonium skipped runtime variant registration during runData because enableOptionalRunDataExport is false");
+            return;
         }
+        registerAllVariants(event, rules);
     }
 
-    private static void registerBlocks(RegisterEvent event) {
-        if (blocksDone) return;
-        blocksDone = true;
+    /**
+     * NeoForge 26.1 keeps builtin registries writable until every registry event has completed. Waiting
+     * for the item event gives every mod a chance to finish registering its blocks and construction forms
+     * before this compatibility pass snapshots the block registry.
+     */
+    private static void registerAllVariants(RegisterEvent event, PatinaRules rules) {
+        if (registrationDone) return;
+        registrationDone = true;
         ENTRIES.clear();
         GENERATED.clear();
         generatedBlockStates = 0;
-        plannedBlocks = 0;
-        plannedBlockStates = 0;
-        plannedBytes = 0;
-        limitedLanes = 0;
 
-        PatinaRules rules = PatinaRules.INSTANCE;
-        List<SourceRef> sources = balanceSources(BuiltInRegistries.BLOCK.entrySet().stream()
+        List<SourceRef> sources = BuiltInRegistries.BLOCK.entrySet().stream()
             .filter(entry -> isSource(entry.getKey().identifier(), entry.getValue(), rules))
             .map(entry -> new SourceRef(
                 entry.getKey().identifier(),
                 entry.getValue(),
                 candidateStems(entry.getKey().identifier().getPath()),
                 isCompletePaletteSource(entry.getKey().identifier())))
-            .toList());
-        Limits limits = new Limits(
-            Math.max(0L, rules.maximumGeneratedBlocks),
-            Math.max(0L, rules.maximumGeneratedBlockStates),
-            memoryBudget(rules));
-        Map<SourceRef, BitSet> plans = new LinkedHashMap<>();
-        sources.forEach(source -> plans.put(source, new BitSet(FORMS.size() * (DyeColor.VALUES.size() + 1))));
+            .toList();
+        List<VariantForm> enabledForms = FORMS.stream()
+            .filter(form -> form == VariantForm.FULL || rules.registerEverySupportedVariant || form.enabled(rules))
+            .toList();
+        RegistrationEstimate upperBound = estimateUpperBound(sources, enabledForms, rules);
+        checkRegistrationEstimate(upperBound, rules);
 
-        // Select complete shape bundles so expensive wall states cannot starve later forms in the same family.
-        List<VariantForm> enabledForms = FORMS.stream().filter(form -> form == VariantForm.FULL || form.enabled(rules)).toList();
-        List<VariantForm> shapeForms = enabledForms.stream().filter(form -> form != VariantForm.FULL).toList();
-        selectBundlesForAll(sources, plans, null, List.of(VariantForm.FULL), rules, limits, true);
-
-        double dyedShare = rules.dyedVariants ? Math.clamp(rules.dyedVariantBudgetFraction, 0.0D, 1.0D) : 0.0D;
-        selectBundlesForAll(sources, plans, null, shapeForms, rules, phaseLimits(limits, 1.0D - dyedShare), true);
-        if (rules.dyedVariants) selectDyedBundles(sources, plans, enabledForms, rules, limits);
-        selectBundlesForAll(sources, plans, null, shapeForms, rules, limits, false);
-
+        Registry<Block> blockRegistry = BuiltInRegistries.BLOCK;
         for (SourceRef source : sources) {
-            registerFamily(event, source, plans.get(source), rules);
+            registerFamily(blockRegistry, source, selectAllForms(source, enabledForms, rules), rules);
         }
 
+        ENTRIES.trimToSize();
+        GENERATED.trimToSize();
         RuntimePack.updateEntries(GENERATED);
-        String memoryBudget = limits.bytes() == Long.MAX_VALUE ? "unbounded" : limits.bytes() / 1_048_576L + " MiB";
+        registerItems(event);
+        long generatedBytes = estimatedBytes(GENERATED.size(), generatedBlockStates, rules);
         LOGGER.info(
-            "Patina Pandemonium processed {} full-block sources, selected {} generated blocks, {} estimated states and {} MiB, limited {} source/form lanes, registered {} blocks and {} actual block states with budgets of {} blocks, {} states and {}",
+            "Patina Pandemonium processed {} full-block sources and registered every enabled variant: {} generated blocks, {} actual block states and approximately {} MiB of registry/state objects; the conservative preflight upper bound was {} blocks, {} states and {} MiB",
             sources.size(),
-            plannedBlocks,
-            plannedBlockStates,
-            plannedBytes / 1_048_576L,
-            limitedLanes,
             GENERATED.size(),
             generatedBlockStates,
-            limits.blocks(),
-            limits.states(),
-            memoryBudget);
+            generatedBytes / 1_048_576L,
+            upperBound.blocks(),
+            upperBound.states(),
+            upperBound.bytes() / 1_048_576L);
     }
 
-    private static long memoryBudget(PatinaRules rules) {
-        if (!rules.memoryAwareBlockStateLimit) return Long.MAX_VALUE;
+    private static BitSet selectAllForms(SourceRef source, List<VariantForm> enabledForms, PatinaRules rules) {
+        BitSet selected = new BitSet(FORMS.size() * (DyeColor.VALUES.size() + 1));
+        for (VariantForm form : enabledForms) selected.set(laneIndex(null, form));
+        if (!dyedVariantsEnabled(rules) || source.completePalette()) return selected;
+
+        for (DyeColor dyeColor : DyeColor.VALUES) {
+            for (VariantForm form : enabledForms) selected.set(laneIndex(dyeColor, form));
+        }
+        return selected;
+    }
+
+    private static boolean dyedVariantsEnabled(PatinaRules rules) {
+        return rules.registerEverySupportedVariant || rules.dyedVariants;
+    }
+
+    private static RegistrationEstimate estimateUpperBound(List<SourceRef> sources, List<VariantForm> forms, PatinaRules rules) {
+        long blocks = 0;
+        long states = 0;
+        for (SourceRef source : sources) {
+            int dyedLanes = dyedVariantsEnabled(rules) && !source.completePalette() ? DyeColor.VALUES.size() : 0;
+            for (VariantForm form : forms) {
+                long uncoloredBlocks = form == VariantForm.FULL ? STAGES.size() * WAX_STATES.size() - 1L : STAGES.size() * WAX_STATES.size();
+                long dyedBlocks = (long) dyedLanes * STAGES.size() * WAX_STATES.size();
+                long formBlocks = saturatedAdd(uncoloredBlocks, dyedBlocks);
+                blocks = saturatedAdd(blocks, formBlocks);
+                states = saturatedAdd(states, saturatedMultiply(formBlocks, form.estimatedStateCount()));
+            }
+        }
+
+        return new RegistrationEstimate(blocks, states, estimatedBytes(blocks, states, rules));
+    }
+
+    private static void checkRegistrationEstimate(RegistrationEstimate estimate, PatinaRules rules) {
+        long heapWarning = registrationHeapWarning(rules);
+        boolean blocksExceeded = rules.warningGeneratedBlocks > 0 && estimate.blocks() > rules.warningGeneratedBlocks;
+        boolean statesExceeded = rules.warningGeneratedBlockStates > 0 && estimate.states() > rules.warningGeneratedBlockStates;
+        boolean heapExceeded = heapWarning != Long.MAX_VALUE && estimate.bytes() > heapWarning;
+        if (!blocksExceeded && !statesExceeded && !heapExceeded) return;
+        String message = getString(estimate, rules, heapWarning);
+        LOGGER.warn("{} Registration will continue because abortWhenRegistrationEstimateExceedsWarnings is false.", message);
+    }
+
+    private static @NonNull String getString(RegistrationEstimate estimate, PatinaRules rules, long heapWarning) {
+        String heapLimit = heapWarning == Long.MAX_VALUE ? "disabled" : heapWarning / 1_048_576L + " MiB";
+        String message = "Patina Pandemonium full registration preflight estimates " + estimate.blocks() + " generated blocks, "
+            + estimate.states() + " block states and " + estimate.bytes() / 1_048_576L + " MiB, above at least one warning threshold ("
+            + rules.warningGeneratedBlocks + " blocks, " + rules.warningGeneratedBlockStates + " states, " + heapLimit
+            + "). No variants will be silently omitted.";
+        if (rules.abortWhenRegistrationEstimateExceedsWarnings) {
+            throw new IllegalStateException(message + " Increase the warning thresholds, allocate more heap, disable the abort option or narrow the configured sources/forms.");
+        }
+        return message;
+    }
+
+    private static long registrationHeapWarning(PatinaRules rules) {
+        if (!rules.memoryAwareRegistrationWarning) return Long.MAX_VALUE;
         Runtime runtime = Runtime.getRuntime();
         long used = runtime.totalMemory() - runtime.freeMemory();
         long available = Math.max(0L, runtime.maxMemory() - used);
-        double fraction = Math.clamp(rules.maximumGeneratedHeapFraction, 0.05D, 0.80D);
+        double fraction = Math.clamp(rules.warningGeneratedHeapFraction, 0.05D, 0.95D);
         return Math.max(0L, (long) (available * fraction));
     }
 
-    private static Limits phaseLimits(Limits limits, double requestedShare) {
-        double share = Math.clamp(requestedShare, 0.0D, 1.0D);
-        return new Limits(
-            sharedLimit(plannedBlocks, limits.blocks(), share),
-            sharedLimit(plannedBlockStates, limits.states(), share),
-            sharedLimit(plannedBytes, limits.bytes(), share));
-    }
-
-    private static long sharedLimit(long used, long maximum, double share) {
-        if (maximum == Long.MAX_VALUE) return maximum;
-        return used + (long) ((maximum - used) * share);
-    }
-
-    private static void selectBundlesForAll(List<SourceRef> sources, Map<SourceRef, BitSet> plans,
-                                            @Nullable DyeColor dyeColor, List<VariantForm> forms,
-                                            PatinaRules rules, Limits limits, boolean countLimited) {
-        if (forms.isEmpty()) return;
-        for (SourceRef source : sources) {
-            selectBundle(source, plans.get(source), dyeColor, forms, rules, limits, countLimited);
-        }
-    }
-
-    private static void selectDyedBundles(List<SourceRef> sources, Map<SourceRef, BitSet> plans,
-                                          List<VariantForm> forms, PatinaRules rules, Limits limits) {
-        int colorCount = DyeColor.VALUES.size();
-        for (int round = 0; round < colorCount; round++) {
-            for (int sourceIndex = 0; sourceIndex < sources.size(); sourceIndex++) {
-                SourceRef source = sources.get(sourceIndex);
-                DyeColor dyeColor = DyeColor.VALUES.get((sourceIndex + round) % colorCount);
-                selectBundle(source, plans.get(source), dyeColor, forms, rules, limits, true);
-            }
-        }
-    }
-
-    private static void selectBundle(SourceRef source, BitSet selected, @Nullable DyeColor dyeColor,
-                                     List<VariantForm> forms, PatinaRules rules, Limits limits,
-                                     boolean countLimited) {
-        if (dyeColor != null && source.completePalette()) return;
-        boolean fullAvailable = selected.get(laneIndex(dyeColor, VariantForm.FULL)) || forms.contains(VariantForm.FULL);
-        int formMask = 0;
-        int blocks = 0;
-        long states = 0;
-        long bytes = 0;
-
-        for (VariantForm form : forms) {
-            int lane = laneIndex(dyeColor, form);
-            if (selected.get(lane) || form != VariantForm.FULL && !fullAvailable) continue;
-            Cost cost = estimate(source, dyeColor, form, rules);
-            formMask |= 1 << form.ordinal();
-            blocks += cost.blocks();
-            states = saturatedAdd(states, cost.states());
-            bytes = saturatedAdd(bytes, cost.bytes());
-        }
-
-        if (formMask == 0) return;
-        Cost total = new Cost(blocks, states, bytes);
-        if (fits(total, limits)) {
-            for (VariantForm form : forms) {
-                if ((formMask & 1 << form.ordinal()) != 0) selected.set(laneIndex(dyeColor, form));
-            }
-            plannedBlocks += total.blocks();
-            plannedBlockStates += total.states();
-            plannedBytes += total.bytes();
-        } else if (countLimited && (total.blocks() > 0 || total.states() > 0)) {
-            limitedLanes += Integer.bitCount(formMask);
-        }
-    }
-
-    private static boolean fits(Cost cost, Limits limits) {
-        return fits(plannedBlocks, cost.blocks(), limits.blocks())
-            && fits(plannedBlockStates, cost.states(), limits.states())
-            && fits(plannedBytes, cost.bytes(), limits.bytes());
-    }
-
-    private static boolean fits(long used, long added, long maximum) {
-        return used <= maximum && added <= maximum - used;
-    }
-
-    private static int laneIndex(@Nullable DyeColor dyeColor, VariantForm form) {
-        int colorIndex = dyeColor == null ? 0 : dyeColor.ordinal() + 1;
-        return colorIndex * FORMS.size() + form.ordinal();
-    }
-
-    private static Cost estimate(SourceRef source, @Nullable DyeColor dyeColor, VariantForm form, PatinaRules rules) {
-        int blocks = 0;
-        long states = 0;
-        for (boolean waxed : WAX_STATES) {
-            for (OxidationStage stage : STAGES) {
-                VariantData data = new VariantData(source.id(), stage, waxed, form, dyeColor);
-                if (findExisting(data, rules, source.stems()) == null) {
-                    blocks++;
-                    states += form.estimatedStateCount();
-                }
-            }
-        }
-        long bytes = saturatedAdd(
+    private static long estimatedBytes(long blocks, long states, PatinaRules rules) {
+        return saturatedAdd(
             saturatedMultiply(blocks, Math.max(1_024, rules.estimatedBytesPerGeneratedBlock)),
             saturatedMultiply(states, Math.max(256, rules.estimatedBytesPerGeneratedBlockState)));
-        return new Cost(blocks, states, bytes);
     }
 
     private static long saturatedMultiply(long value, long multiplier) {
@@ -247,8 +196,12 @@ public class DynamicVariantRegistry {
         return first > Long.MAX_VALUE - second ? Long.MAX_VALUE : first + second;
     }
 
-    private static void registerFamily(RegisterEvent event, SourceRef source, BitSet selected, PatinaRules rules) {
-        if (selected.isEmpty()) return;
+    private static int laneIndex(@Nullable DyeColor dyeColor, VariantForm form) {
+        int colorIndex = dyeColor == null ? 0 : dyeColor.ordinal() + 1;
+        return colorIndex * FORMS.size() + form.ordinal();
+    }
+
+    private static void registerFamily(Registry<Block> registry, SourceRef source, BitSet selected, PatinaRules rules) {
         Block[] family = new Block[(DyeColor.VALUES.size() + 1) * WAX_STATES.size() * STAGES.size() * FORMS.size()];
 
         for (int colorIndex = -1; colorIndex < DyeColor.VALUES.size(); colorIndex++) {
@@ -273,7 +226,7 @@ public class DynamicVariantRegistry {
                             blockId = generatedId(data);
                             Block base = stageBase == null ? source.block() : stageBase;
                             Block made = GeneratedBlockFactory.create(blockId, source.block(), base, data);
-                            event.register(Registries.BLOCK, blockId, () -> made);
+                            Registry.register(registry, blockId, made);
                             block = made;
                             generatedBlockStates += made.getStateDefinition().getPossibleStates().size();
                         } else {
@@ -281,10 +234,11 @@ public class DynamicVariantRegistry {
                         }
 
                         if (form == VariantForm.FULL) stageBase = block;
-                        VariantEntry entry = new VariantEntry(data, blockId, block, source.block(), generated);
-                        ENTRIES.add(entry);
                         family[familyIndex(dyeColor, stage, waxed, form)] = block;
-                        if (generated) GENERATED.add(entry);
+                        if (rules.enableOptionalRunDataExport) {
+                            ENTRIES.add(new VariantEntry(data, blockId, block, source.block(), generated));
+                        }
+                        if (generated) GENERATED.add(block);
                     }
                 }
             }
@@ -310,12 +264,20 @@ public class DynamicVariantRegistry {
     }
 
     private static void registerItems(RegisterEvent event) {
-        for (VariantEntry entry : GENERATED) {
-            ResourceKey<Item> key = ResourceKey.create(Registries.ITEM, entry.blockId());
+        for (Block block : GENERATED) {
+            Identifier blockId = BuiltInRegistries.BLOCK.getKey(block);
+            ResourceKey<Item> key = ResourceKey.create(Registries.ITEM, blockId);
             Item.Properties properties = new Item.Properties().setId(key);
-            Item item = new GeneratedBlockItem(entry.block(), entry.source(), entry.data(), properties);
-            event.register(Registries.ITEM, entry.blockId(), () -> item);
+            Item item = new GeneratedBlockItem(block, properties);
+            event.register(Registries.ITEM, blockId, () -> item);
         }
+    }
+
+    static @Nullable Block resolveBlock(VariantData data) {
+        Identifier generatedId = generatedId(data);
+        if (BuiltInRegistries.BLOCK.containsKey(generatedId)) return BuiltInRegistries.BLOCK.getValue(generatedId);
+        Identifier existingId = findExisting(data, PatinaRules.INSTANCE, candidateStems(data.sourceId().getPath()));
+        return existingId == null ? null : BuiltInRegistries.BLOCK.getValue(existingId);
     }
 
     private static boolean isSource(Identifier id, Block block, PatinaRules rules) {
@@ -334,30 +296,45 @@ public class DynamicVariantRegistry {
             || block instanceof DoorBlock
             || block instanceof TrapDoorBlock) return false;
 
-        String path = id.getPath();
-        if (path.startsWith("exposed_") || path.startsWith("weathered_") || path.startsWith("oxidized_") || path.startsWith("waxed_")) return false;
+        if (isExistingOxidationDerivative(id)) return false;
 
         BlockState state = block.defaultBlockState();
         try {
-            return Block.isShapeFullBlock(state.getCollisionShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO));
+            return Block.isShapeFullBlock(state.getShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO))
+                || Block.isShapeFullBlock(state.getCollisionShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO));
         } catch (RuntimeException ignored) {
             return false;
         }
     }
 
-    private static List<SourceRef> balanceSources(List<SourceRef> sources) {
-        Map<String, List<SourceRef>> namespaces = new LinkedHashMap<>();
-        for (SourceRef source : sources) {
-            namespaces.computeIfAbsent(source.id().getNamespace(), ignored -> new ArrayList<>()).add(source);
-        }
 
-        List<SourceRef> balanced = new ArrayList<>(sources.size());
-        for (int index = 0; balanced.size() < sources.size(); index++) {
-            for (List<SourceRef> namespaceSources : namespaces.values()) {
-                if (index < namespaceSources.size()) balanced.add(namespaceSources.get(index));
-            }
+    private static boolean isExistingOxidationDerivative(Identifier id) {
+        String basePath = id.getPath();
+        boolean prefixed = false;
+        if (basePath.startsWith("waxed_")) {
+            basePath = basePath.substring("waxed_".length());
+            prefixed = true;
         }
-        return balanced;
+        for (OxidationStage stage : STAGES) {
+            if (stage == OxidationStage.FRESH) continue;
+            String prefix = stage.id() + "_";
+            if (!basePath.startsWith(prefix)) continue;
+            basePath = basePath.substring(prefix.length());
+            prefixed = true;
+            break;
+        }
+        if (!prefixed || basePath.isEmpty()) return false;
+
+        Identifier baseId = Identifier.tryBuild(id.getNamespace(), basePath);
+        if (baseId == null || !BuiltInRegistries.BLOCK.containsKey(baseId)) return false;
+        int existingFamilyMembers = 0;
+        for (OxidationStage stage : STAGES) {
+            String stagePath = stage == OxidationStage.FRESH ? basePath : stage.id() + "_" + basePath;
+            if (existing(id.getNamespace(), stagePath) != null) existingFamilyMembers++;
+            if (existing(id.getNamespace(), "waxed_" + stagePath) != null) existingFamilyMembers++;
+            if (existingFamilyMembers >= 3) return true;
+        }
+        return false;
     }
 
     private static boolean isCompletePaletteSource(Identifier sourceId) {
@@ -450,8 +427,6 @@ public class DynamicVariantRegistry {
 
     private record SourceRef(Identifier id, Block block, List<String> stems, boolean completePalette) {}
 
-    private record Cost(int blocks, long states, long bytes) {}
-
-    private record Limits(long blocks, long states, long bytes) {}
+    private record RegistrationEstimate(long blocks, long states, long bytes) {}
 
 }
