@@ -35,16 +35,10 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
-/** Supplies the shared carrier discovery descriptors and their shared runtime tags. */
+/** Supplies shared client discovery descriptors and broad form tags; source-specific tags are inherited after each tag reload. */
 public class RuntimePack {
-
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final List<String> LEGACY_PACKS = List.of("generated-client-resources.zip", "generated-server-data.zip");
     private static final String MINECRAFT_NAMESPACE = "minecraft";
@@ -205,14 +199,12 @@ public class RuntimePack {
 
         private boolean isCarrierResource(Identifier id) {
             String path = id.getPath();
-            if (!path.endsWith(JSON_EXTENSION)
-                || !path.startsWith(BLOCKSTATE_DIRECTORY) && !path.startsWith(ITEM_DIRECTORY)) return false;
-            int start = path.lastIndexOf('/') + 1;
-            String name = path.substring(start, path.length() - JSON_EXTENSION.length());
-            for (Block block : entries()) {
-                if (BuiltInRegistries.BLOCK.getKey(block).getPath().equals(name)) return true;
-            }
-            return false;
+            if (!path.endsWith(JSON_EXTENSION)) return false;
+            String directory = path.startsWith(BLOCKSTATE_DIRECTORY) ? BLOCKSTATE_DIRECTORY
+                : path.startsWith(ITEM_DIRECTORY) ? ITEM_DIRECTORY : null;
+            if (directory == null) return false;
+            String carrierPath = path.substring(directory.length(), path.length() - JSON_EXTENSION.length());
+            return DynamicVariantRegistry.isGeneratedId(PatinaPandemonium.id(carrierPath));
         }
     }
 
@@ -273,5 +265,4 @@ public class RuntimePack {
             this.offset = 0;
         }
     }
-
 }

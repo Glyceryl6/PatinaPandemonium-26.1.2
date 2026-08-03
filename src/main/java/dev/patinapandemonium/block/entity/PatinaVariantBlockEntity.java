@@ -2,6 +2,7 @@ package dev.patinapandemonium.block.entity;
 
 import dev.patinapandemonium.block.PatinaOxidizable;
 import dev.patinapandemonium.registry.DynamicVariantRegistry;
+import dev.patinapandemonium.registry.OxidationStage;
 import dev.patinapandemonium.registry.VariantData;
 import dev.patinapandemonium.registry.VariantForm;
 import net.minecraft.core.BlockPos;
@@ -33,7 +34,7 @@ public class PatinaVariantBlockEntity extends BlockEntity {
 
     public PatinaVariantBlockEntity(BlockPos pos, BlockState state) {
         super(DynamicVariantRegistry.VARIANT_BLOCK_ENTITY.get(), pos, state);
-        this.data = VariantData.defaultFor(form(state));
+        this.data = defaultData(state);
         this.refreshModelData();
     }
 
@@ -60,14 +61,14 @@ public class PatinaVariantBlockEntity extends BlockEntity {
     @Override
     protected void loadAdditional(ValueInput input) {
         super.loadAdditional(input);
-        Identifier fallback = VariantData.defaultFor(form(this.getBlockState())).sourceId();
+        Identifier fallback = defaultData(this.getBlockState()).sourceId();
         Identifier source = Identifier.tryParse(input.getStringOr(SOURCE_KEY, fallback.toString()));
         this.data = VariantData.decode(
-                source == null ? fallback : source,
-                input.getIntOr(STAGE_KEY, 0),
-                input.getBooleanOr(WAXED_KEY, false),
-                form(this.getBlockState()).ordinal(),
-                input.getIntOr(DYE_KEY, -1));
+            source == null ? fallback : source,
+            input.getIntOr(STAGE_KEY, 0),
+            input.getBooleanOr(WAXED_KEY, false),
+            form(this.getBlockState()).ordinal(),
+            input.getIntOr(DYE_KEY, -1));
         this.refreshModelData();
     }
 
@@ -109,6 +110,12 @@ public class PatinaVariantBlockEntity extends BlockEntity {
 
     private void refreshModelData() {
         this.modelData = ModelData.of(MODEL_DATA, this.data);
+    }
+
+    private static VariantData defaultData(BlockState state) {
+        VariantForm form = form(state);
+        Identifier source = DynamicVariantRegistry.sourceId(state.getBlock());
+        return source == null ? VariantData.defaultFor(form) : new VariantData(source, OxidationStage.FRESH, false, form, null);
     }
 
     private static VariantForm form(BlockState state) {

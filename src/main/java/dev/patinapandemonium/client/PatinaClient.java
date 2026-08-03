@@ -9,6 +9,7 @@ import net.minecraft.client.renderer.item.ItemModel;
 import net.minecraft.client.resources.model.ModelBakery;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -19,16 +20,12 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 
+import java.util.EnumMap;
 import java.util.Map;
 
-/** Replaces the nine carrier descriptors with component/model-data aware flyweight models. */
+/** Replaces every carrier descriptor with one shared component/model-data aware model wrapper per logical form. */
 @EventBusSubscriber(modid = PatinaPandemonium.MOD_ID, value = Dist.CLIENT)
 public class PatinaClient {
-
-    @SubscribeEvent
-    public static void registerScreens(RegisterMenuScreensEvent event) {
-        event.register(DynamicVariantRegistry.VARIANT_FABRICATOR_MENU.get(), VariantFabricatorScreen::new);
-    }
 
     private static final Map<VariantForm, Block> TEMPLATES = Map.of(
         VariantForm.FULL, Blocks.STONE,
@@ -42,6 +39,11 @@ public class PatinaClient {
         VariantForm.PRESSURE_PLATE, Blocks.STONE_PRESSURE_PLATE);
 
     @SubscribeEvent
+    public static void registerScreens(RegisterMenuScreensEvent event) {
+        event.register(DynamicVariantRegistry.VARIANT_FABRICATOR_MENU.get(), VariantFabricatorScreen::new);
+    }
+
+    @SubscribeEvent
     public static void modifyBakingResult(ModelEvent.ModifyBakingResult event) {
         ModelBakery.BakingResult result = event.getBakingResult();
         Map<BlockState, BlockStateModel> blockModels = result.blockStateModels();
@@ -52,14 +54,23 @@ public class PatinaClient {
         PatinaItemModel.clearCache();
         if (fallbackBlock == null || fallbackItem == null) return;
 
-        for (Block block : DynamicVariantRegistry.generated()) {
-            VariantForm form = ((PatinaOxidizable) block).patinaForm();
+        EnumMap<VariantForm, BlockStateModel> sharedBlockModels = new EnumMap<>(VariantForm.class);
+        EnumMap<VariantForm, ItemModel> sharedItemModels = new EnumMap<>(VariantForm.class);
+        for (VariantForm form : VariantForm.values()) {
             Block template = TEMPLATES.get(form);
             BlockStateModel templateModel = blockModels.getOrDefault(template.defaultBlockState(), fallbackBlock);
-            PatinaBlockStateModel blockModel = new PatinaBlockStateModel(blockModels, template, form, templateModel);
-            PatinaItemModel itemModel = new PatinaItemModel(blockModels, itemModels, template, form, fallbackItem, fallbackBlock);
+            sharedBlockModels.put(form, new PatinaBlockStateModel(blockModels, template, form, templateModel));
+            sharedItemModels.put(form, new PatinaItemModel(blockModels, itemModels, template, form, fallbackItem, fallbackBlock));
+        }
+
+        for (Block block : DynamicVariantRegistry.generated()) {
+            if (!(block instanceof PatinaOxidizable oxidizable)) continue;
+            VariantForm form = oxidizable.patinaForm();
+            BlockStateModel blockModel = sharedBlockModels.get(form);
             for (BlockState state : block.getStateDefinition().getPossibleStates()) blockModels.put(state, blockModel);
-            itemModels.put(BuiltInRegistries.BLOCK.getKey(block), itemModel);
+            Item item = block.asItem();
+            if (item != Items.AIR) itemModels.put(BuiltInRegistries.ITEM.getKey(item), sharedItemModels.get(form));
         }
     }
+
 }
