@@ -20,166 +20,150 @@ import net.minecraft.server.packs.repository.PackSource;
 import net.minecraft.server.packs.resources.IoSupplier;
 import net.minecraft.util.GsonHelper;
 import net.minecraft.util.InclusiveRange;
+import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.event.AddPackFindersEvent;
 import org.jspecify.annotations.Nullable;
-import org.slf4j.Logger;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import org.slf4j.Logger;
 
 /**
- * Exposes generated client and server resources directly from memory. The resource system still
- * receives the formats it expects, but no generated JSON, PNG or ZIP files are written to disk.
+ * Supplies only the tiny discovery descriptors required by the vanilla model pipeline. Every
+ * generated block shares the same immutable byte arrays; the real baked models are installed by
+ * the client model hook, so no per-block model JSON or generated texture is retained in memory.
  */
 public class RuntimePack {
-
     private static final Logger LOGGER = LogUtils.getLogger();
-    private static final Map<PackType, PackDefinition> DEFINITIONS = Map.of(
-            PackType.CLIENT_RESOURCES,
-            new PackDefinition(
-                    "generated_client",
-                    "resourcePack.patina_pandemonium.generated_client",
-                    "resourcePack.patina_pandemonium.generated_client.description"),
-            PackType.SERVER_DATA,
-            new PackDefinition(
-                    "generated_server",
-                    "resourcePack.patina_pandemonium.generated_server",
-                    "resourcePack.patina_pandemonium.generated_server.description"));
-    private static final Map<PackType, ResourceSnapshot> SNAPSHOTS = new EnumMap<>(PackType.class);
-    private static List<VariantEntry> entries = List.of();
+    private static final List<String> LEGACY_PACKS = List.of("generated-client-resources.zip", "generated-server-data.zip");
+    private static final String BLOCKSTATE_DIRECTORY = "blockstates/";
+    private static final String ITEM_DIRECTORY = "items/";
+    private static final String JSON_EXTENSION = ".json";
+    private static final byte[] BLOCKSTATE_DESCRIPTOR = "{\"variants\":{\"\":{\"model\":\"minecraft:block/stone\"}}}"
+        .getBytes(StandardCharsets.UTF_8);
+    private static final byte[] ITEM_DESCRIPTOR = "{\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:block/stone\"}}"
+        .getBytes(StandardCharsets.UTF_8);
+    private static volatile List<VariantEntry> entries = List.of();
 
     public static synchronized void bootstrap() {
         RuntimePack.entries = List.of();
-        RuntimePack.SNAPSHOTS.clear();
+        Path legacyDirectory = FMLPaths.CONFIGDIR.get().resolve(PatinaPandemonium.MOD_ID);
+        for (String fileName : LEGACY_PACKS) {
+            try {
+                Files.deleteIfExists(legacyDirectory.resolve(fileName));
+            } catch (IOException error) {
+                LOGGER.warn("Could not remove legacy generated pack {}", fileName, error);
+            }
+        }
     }
 
     public static synchronized void updateEntries(List<VariantEntry> updatedEntries) {
-        RuntimePack.entries = List.copyOf(updatedEntries);
-        RuntimePack.SNAPSHOTS.clear();
+        RuntimePack.entries = Collections.unmodifiableList(updatedEntries);
     }
 
     public static void onAddPackFinders(AddPackFindersEvent event) {
-        PackDefinition definition = RuntimePack.DEFINITIONS.get(event.getPackType());
-        if (definition == null) {
+        if (event.getPackType() != PackType.CLIENT_RESOURCES) {
             return;
         }
 
         PackLocationInfo location = new PackLocationInfo(
-                PatinaPandemonium.id(definition.idPath()).toString(),
-                Component.translatable(definition.titleKey()),
-                PackSource.BUILT_IN, Optional.empty());
-        MemoryPackResources resources = new MemoryPackResources(
-                location, event.getPackType(),
-                definition.descriptionKey());
+            PatinaPandemonium.id("generated_client").toString(),
+            Component.translatable("resourcePack.patina_pandemonium.generated_client"),
+            PackSource.BUILT_IN,
+            Optional.empty()
+        );
+        MemoryPackResources resources = new MemoryPackResources(location);
         Pack pack = Pack.readMetaAndCreate(
-                location, BuiltInPackSource.fixedResources(resources), event.getPackType(),
-                new PackSelectionConfig(true, Pack.Position.TOP, false));
+            location,
+            BuiltInPackSource.fixedResources(resources),
+            PackType.CLIENT_RESOURCES,
+            new PackSelectionConfig(true, Pack.Position.TOP, false)
+        );
         if (pack != null) {
             event.addRepositorySource(consumer -> consumer.accept(pack));
         }
     }
 
-    private static synchronized ResourceSnapshot snapshot(PackType packType) {
-        return RuntimePack.SNAPSHOTS.computeIfAbsent(packType, RuntimePack::buildSnapshot);
-    }
-
-    private static ResourceSnapshot buildSnapshot(PackType packType) {
-        long started = System.nanoTime();
-        Map<Identifier, byte[]> resources = new HashMap<>();
-        Set<String> namespaces = new HashSet<>();
-        String directory = packType.getDirectory() + "/";
-
-        GeneratedPackWriter.build(RuntimePack.entries, packType).forEach((path, bytes) -> {
-            if (!path.startsWith(directory)) return;
-            String relativePath = path.substring(directory.length());
-            int separator = relativePath.indexOf('/');
-            if (separator <= 0 || separator == relativePath.length() - 1) {
-                LOGGER.warn("Ignoring invalid generated resource path {}", path);
-                return;
-            }
-
-            String namespace = relativePath.substring(0, separator);
-            Identifier id = Identifier.tryBuild(namespace, relativePath.substring(separator + 1));
-            if (id == null) {
-                LOGGER.warn("Ignoring invalid generated resource identifier {}", relativePath);
-                return;
-            }
-
-            resources.put(id, bytes);
-            namespaces.add(namespace);
-        });
-
-        ResourceSnapshot snapshot = new ResourceSnapshot(Map.copyOf(resources), Set.copyOf(namespaces));
-        LOGGER.info(
-                "Prepared {} virtual {} resources in {} ms",
-                snapshot.resources().size(), packType,
-                (System.nanoTime() - started) / 1_000_000L);
-        return snapshot;
-    }
-
-    private record PackDefinition(String idPath, String titleKey, String descriptionKey) {
-    }
-
-    private record ResourceSnapshot(Map<Identifier, byte[]> resources, Set<String> namespaces) {
-    }
-
     private static class MemoryPackResources implements PackResources {
         private final PackLocationInfo location;
-        private final PackType packType;
         private final PackMetadataSection metadata;
         private final byte[] packMetadata;
 
-        private MemoryPackResources(PackLocationInfo location, PackType packType, String descriptionKey) {
+        private MemoryPackResources(PackLocationInfo location) {
             this.location = location;
-            this.packType = packType;
-            this.metadata = new PackMetadataSection(Component.translatable(descriptionKey),
-                    new InclusiveRange<>(SharedConstants.getCurrentVersion().packVersion(packType)));
-            MetadataSectionType<PackMetadataSection> metadataType = packType == PackType.CLIENT_RESOURCES
-                    ? PackMetadataSection.CLIENT_TYPE
-                    : PackMetadataSection.SERVER_TYPE;
+            this.metadata = new PackMetadataSection(
+                Component.translatable("resourcePack.patina_pandemonium.generated_client.description"),
+                new InclusiveRange<>(SharedConstants.getCurrentVersion().packVersion(PackType.CLIENT_RESOURCES))
+            );
             JsonObject root = new JsonObject();
-            root.add("pack", metadataType.codec().encodeStart(JsonOps.INSTANCE, this.metadata).getOrThrow());
+            root.add("pack", PackMetadataSection.CLIENT_TYPE.codec().encodeStart(JsonOps.INSTANCE, this.metadata).getOrThrow());
             this.packMetadata = GsonHelper.toStableString(root).getBytes(StandardCharsets.UTF_8);
         }
 
         @Nullable
         @Override
         public IoSupplier<InputStream> getRootResource(String... path) {
-            if (!"pack.mcmeta".equals(String.join("/", path))) return null;
-            return () -> new ByteArrayInputStream(this.packMetadata);
+            return "pack.mcmeta".equals(String.join("/", path))
+                ? () -> new ByteArrayInputStream(this.packMetadata)
+                : null;
         }
 
         @Nullable
         @Override
         public IoSupplier<InputStream> getResource(PackType packType, Identifier id) {
-            if (packType != this.packType) return null;
-            byte[] resource = RuntimePack.snapshot(this.packType).resources().get(id);
-            return resource == null ? null : () -> new ByteArrayInputStream(resource);
+            if (packType != PackType.CLIENT_RESOURCES || !id.getNamespace().equals(PatinaPandemonium.MOD_ID)) {
+                return null;
+            }
+
+            String path = id.getPath();
+            if (path.startsWith(BLOCKSTATE_DIRECTORY) && path.endsWith(JSON_EXTENSION)) {
+                return () -> new ByteArrayInputStream(BLOCKSTATE_DESCRIPTOR);
+            }
+            if (path.startsWith(ITEM_DIRECTORY) && path.endsWith(JSON_EXTENSION)) {
+                return () -> new ByteArrayInputStream(ITEM_DESCRIPTOR);
+            }
+            return null;
         }
 
         @Override
         public void listResources(PackType packType, String namespace, String startingPath, ResourceOutput output) {
-            if (packType != this.packType) return;
+            if (packType != PackType.CLIENT_RESOURCES || !namespace.equals(PatinaPandemonium.MOD_ID)) {
+                return;
+            }
+
             String prefix = startingPath.isEmpty() || startingPath.endsWith("/") ? startingPath : startingPath + "/";
-            RuntimePack.snapshot(this.packType).resources().forEach((id, bytes) -> {
-                if (id.getNamespace().equals(namespace) && id.getPath().startsWith(prefix)) {
-                    output.accept(id, () -> new ByteArrayInputStream(bytes));
+            List<VariantEntry> snapshot = RuntimePack.entries;
+            for (VariantEntry entry : snapshot) {
+                Identifier blockState = PatinaPandemonium.id(BLOCKSTATE_DIRECTORY + entry.blockId().getPath() + JSON_EXTENSION);
+                if (blockState.getPath().startsWith(prefix)) {
+                    output.accept(blockState, () -> new ByteArrayInputStream(BLOCKSTATE_DESCRIPTOR));
                 }
-            });
+
+                Identifier item = PatinaPandemonium.id(ITEM_DIRECTORY + entry.blockId().getPath() + JSON_EXTENSION);
+                if (item.getPath().startsWith(prefix)) {
+                    output.accept(item, () -> new ByteArrayInputStream(ITEM_DESCRIPTOR));
+                }
+            }
         }
 
         @Override
         public Set<String> getNamespaces(PackType packType) {
-            return packType == this.packType ? RuntimePack.snapshot(this.packType).namespaces() : Set.of();
+            return packType == PackType.CLIENT_RESOURCES ? Set.of(PatinaPandemonium.MOD_ID) : Set.of();
         }
 
         @Nullable
         @SuppressWarnings("unchecked")
         @Override
         public <T> T getMetadataSection(MetadataSectionType<T> type) {
-            return PackMetadataSection.CLIENT_TYPE.equals(type) || PackMetadataSection.SERVER_TYPE.equals(type) ? (T) this.metadata : null;
+            return PackMetadataSection.CLIENT_TYPE.equals(type) ? (T) this.metadata : null;
         }
 
         @Override
@@ -188,9 +172,6 @@ public class RuntimePack {
         }
 
         @Override
-        public void close() {
-        }
-
+        public void close() {}
     }
-
 }

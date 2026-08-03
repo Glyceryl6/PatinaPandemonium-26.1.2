@@ -6,7 +6,6 @@ import dev.patinapandemonium.PatinaPandemonium;
 import dev.patinapandemonium.block.GeneratedBlockFactory;
 import dev.patinapandemonium.config.PatinaRules;
 import dev.patinapandemonium.item.GeneratedBlockItem;
-import dev.patinapandemonium.item.GeneratedSignItem;
 import dev.patinapandemonium.resource.RuntimePack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -15,29 +14,56 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.EmptyBlockGetter;
-import net.minecraft.world.level.block.*;
-import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.ButtonBlock;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.FenceBlock;
+import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.PressurePlateBlock;
+import net.minecraft.world.level.block.SlabBlock;
+import net.minecraft.world.level.block.StairBlock;
+import net.minecraft.world.level.block.TrapDoorBlock;
+import net.minecraft.world.level.block.WallBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.event.BlockEntityTypeAddBlocksEvent;
 import net.neoforged.neoforge.registries.RegisterEvent;
 import org.slf4j.Logger;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 public class DynamicVariantRegistry {
 
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final List<VariantEntry> ENTRIES = new ArrayList<>();
     private static final List<VariantEntry> GENERATED = new ArrayList<>();
-    private static final Set<Identifier> PROCESSED_SOURCES = new LinkedHashSet<>();
+    private static final List<List<VariantForm>> FORM_GROUPS = List.of(
+        List.of(VariantForm.SLAB),
+        List.of(VariantForm.STAIRS),
+        List.of(VariantForm.WALL),
+        List.of(VariantForm.FENCE),
+        List.of(VariantForm.FENCE_GATE),
+        List.of(VariantForm.BUTTON),
+        List.of(VariantForm.PRESSURE_PLATE));
     private static boolean blocksDone;
+    private static long generatedBlockStates;
+    private static int skippedSources;
+    private static int limitedSources;
 
     public static List<VariantEntry> entries() {
-        return List.copyOf(ENTRIES);
+        return Collections.unmodifiableList(ENTRIES);
     }
 
     public static List<VariantEntry> generated() {
-        return List.copyOf(GENERATED);
+        return Collections.unmodifiableList(GENERATED);
     }
 
     public static void onRegister(RegisterEvent event) {
@@ -48,13 +74,6 @@ public class DynamicVariantRegistry {
         }
     }
 
-    public static void onBlockEntityTypeAddBlocks(BlockEntityTypeAddBlocksEvent event) {
-        Block[] signs = GENERATED.stream()
-                .filter(entry -> entry.data().form() == VariantForm.SIGN || entry.data().form() == VariantForm.WALL_SIGN)
-                .map(VariantEntry::block).toArray(Block[]::new);
-        event.modify(BlockEntityType.SIGN, signs);
-    }
-
     private static void registerBlocks(RegisterEvent event) {
         if (blocksDone) {
             return;
@@ -62,23 +81,43 @@ public class DynamicVariantRegistry {
         blocksDone = true;
 
         PatinaRules rules = PatinaRules.INSTANCE;
-        List<Map.Entry<ResourceKey<Block>, Block>> snapshot = new ArrayList<>(BuiltInRegistries.BLOCK.entrySet());
-        List<Map.Entry<ResourceKey<Block>, Block>> sources = snapshot.stream()
-                .filter(entry -> isSource(entry.getKey().identifier(), entry.getValue(), rules)).toList();
-
-        for (Map.Entry<ResourceKey<Block>, Block> sourceEntry : sources) {
-            registerFamily(event, sourceEntry.getKey().identifier(), sourceEntry.getValue(), rules);
+        List<Map.Entry<ResourceKey<Block>, Block>> sources = BuiltInRegistries.BLOCK.entrySet().stream()
+            .filter(entry -> isSource(entry.getKey().identifier(), entry.getValue(), rules))
+            .toList();
+        long stateBudget = Math.max(0L, Math.min(rules.maximumGeneratedBlockStates, rules.maximumGeneratedBlocks));
+        if (rules.memoryAwareBlockStateLimit && stateBudget > 0) {
+            long heapBudget = Runtime.getRuntime().maxMemory() / Math.max(1_024, rules.estimatedBytesPerGeneratedBlockState);
+            stateBudget = Math.clamp(heapBudget, 8_192L, stateBudget);
         }
 
-        RuntimePack.updateEntries(ENTRIES);
+        for (int index = 0; index < sources.size(); index++) {
+            Map.Entry<ResourceKey<Block>, Block> sourceEntry = sources.get(index);
+            long remainingBudget = Math.max(0L, stateBudget - generatedBlockStates);
+            long fairBudget = remainingBudget / Math.max(1, sources.size() - index);
+            registerFamily(event, sourceEntry.getKey().identifier(), sourceEntry.getValue(), rules, fairBudget, stateBudget);
+        }
+
+        RuntimePack.updateEntries(GENERATED);
         LOGGER.info(
-                "Patina Pandemonium found {} full-block sources and registered {} missing blocks",
-                PROCESSED_SOURCES.size(), GENERATED.size());
+            "Patina Pandemonium processed {} full-block sources, limited {} families, skipped {} families, registered {} blocks and {} block states with a {} state budget",
+            sources.size(),
+            limitedSources,
+            skippedSources,
+            GENERATED.size(),
+            generatedBlockStates,
+            stateBudget);
     }
 
-    private static void registerFamily(RegisterEvent event, Identifier sourceId, Block source, PatinaRules rules) {
-        if (!PROCESSED_SOURCES.add(sourceId)) {
+    private static void registerFamily(RegisterEvent event, Identifier sourceId, Block source, PatinaRules rules, long fairBudget, long stateBudget) {
+        long fullCost = estimateGeneratedStates(sourceId, rules, List.of(VariantForm.FULL));
+        if (generatedBlockStates + fullCost > stateBudget) {
+            skippedSources++;
             return;
+        }
+
+        Set<VariantForm> selectedForms = selectForms(sourceId, rules, Math.max(fairBudget, fullCost));
+        if (selectedForms.size() < enabledFormCount(rules)) {
+            limitedSources++;
         }
 
         Map<String, Block> family = new LinkedHashMap<>();
@@ -86,7 +125,7 @@ public class DynamicVariantRegistry {
             for (OxidationStage stage : OxidationStage.values()) {
                 Block stageBase = null;
                 for (VariantForm form : VariantForm.values()) {
-                    if (!form.enabled(rules)) {
+                    if (!selectedForms.contains(form)) {
                         continue;
                     }
 
@@ -101,14 +140,12 @@ public class DynamicVariantRegistry {
                         blockId = sourceId;
                         generated = false;
                     } else if (generated) {
-                        if (GENERATED.size() >= rules.maximumGeneratedBlocks) {
-                            throw new IllegalStateException("Patina Pandemonium generation limit exceeded: " + rules.maximumGeneratedBlocks);
-                        }
                         blockId = generatedId(sourceId, stage, waxed, form);
                         Block base = stageBase == null ? source : stageBase;
                         Block made = GeneratedBlockFactory.create(blockId, source, base, data);
                         event.register(Registries.BLOCK, blockId, () -> made);
                         block = made;
+                        generatedBlockStates += made.getStateDefinition().getPossibleStates().size();
                     } else {
                         blockId = existingId;
                     }
@@ -128,7 +165,7 @@ public class DynamicVariantRegistry {
         }
 
         for (VariantForm form : VariantForm.values()) {
-            if (!form.enabled(rules)) {
+            if (!selectedForms.contains(form)) {
                 continue;
             }
             for (OxidationStage stage : OxidationStage.values()) {
@@ -139,10 +176,61 @@ public class DynamicVariantRegistry {
                 Block from = family.get(key(stage, false, form));
                 Block to = family.get(key(next, false, form));
                 if (from != null && to != null) {
-                    VariantRuntime.link(from, to);
+                    VariantRuntime.linkOxidation(from, to);
                 }
             }
         }
+
+        for (VariantForm form : VariantForm.values()) {
+            if (!selectedForms.contains(form)) {
+                continue;
+            }
+            for (OxidationStage stage : OxidationStage.values()) {
+                Block unwaxed = family.get(key(stage, false, form));
+                Block waxed = family.get(key(stage, true, form));
+                if (unwaxed != null && waxed != null) {
+                    VariantRuntime.linkWaxing(unwaxed, waxed);
+                }
+            }
+        }
+    }
+
+    private static Set<VariantForm> selectForms(Identifier sourceId, PatinaRules rules, long budget) {
+        Set<VariantForm> selected = EnumSet.of(VariantForm.FULL);
+        long used = estimateGeneratedStates(sourceId, rules, selected);
+        for (List<VariantForm> group : FORM_GROUPS) {
+            long cost = estimateGeneratedStates(sourceId, rules, group);
+            if (group.stream().noneMatch(form -> form.enabled(rules))) {
+                continue;
+            }
+            if (cost == 0 || used + cost <= budget) {
+                group.stream().filter(form -> form.enabled(rules)).forEach(selected::add);
+                used += cost;
+            }
+        }
+
+        return selected;
+    }
+
+    private static int enabledFormCount(PatinaRules rules) {
+        return (int) Arrays.stream(VariantForm.values()).filter(form -> form.enabled(rules)).count();
+    }
+
+    private static long estimateGeneratedStates(Identifier sourceId, PatinaRules rules, Collection<VariantForm> forms) {
+        long states = 0;
+        for (boolean waxed : new boolean[]{false, true}) {
+            for (OxidationStage stage : OxidationStage.values()) {
+                for (VariantForm form : forms) {
+                    if (!form.enabled(rules)) continue;
+                    VariantData data = new VariantData(sourceId, stage, waxed, form);
+                    if (findExisting(data, rules) == null) {
+                        states += form.estimatedStateCount();
+                    }
+                }
+            }
+        }
+
+        return states;
     }
 
     private static void registerItems(RegisterEvent event) {
@@ -152,64 +240,37 @@ public class DynamicVariantRegistry {
         }
 
         for (VariantEntry entry : GENERATED) {
-            if (!entry.data().form().hasItem()) {
-                continue;
-            }
-
             ResourceKey<Item> key = ResourceKey.create(Registries.ITEM, entry.blockId());
             Item.Properties properties = new Item.Properties().setId(key);
-            Item item;
-
-            if (entry.data().form() == VariantForm.SIGN) {
-                VariantData wallData = new VariantData(
-                        entry.data().sourceId(),
-                        entry.data().stage(),
-                        entry.data().waxed(),
-                        VariantForm.WALL_SIGN
-                );
-                VariantEntry wall = lookup.get(entryKey(wallData));
-                if (wall == null) {
-                    throw new IllegalStateException("Missing wall sign partner for " + entry.blockId());
-                }
-                item = new GeneratedSignItem(
-                        entry.block(),
-                        wall.block(),
-                        entry.source(),
-                        entry.data(),
-                        properties);
-            } else {
-                item = new GeneratedBlockItem(entry.block(), entry.source(), entry.data(), properties);
-            }
-
+            Item item = new GeneratedBlockItem(entry.block(), entry.source(), entry.data(), properties);
             event.register(Registries.ITEM, entry.blockId(), () -> item);
         }
     }
 
     private static boolean isSource(Identifier id, Block block, PatinaRules rules) {
         if (!rules.namespaceAllowed(id.getNamespace())
-                || (rules.excludedBlocks != null && rules.excludedBlocks.contains(id.toString()))
-                || block == Blocks.AIR) {
+            || (rules.excludedBlocks != null && rules.excludedBlocks.contains(id.toString()))
+            || block == Blocks.AIR) {
             return false;
         }
 
         if (block instanceof SlabBlock
-                || block instanceof StairBlock
-                || block instanceof WallBlock
-                || block instanceof FenceBlock
-                || block instanceof FenceGateBlock
-                || block instanceof ButtonBlock
-                || block instanceof PressurePlateBlock
-                || block instanceof DoorBlock
-                || block instanceof TrapDoorBlock
-                || block instanceof SignBlock) {
+            || block instanceof StairBlock
+            || block instanceof WallBlock
+            || block instanceof FenceBlock
+            || block instanceof FenceGateBlock
+            || block instanceof ButtonBlock
+            || block instanceof PressurePlateBlock
+            || block instanceof DoorBlock
+            || block instanceof TrapDoorBlock) {
             return false;
         }
 
         String path = id.getPath();
         if (path.startsWith("exposed_")
-                || path.startsWith("weathered_")
-                || path.startsWith("oxidized_")
-                || path.startsWith("waxed_")) {
+            || path.startsWith("weathered_")
+            || path.startsWith("oxidized_")
+            || path.startsWith("waxed_")) {
             return false;
         }
 
@@ -223,8 +284,9 @@ public class DynamicVariantRegistry {
 
     private static Identifier generatedId(Identifier source, OxidationStage stage, boolean waxed, VariantForm form) {
         return PatinaPandemonium.id(
-                "generated/" + source.getNamespace() + "/" + source.getPath() + "/"
-                        + (waxed ? "waxed_" : "") + stage.id() + "/" + form.id());
+            "generated/" + source.getNamespace() + "/" + source.getPath() + "/"
+                + (waxed ? "waxed_" : "") + stage.id() + "/" + form.id()
+        );
     }
 
     private static String key(OxidationStage stage, boolean waxed, VariantForm form) {

@@ -22,9 +22,6 @@ public final class ModCreativeTab {
                 .displayItems((_, output) -> {
                     LinkedHashSet<Item> seen = new LinkedHashSet<>();
                     for (VariantEntry entry : DynamicVariantRegistry.entries()) {
-                        if (entry.data().form() == VariantForm.WALL_SIGN) {
-                            continue;
-                        }
                         Item item = entry.block().asItem();
                         if (item != Items.AIR && seen.add(item)) {
                             output.accept(item);

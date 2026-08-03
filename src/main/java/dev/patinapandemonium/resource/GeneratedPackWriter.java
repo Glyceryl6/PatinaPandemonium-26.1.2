@@ -2,7 +2,6 @@ package dev.patinapandemonium.resource;
 
 import com.google.gson.*;
 import dev.patinapandemonium.PatinaPandemonium;
-import dev.patinapandemonium.registry.DynamicWoodTypes;
 import dev.patinapandemonium.registry.VariantData;
 import dev.patinapandemonium.registry.VariantEntry;
 import dev.patinapandemonium.registry.VariantForm;
@@ -29,7 +28,6 @@ public class GeneratedPackWriter {
         Map<String, VariantEntry> lookup = new HashMap<>();
         Map<Identifier, AssetResolver.ModelInfo> models = new HashMap<>();
         Set<String> writtenTextures = new HashSet<>();
-        Set<String> writtenSignTextures = new HashSet<>();
 
         for (VariantEntry entry : entries) {
             lookup.put(key(entry.data()), entry);
@@ -41,10 +39,10 @@ public class GeneratedPackWriter {
             }
             if (clientResources) {
                 AssetResolver.ModelInfo model = models.computeIfAbsent(entry.data().sourceId(), AssetResolver::resolve);
-                writeAssets(output, entry, model, writtenTextures, writtenSignTextures);
+                writeAssets(output, entry, model, writtenTextures);
             }
             if (serverData) {
-                writeLoot(output, entry, lookup);
+                writeLoot(output, entry);
                 writeRecipes(output, entry, lookup);
             }
         }
@@ -61,8 +59,7 @@ public class GeneratedPackWriter {
             Map<String, byte[]> output,
             VariantEntry entry,
             AssetResolver.ModelInfo modelInfo,
-            Set<String> writtenTextures,
-            Set<String> writtenSignTextures
+            Set<String> writtenTextures
     ) {
         Identifier blockId = entry.blockId();
         VariantData data = entry.data();
@@ -106,23 +103,15 @@ public class GeneratedPackWriter {
             case FENCE_GATE -> fenceGate(output, namespace, path, primary);
             case BUTTON -> button(output, namespace, path, primary);
             case PRESSURE_PLATE -> pressurePlate(output, namespace, path, primary);
-            case SIGN, WALL_SIGN -> sign(
-                    output,
-                    entry,
-                    sourcePrimary,
-                    primary,
-                    writtenSignTextures);
         }
 
-        if (data.form().hasItem()) {
-            String inventoryModel = switch (data.form()) {
-                case FULL, SLAB, STAIRS, PRESSURE_PLATE -> modelPath;
-                default -> modelPath + "_inventory";
-            };
+        String inventoryModel = switch (data.form()) {
+            case FULL, SLAB, STAIRS, PRESSURE_PLATE -> modelPath;
+            default -> modelPath + "_inventory";
+        };
 
-            putJson(output, "assets/" + namespace + "/items/" + path + ".json",
-                    Map.of("model", Map.of("type", "minecraft:model", "model", namespace + ":" + inventoryModel)));
-        }
+        putJson(output, "assets/" + namespace + "/items/" + path + ".json",
+                Map.of("model", Map.of("type", "minecraft:model", "model", namespace + ":" + inventoryModel)));
     }
 
     private static void full(
@@ -309,58 +298,6 @@ public class GeneratedPackWriter {
                         "powered=true", Map.of("model", namespace + ":block/" + path + "_down"))));
     }
 
-    private static void sign(
-            Map<String, byte[]> output,
-            VariantEntry entry,
-            Identifier sourceTexture,
-            String particleTexture,
-            Set<String> writtenSignTextures
-    ) {
-        String namespace = entry.blockId().getNamespace();
-        String path = entry.blockId().getPath();
-        String modelId = namespace + ":block/" + path;
-        putJson(output, "assets/" + namespace + "/models/block/" + path + ".json", Map.of(
-                "textures", Map.of("particle", particleTexture)));
-        putJson(output, "assets/" + namespace + "/blockstates/" + path + ".json", Map.of(
-                "multipart", List.of(Map.of("apply", Map.of("model", modelId)))));
-        Identifier woodTexture = DynamicWoodTypes.textureId(entry.data());
-        String entityTexturePath = "assets/" + woodTexture.getNamespace() + "/textures/entity/signs/"
-                + woodTexture.getPath() + ".png";
-        if (writtenSignTextures.add(entityTexturePath)) {
-            byte[] png = AssetResolver.tiledSignTexture(sourceTexture, entry.data().stage().ordinal());
-            if (png != null) {
-                output.put(entityTexturePath, png);
-            }
-        }
-
-        if (entry.data().form() == VariantForm.SIGN) {
-            putJson(output, "assets/" + namespace + "/models/block/" + path + "_inventory.json", signInventoryModel(particleTexture));
-        }
-    }
-
-    private static JsonObject signInventoryModel(String texture) {
-        JsonObject root = new JsonObject();
-        root.addProperty("ambientocclusion", false);
-        root.add("textures", GSON.toJsonTree(Map.of("texture", texture, "particle", texture)));
-        JsonArray elements = new JsonArray();
-        elements.add(cuboid(List.of(1, 7, 7), List.of(15, 15, 9)));
-        elements.add(cuboid(List.of(7, 0, 7), List.of(9, 7, 9)));
-        root.add("elements", elements);
-        return root;
-    }
-
-    private static JsonObject cuboid(List<Integer> from, List<Integer> to) {
-        JsonObject element = new JsonObject();
-        element.add("from", GSON.toJsonTree(from));
-        element.add("to", GSON.toJsonTree(to));
-        JsonObject faces = new JsonObject();
-        for (String direction : new String[]{"north", "south", "east", "west", "up", "down"}) {
-            faces.add(direction, GSON.toJsonTree(Map.of("texture", "#texture")));
-        }
-        element.add("faces", faces);
-        return element;
-    }
-
     private static void templateModel(
             Map<String, byte[]> output,
             String namespace,
@@ -387,22 +324,8 @@ public class GeneratedPackWriter {
                 Map.of("variants", Map.of("", Map.of("model", namespace + ":" + model))));
     }
 
-    private static void writeLoot(
-            Map<String, byte[]> output,
-            VariantEntry entry,
-            Map<String, VariantEntry> lookup
-    ) {
+    private static void writeLoot(Map<String, byte[]> output, VariantEntry entry) {
         String dropId = entry.blockId().toString();
-        if (entry.data().form() == VariantForm.WALL_SIGN) {
-            VariantEntry standing = lookup.get(key(new VariantData(
-                    entry.data().sourceId(),
-                    entry.data().stage(),
-                    entry.data().waxed(),
-                    VariantForm.SIGN)));
-            if (standing != null) {
-                dropId = standing.blockId().toString();
-            }
-        }
         putJson(
                 output,
                 "data/" + entry.blockId().getNamespace() + "/loot_table/blocks/" + entry.blockId().getPath() + ".json",
@@ -422,7 +345,7 @@ public class GeneratedPackWriter {
             Map<String, VariantEntry> lookup
     ) {
         VariantData data = entry.data();
-        if (data.form() != VariantForm.FULL && data.form() != VariantForm.WALL_SIGN) {
+        if (data.form() != VariantForm.FULL) {
             VariantEntry base = lookup.get(key(new VariantData(
                     data.sourceId(),
                     data.stage(),
@@ -436,7 +359,7 @@ public class GeneratedPackWriter {
             }
         }
 
-        if (data.waxed() && data.form().hasItem()) {
+        if (data.waxed()) {
             VariantEntry unwaxed = lookup.get(key(new VariantData(
                     data.sourceId(),
                     data.stage(),
@@ -472,10 +395,6 @@ public class GeneratedPackWriter {
                     result, 1);
             case BUTTON -> shaped(List.of("#"), Map.of("#", base), result, 1);
             case PRESSURE_PLATE -> shaped(List.of("##"), Map.of("#", base), result, 1);
-            case SIGN -> shaped(
-                    List.of("###", "###", " S "),
-                    Map.of("#", base, "S", "minecraft:stick"),
-                    result, 3);
             default -> null;
         };
     }
@@ -546,17 +465,7 @@ public class GeneratedPackWriter {
                 case FENCE_GATE -> addBoth(blockTags, itemTags, "fence_gates", id);
                 case BUTTON -> addBoth(blockTags, itemTags, "buttons", id);
                 case PRESSURE_PLATE -> addBoth(blockTags, itemTags, "pressure_plates", id);
-                case SIGN -> {
-                    add(blockTags, "standing_signs", id);
-                    add(blockTags, "all_signs", id);
-                    add(itemTags, "signs", id);
-                }
-                case WALL_SIGN -> {
-                    add(blockTags, "wall_signs", id);
-                    add(blockTags, "all_signs", id);
-                }
-                default -> {
-                }
+                default -> {}
             }
         }
 
