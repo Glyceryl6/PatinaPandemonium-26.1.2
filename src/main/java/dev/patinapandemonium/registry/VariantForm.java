@@ -6,7 +6,7 @@ import java.util.function.Predicate;
 
 public enum VariantForm {
 
-    FULL("", "full", 1, rules -> true),
+    FULL("", "full", 1, _ -> true),
     SLAB("_slab", "slab", 6, rules -> rules.slabs),
     STAIRS("_stairs", "stairs", 80, rules -> rules.stairs),
     WALL("_wall", "wall", 324, rules -> rules.walls),

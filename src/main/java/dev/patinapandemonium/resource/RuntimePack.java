@@ -41,8 +41,8 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Supplies shared client discovery descriptors and the small set of runtime block tags required by
- * vanilla connection logic. Baked geometry remains flyweight and is installed by the client hook.
+ * Supplies shared client discovery descriptors and compact runtime block/item tags for connection
+ * behavior and cross-mod form discovery. Baked geometry remains flyweight and is installed by the client hook.
  */
 public class RuntimePack {
     private static final Logger LOGGER = LogUtils.getLogger();
@@ -51,18 +51,27 @@ public class RuntimePack {
     private static final String BLOCKSTATE_DIRECTORY = "blockstates/";
     private static final String ITEM_DIRECTORY = "items/";
     private static final String BLOCK_TAG_DIRECTORY = "tags/block/";
+    private static final String ITEM_TAG_DIRECTORY = "tags/item/";
     private static final String JSON_EXTENSION = ".json";
     private static final byte[] BLOCKSTATE_DESCRIPTOR = "{\"variants\":{\"\":{\"model\":\"minecraft:block/stone\"}}}"
         .getBytes(StandardCharsets.UTF_8);
     private static final byte[] ITEM_DESCRIPTOR = "{\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:block/stone\"}}"
         .getBytes(StandardCharsets.UTF_8);
-    private static final Map<VariantForm, String> CONNECTION_TAGS = new EnumMap<>(VariantForm.class);
+    private static final Map<VariantForm, List<Identifier>> BLOCK_TAGS = new EnumMap<>(VariantForm.class);
+    private static final Map<VariantForm, List<Identifier>> ITEM_TAGS = new EnumMap<>(VariantForm.class);
+    private static final Set<String> SERVER_NAMESPACES = Set.of(MINECRAFT_NAMESPACE, "c");
     private static volatile List<VariantEntry> entries = List.of();
     private static volatile Map<Identifier, byte[]> serverResources = Map.of();
 
     static {
-        CONNECTION_TAGS.put(VariantForm.WALL, "walls");
-        CONNECTION_TAGS.put(VariantForm.FENCE, "fences");
+        addCommonTag(VariantForm.SLAB, "slabs");
+        addCommonTag(VariantForm.STAIRS, "stairs");
+        addTags(VariantForm.WALL, "walls", "walls");
+        addTags(VariantForm.FENCE, "fences", "fences");
+        addTags(VariantForm.FENCE_GATE, "fence_gates", "fence_gates");
+        addTags(VariantForm.CARPET, "wool_carpets", "carpets");
+        addTags(VariantForm.BUTTON, "buttons", "buttons");
+        addTags(VariantForm.PRESSURE_PLATE, "pressure_plates", "pressure_plates");
     }
 
     public static synchronized void bootstrap() {
@@ -80,21 +89,42 @@ public class RuntimePack {
 
     public static synchronized void updateEntries(List<VariantEntry> updatedEntries) {
         RuntimePack.entries = Collections.unmodifiableList(updatedEntries);
-        Map<String, StringBuilder> tags = new LinkedHashMap<>();
+        Map<Identifier, StringBuilder> tags = new LinkedHashMap<>();
         for (VariantEntry entry : updatedEntries) {
-            String tag = CONNECTION_TAGS.get(entry.data().form());
-            if (tag == null) continue;
-            StringBuilder values = tags.computeIfAbsent(tag, ignored -> new StringBuilder("{\"replace\":false,\"values\":["));
-            if (values.charAt(values.length() - 1) != '[') values.append(',');
-            values.append('\"').append(entry.blockId()).append('\"');
+            appendTags(tags, BLOCK_TAG_DIRECTORY, BLOCK_TAGS.get(entry.data().form()), entry.blockId());
+            appendTags(tags, ITEM_TAG_DIRECTORY, ITEM_TAGS.get(entry.data().form()), entry.blockId());
         }
 
         Map<Identifier, byte[]> resources = new LinkedHashMap<>();
-        for (Map.Entry<String, StringBuilder> tag : tags.entrySet()) {
-            Identifier id = Identifier.fromNamespaceAndPath(MINECRAFT_NAMESPACE, BLOCK_TAG_DIRECTORY + tag.getKey() + JSON_EXTENSION);
-            resources.put(id, tag.getValue().append("]}").toString().getBytes(StandardCharsets.UTF_8));
+        for (Map.Entry<Identifier, StringBuilder> tag : tags.entrySet()) {
+            resources.put(tag.getKey(), tag.getValue().append("]}").toString().getBytes(StandardCharsets.UTF_8));
         }
         RuntimePack.serverResources = Collections.unmodifiableMap(resources);
+    }
+
+    private static void addCommonTag(VariantForm form, String path) {
+        List<Identifier> tags = List.of(Identifier.fromNamespaceAndPath("c", path));
+        BLOCK_TAGS.put(form, tags);
+        ITEM_TAGS.put(form, tags);
+    }
+
+    private static void addTags(VariantForm form, String minecraftPath, String commonPath) {
+        List<Identifier> tags = List.of(
+            Identifier.fromNamespaceAndPath(MINECRAFT_NAMESPACE, minecraftPath),
+            Identifier.fromNamespaceAndPath("c", commonPath));
+        BLOCK_TAGS.put(form, tags);
+        ITEM_TAGS.put(form, tags);
+    }
+
+    private static void appendTags(Map<Identifier, StringBuilder> output, String directory,
+                                   @Nullable List<Identifier> tags, Identifier value) {
+        if (tags == null) return;
+        for (Identifier tag : tags) {
+            Identifier resource = Identifier.fromNamespaceAndPath(tag.getNamespace(), directory + tag.getPath() + JSON_EXTENSION);
+            StringBuilder values = output.computeIfAbsent(resource, ignored -> new StringBuilder("{\"replace\":false,\"values\":["));
+            if (values.charAt(values.length() - 1) != '[') values.append(',');
+            values.append('\"').append(value).append('\"');
+        }
     }
 
     public static void onAddPackFinders(AddPackFindersEvent event) {
@@ -162,9 +192,8 @@ public class RuntimePack {
             if (packType != this.packType) return;
             String prefix = startingPath.isEmpty() || startingPath.endsWith("/") ? startingPath : startingPath + "/";
             if (packType == PackType.SERVER_DATA) {
-                if (!namespace.equals(MINECRAFT_NAMESPACE)) return;
                 for (Map.Entry<Identifier, byte[]> resource : RuntimePack.serverResources.entrySet()) {
-                    if (resource.getKey().getPath().startsWith(prefix)) {
+                    if (resource.getKey().getNamespace().equals(namespace) && resource.getKey().getPath().startsWith(prefix)) {
                         output.accept(resource.getKey(), () -> new ByteArrayInputStream(resource.getValue()));
                     }
                 }
@@ -182,7 +211,7 @@ public class RuntimePack {
         @Override
         public Set<String> getNamespaces(PackType packType) {
             if (packType != this.packType) return Set.of();
-            return packType == PackType.CLIENT_RESOURCES ? Set.of(PatinaPandemonium.MOD_ID) : Set.of(MINECRAFT_NAMESPACE);
+            return packType == PackType.CLIENT_RESOURCES ? Set.of(PatinaPandemonium.MOD_ID) : SERVER_NAMESPACES;
         }
 
         @Nullable

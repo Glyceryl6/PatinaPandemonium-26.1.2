@@ -22,7 +22,7 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 2;
+    public int schemaVersion = 3;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
     public int maximumGeneratedBlocks = 200_000;
@@ -31,7 +31,7 @@ public class PatinaRules {
     public int estimatedBytesPerGeneratedBlock = 16_384;
     public int estimatedBytesPerGeneratedBlockState = 4_096;
     public double maximumGeneratedHeapFraction = 0.35D;
-    public double dyedFullBudgetFraction = 0.20D;
+    public double dyedVariantBudgetFraction = 0.65D;
     public int maximumCachedModelParts = 512;
     public int maximumCachedItemQuads = 2_048;
     public boolean dyedVariants = true;
@@ -58,11 +58,13 @@ public class PatinaRules {
                 JsonObject source = JsonParser.parseString(Files.readString(FILE)).getAsJsonObject();
                 PatinaRules loaded = GSON.fromJson(source, PatinaRules.class);
                 PatinaRules rules = loaded == null ? new PatinaRules() : loaded;
+                PatinaRules defaults = new PatinaRules();
                 if (!source.has("schemaVersion") && !source.has("estimatedBytesPerGeneratedBlock")) {
                     if (rules.maximumGeneratedBlockStates == 250_000) rules.maximumGeneratedBlockStates = 1_000_000;
                     if (rules.estimatedBytesPerGeneratedBlockState == 32_768) rules.estimatedBytesPerGeneratedBlockState = 4_096;
                 }
-                rules.schemaVersion = 2;
+                if (!source.has("dyedVariantBudgetFraction")) rules.dyedVariantBudgetFraction = defaults.dyedVariantBudgetFraction;
+                rules.schemaVersion = defaults.schemaVersion;
                 Files.writeString(FILE, GSON.toJson(rules));
                 return rules;
             }
