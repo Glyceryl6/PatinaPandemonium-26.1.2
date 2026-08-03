@@ -1,12 +1,9 @@
 package dev.patinapandemonium.menu;
 
-import dev.patinapandemonium.config.PatinaRules;
 import dev.patinapandemonium.registry.DynamicVariantRegistry;
 import dev.patinapandemonium.registry.OxidationStage;
 import dev.patinapandemonium.registry.VariantData;
 import dev.patinapandemonium.registry.VariantForm;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
@@ -18,8 +15,6 @@ import net.minecraft.world.inventory.ResultContainer;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -67,17 +62,26 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
         this.inputSlot = this.addSlot(new Slot(input, 0, 68, 50) {
             @Override
             public boolean mayPlace(ItemStack stack) {
-                return sourceId(stack) != null;
+                return DynamicVariantRegistry.supportsFabrication(stack);
             }
         });
-        this.resultSlot = this.addSlot(new Slot(this.result, 1, 300, 66) {
+        this.resultSlot = this.addSlot(new Slot(this.result, 0, 300, 66) {
             @Override
             public boolean mayPlace(ItemStack stack) {
                 return false;
             }
 
             @Override
+            public boolean mayPickup(Player player) {
+                return VariantFabricatorMenu.this.isCurrentResult(this.getItem());
+            }
+
+            @Override
             public void onTake(Player player, ItemStack stack) {
+                if (!VariantFabricatorMenu.this.isCurrentResult(stack)) {
+                    VariantFabricatorMenu.this.clearResult();
+                    return;
+                }
                 stack.onCraftedBy(player, stack.getCount());
                 VariantFabricatorMenu.this.inputSlot.remove(1);
                 VariantFabricatorMenu.this.refreshVariants(false);
@@ -113,9 +117,12 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
         return List.copyOf(this.visibleVariants);
     }
 
+    public boolean supportsForm(VariantForm form) {
+        return DynamicVariantRegistry.supportsForm(this.inputSlot.getItem(), form);
+    }
+
     public ItemStack preview(VariantForm form, OxidationStage stage, boolean waxed, @Nullable DyeColor dye) {
-        Identifier sourceId = sourceId(this.inputSlot.getItem());
-        return sourceId == null ? ItemStack.EMPTY : DynamicVariantRegistry.displayStack(new VariantData(sourceId, stage, waxed, form, dye));
+        return DynamicVariantRegistry.fabricate(this.inputSlot.getItem(), form, stage, waxed, dye, 1);
     }
 
     public void registerUpdateListener(Runnable listener) {
@@ -130,7 +137,9 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
     @Override
     public boolean clickMenuButton(Player player, int buttonId) {
         if (buttonId >= FORM_BUTTON_START && buttonId < FORM_BUTTON_START + VariantForm.values().length) {
-            this.selectedForm.set(buttonId - FORM_BUTTON_START);
+            VariantForm form = VariantForm.byOrdinal(buttonId - FORM_BUTTON_START);
+            if (!this.supportsForm(form)) return false;
+            this.selectedForm.set(form.ordinal());
             this.refreshVariants(true);
             return true;
         }
@@ -163,7 +172,10 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
         ItemStack current = this.inputSlot.getItem();
         if (!ItemStack.isSameItemSameComponents(current, this.previousInput)) {
             this.previousInput = current.copy();
+            if (!this.supportsForm(this.selectedForm())) this.selectedForm.set(VariantForm.FULL.ordinal());
             this.refreshVariants(true);
+        } else if (!this.isCurrentResult(this.resultSlot.getItem())) {
+            this.setupResultSlot();
         }
         this.updateListener.run();
         super.slotsChanged(container);
@@ -178,7 +190,7 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
         if (slotIndex == RESULT_SLOT) return this.takeAllResults(player);
         if (slotIndex == INPUT_SLOT) {
             if (!this.moveItemStackTo(stack, INVENTORY_START, HOTBAR_END, false)) return ItemStack.EMPTY;
-        } else if (sourceId(stack) != null) {
+        } else if (DynamicVariantRegistry.supportsFabrication(stack)) {
             if (!this.moveItemStackTo(stack, INPUT_SLOT, INPUT_SLOT + 1, false)) return ItemStack.EMPTY;
         } else if (slotIndex >= INVENTORY_START && slotIndex < INVENTORY_END) {
             if (!this.moveItemStackTo(stack, HOTBAR_START, HOTBAR_END, false)) return ItemStack.EMPTY;
@@ -197,13 +209,16 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
     @Override
     public void removed(Player player) {
         super.removed(player);
-        this.result.removeItemNoUpdate(1);
+        this.result.removeItemNoUpdate(0);
         this.access.execute((_, _) -> this.clearContainer(player, this.input));
     }
 
     private ItemStack takeAllResults(Player player) {
-        if (this.resultSlot.getItem().isEmpty() || this.inputSlot.getItem().isEmpty()) return ItemStack.EMPTY;
-        ItemStack prototype = this.resultSlot.getItem().copyWithCount(1);
+        ItemStack prototype = this.expectedResult();
+        if (prototype.isEmpty() || !this.isCurrentResult(this.resultSlot.getItem())) {
+            this.clearResult();
+            return ItemStack.EMPTY;
+        }
         int available = this.inputSlot.getItem().getCount();
         int moved = 0;
         while (available > 0) {
@@ -225,13 +240,13 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
 
     private void refreshVariants(boolean resetSelection) {
         this.visibleVariants.clear();
-        Identifier sourceId = sourceId(this.inputSlot.getItem());
-        if (sourceId != null) {
+        if (DynamicVariantRegistry.supportsFabrication(this.inputSlot.getItem())) {
             int mask = this.oxidationMask.get();
             for (OxidationStage stage : OxidationStage.values()) {
                 if (mask != 0 && (mask & 1 << stage.ordinal()) == 0) continue;
-                this.visibleVariants.add(new VariantData(sourceId, stage, false, this.selectedForm(), this.selectedDye()));
-                this.visibleVariants.add(new VariantData(sourceId, stage, true, this.selectedForm(), this.selectedDye()));
+                VariantData base = VariantData.defaultFor(this.selectedForm()).withStage(stage).withDye(this.selectedDye());
+                this.visibleVariants.add(base.withWaxed(false));
+                this.visibleVariants.add(base.withWaxed(true));
             }
         }
         if (resetSelection || this.selectedResult.get() >= this.visibleVariants.size()) this.selectedResult.set(-1);
@@ -239,20 +254,25 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
         this.updateListener.run();
     }
 
-    private void setupResultSlot() {
+    private ItemStack expectedResult() {
         int index = this.selectedResult.get();
-        this.resultSlot.set(index < 0 || index >= this.visibleVariants.size()
-            ? ItemStack.EMPTY
-            : DynamicVariantRegistry.displayStack(this.visibleVariants.get(index)));
+        if (index < 0 || index >= this.visibleVariants.size()) return ItemStack.EMPTY;
+        VariantData choice = this.visibleVariants.get(index);
+        return this.preview(choice.form(), choice.stage(), choice.waxed(), choice.dyeColor());
+    }
+
+    private boolean isCurrentResult(ItemStack stack) {
+        ItemStack expected = this.expectedResult();
+        return !expected.isEmpty() && !stack.isEmpty() && ItemStack.isSameItemSameComponents(expected, stack);
+    }
+
+    private void setupResultSlot() {
+        this.resultSlot.set(this.expectedResult());
         this.broadcastChanges();
     }
 
-    @Nullable
-    public static Identifier sourceId(ItemStack stack) {
-        if (stack.isEmpty()) return null;
-        Block block = Block.byItem(stack.getItem());
-        if (block == Blocks.AIR) return null;
-        Identifier id = BuiltInRegistries.BLOCK.getKey(block);
-        return DynamicVariantRegistry.isSource(id, block, PatinaRules.INSTANCE) ? id : null;
+    private void clearResult() {
+        this.resultSlot.set(ItemStack.EMPTY);
+        this.broadcastChanges();
     }
 }

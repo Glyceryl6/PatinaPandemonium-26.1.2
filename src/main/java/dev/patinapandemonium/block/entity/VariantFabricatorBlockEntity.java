@@ -31,7 +31,7 @@ public class VariantFabricatorBlockEntity extends BaseContainerBlockEntity {
 
     @Override
     public boolean canPlaceItem(int slot, ItemStack stack) {
-        return slot == 0 && VariantFabricatorMenu.sourceId(stack) != null;
+        return slot == 0 && DynamicVariantRegistry.supportsFabrication(stack);
     }
 
     @Override
@@ -64,10 +64,7 @@ public class VariantFabricatorBlockEntity extends BaseContainerBlockEntity {
 
     @Override
     protected AbstractContainerMenu createMenu(int containerId, Inventory inventory) {
-        return new VariantFabricatorMenu(
-            containerId,
-            inventory,
-            this,
+        return new VariantFabricatorMenu(containerId, inventory, this,
             this.level == null ? ContainerLevelAccess.NULL : ContainerLevelAccess.create(this.level, this.worldPosition));
     }
 
