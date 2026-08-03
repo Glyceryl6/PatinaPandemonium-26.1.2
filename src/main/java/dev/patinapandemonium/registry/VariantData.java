@@ -1,13 +1,55 @@
 package dev.patinapandemonium.registry;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import org.jspecify.annotations.Nullable;
 
 public record VariantData(Identifier sourceId, OxidationStage stage, boolean waxed, VariantForm form, @Nullable DyeColor dyeColor) {
 
+    private static final int NO_DYE = -1;
+    public static final Codec<VariantData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+        Identifier.CODEC.fieldOf("source").forGetter(VariantData::sourceId),
+        Codec.intRange(0, OxidationStage.values().length - 1).fieldOf("stage").forGetter(data -> data.stage().ordinal()),
+        Codec.BOOL.fieldOf("waxed").forGetter(VariantData::waxed),
+        Codec.intRange(0, VariantForm.values().length - 1).fieldOf("form").forGetter(data -> data.form().ordinal()),
+        Codec.intRange(NO_DYE, DyeColor.VALUES.size() - 1).fieldOf("dye").forGetter(VariantData::dyeId)
+    ).apply(instance, VariantData::decode));
+
     public VariantData(Identifier sourceId, OxidationStage stage, boolean waxed, VariantForm form) {
         this(sourceId, stage, waxed, form, null);
+    }
+
+    public static VariantData defaultFor(VariantForm form) {
+        return new VariantData(BuiltInRegistries.BLOCK.getKey(Blocks.STONE), OxidationStage.FRESH, false, form, null);
+    }
+
+    public VariantData normalized(VariantForm form) {
+        Block source = BuiltInRegistries.BLOCK.getValue(this.sourceId);
+        Identifier sourceId = source == Blocks.AIR
+            ? BuiltInRegistries.BLOCK.getKey(Blocks.STONE)
+            : BuiltInRegistries.BLOCK.getKey(source);
+        return new VariantData(sourceId, this.stage, this.waxed, form, this.dyeColor);
+    }
+
+    public VariantData withStage(OxidationStage stage) {
+        return new VariantData(this.sourceId, stage, this.waxed, this.form, this.dyeColor);
+    }
+
+    public VariantData withWaxed(boolean waxed) {
+        return new VariantData(this.sourceId, this.stage, waxed, this.form, this.dyeColor);
+    }
+
+    public VariantData withForm(VariantForm form) {
+        return new VariantData(this.sourceId, this.stage, this.waxed, form, this.dyeColor);
+    }
+
+    public VariantData withDye(@Nullable DyeColor dyeColor) {
+        return new VariantData(this.sourceId, this.stage, this.waxed, this.form, dyeColor);
     }
 
     public String stageKey() {
@@ -29,6 +71,19 @@ public record VariantData(Identifier sourceId, OxidationStage stage, boolean wax
     public int tint() {
         int oxidation = 0xFF000000 | this.stage.fallbackColor();
         return this.dyeColor == null ? oxidation : multiply(oxidation, this.dyeColor.getTextureDiffuseColor());
+    }
+
+    public int dyeId() {
+        return this.dyeColor == null ? NO_DYE : this.dyeColor.getId();
+    }
+
+    public static VariantData decode(Identifier sourceId, int stage, boolean waxed, int form, int dye) {
+        return new VariantData(sourceId, OxidationStage.byOrdinal(stage), waxed, VariantForm.byOrdinal(form), dyeById(dye));
+    }
+
+    @Nullable
+    public static DyeColor dyeById(int dye) {
+        return dye < 0 || dye >= DyeColor.VALUES.size() ? null : DyeColor.VALUES.get(dye);
     }
 
     private static int multiply(int color, int tint) {

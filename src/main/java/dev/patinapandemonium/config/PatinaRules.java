@@ -22,30 +22,14 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 5;
+    public int schemaVersion = 7;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
-    public int warningGeneratedBlocks = 200_000;
-    public int warningGeneratedBlockStates = 5_000_000;
-    public boolean memoryAwareRegistrationWarning = true;
-    public int estimatedBytesPerGeneratedBlock = 16_384;
-    public int estimatedBytesPerGeneratedBlockState = 4_096;
-    public double warningGeneratedHeapFraction = 0.60D;
-    public boolean abortWhenRegistrationEstimateExceedsWarnings = false;
-    public boolean registerEverySupportedVariant = true;
-    public boolean enableOptionalRunDataExport = false;
-    public int maximumCreativeTabItems = 0;
-    public int maximumCachedModelParts = 512;
-    public int maximumCachedItemQuads = 2_048;
-    public boolean dyedVariants = true;
-    public boolean slabs = true;
-    public boolean stairs = true;
-    public boolean walls = true;
-    public boolean fences = true;
-    public boolean fenceGates = true;
-    public boolean carpets = true;
-    public boolean buttons = true;
-    public boolean pressurePlates = true;
+    public int maximumCreativeTabItems = 4_096;
+    public int maximumCreativePreviewSources = 256;
+    public double oxidationAttemptChance = 0.05688889D;
+    public int maximumCachedModelParts = 2_048;
+    public int maximumCachedItemQuads = 4_096;
     public JsonObject textureOverrides = new JsonObject();
     public JsonObject existingFormOverrides = new JsonObject();
 
@@ -57,54 +41,24 @@ public class PatinaRules {
     private static PatinaRules load() {
         try {
             Files.createDirectories(FILE.getParent());
-            if (Files.exists(FILE)) {
-                JsonObject source = JsonParser.parseString(Files.readString(FILE)).getAsJsonObject();
-                PatinaRules loaded = GSON.fromJson(source, PatinaRules.class);
-                PatinaRules rules = loaded == null ? new PatinaRules() : loaded;
-                PatinaRules defaults = new PatinaRules();
-                if (!source.has("warningGeneratedBlocks")) {
-                    rules.warningGeneratedBlocks = source.has("maximumGeneratedBlocks")
-                        ? Math.max(0, source.get("maximumGeneratedBlocks").getAsInt())
-                        : defaults.warningGeneratedBlocks;
-                }
-                if (!source.has("warningGeneratedBlockStates")) {
-                    rules.warningGeneratedBlockStates = source.has("maximumGeneratedBlockStates")
-                        ? Math.max(0, source.get("maximumGeneratedBlockStates").getAsInt())
-                        : defaults.warningGeneratedBlockStates;
-                }
-                if (!source.has("memoryAwareRegistrationWarning")) {
-                    rules.memoryAwareRegistrationWarning = !source.has("memoryAwareBlockStateLimit")
-                        || source.get("memoryAwareBlockStateLimit").getAsBoolean();
-                }
-                if (!source.has("warningGeneratedHeapFraction")) {
-                    rules.warningGeneratedHeapFraction = source.has("maximumGeneratedHeapFraction")
-                        ? source.get("maximumGeneratedHeapFraction").getAsDouble()
-                        : defaults.warningGeneratedHeapFraction;
-                }
-                if (!source.has("abortWhenRegistrationEstimateExceedsWarnings")) {
-                    rules.abortWhenRegistrationEstimateExceedsWarnings = defaults.abortWhenRegistrationEstimateExceedsWarnings;
-                }
-                if (!source.has("registerEverySupportedVariant")) {
-                    rules.registerEverySupportedVariant = defaults.registerEverySupportedVariant;
-                }
-                if (!source.has("enableOptionalRunDataExport")) {
-                    rules.enableOptionalRunDataExport = defaults.enableOptionalRunDataExport;
-                }
-                if (!source.has("maximumCreativeTabItems")) {
-                    rules.maximumCreativeTabItems = defaults.maximumCreativeTabItems;
-                }
-                if (!source.has("schemaVersion") && rules.estimatedBytesPerGeneratedBlockState == 32_768) {
-                    rules.estimatedBytesPerGeneratedBlockState = defaults.estimatedBytesPerGeneratedBlockState;
-                }
-                rules.schemaVersion = defaults.schemaVersion;
-                Files.writeString(FILE, GSON.toJson(rules));
-                return rules;
-            }
-            PatinaRules rules = new PatinaRules();
+            PatinaRules rules = Files.exists(FILE)
+                ? GSON.fromJson(JsonParser.parseString(Files.readString(FILE)), PatinaRules.class)
+                : new PatinaRules();
+            if (rules == null) rules = new PatinaRules();
+            rules.schemaVersion = 7;
+            if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
+            if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
+            if (rules.textureOverrides == null) rules.textureOverrides = new JsonObject();
+            if (rules.existingFormOverrides == null) rules.existingFormOverrides = new JsonObject();
+            rules.maximumCreativeTabItems = Math.max(0, rules.maximumCreativeTabItems);
+            rules.maximumCreativePreviewSources = Math.max(0, rules.maximumCreativePreviewSources);
+            rules.maximumCachedModelParts = Math.max(0, rules.maximumCachedModelParts);
+            rules.maximumCachedItemQuads = Math.max(0, rules.maximumCachedItemQuads);
+            rules.oxidationAttemptChance = Math.clamp(rules.oxidationAttemptChance, 0.0D, 1.0D);
             Files.writeString(FILE, GSON.toJson(rules));
             return rules;
         } catch (IOException | RuntimeException error) {
-            LOGGER.error("Could not load Patina Pandemonium rules; defaults will be used", error);
+            LOGGER.warn("Could not load {}, using defaults", FILE, error);
             return new PatinaRules();
         }
     }

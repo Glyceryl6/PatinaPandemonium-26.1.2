@@ -35,4 +35,20 @@ public enum OxidationStage {
         return this == FRESH ? EXPOSED : this == EXPOSED ? WEATHERED : this == WEATHERED ? OXIDIZED : null;
     }
 
+    public OxidationStage previous() {
+        return this == OXIDIZED ? WEATHERED : this == WEATHERED ? EXPOSED : this == EXPOSED ? FRESH : null;
+    }
+
+    public static OxidationStage byOrdinal(int ordinal) {
+        OxidationStage[] values = values();
+        return ordinal < 0 || ordinal >= values.length ? FRESH : values[ordinal];
+    }
+
+    public static OxidationStage byId(String id) {
+        for (OxidationStage stage : values()) {
+            if (stage.id.equals(id)) return stage;
+        }
+        return FRESH;
+    }
+
 }

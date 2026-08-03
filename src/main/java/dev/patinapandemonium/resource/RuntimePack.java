@@ -5,7 +5,7 @@ import com.mojang.logging.LogUtils;
 import com.mojang.serialization.JsonOps;
 import dev.patinapandemonium.PatinaPandemonium;
 import dev.patinapandemonium.block.PatinaOxidizable;
-import dev.patinapandemonium.registry.VariantData;
+import dev.patinapandemonium.registry.DynamicVariantRegistry;
 import dev.patinapandemonium.registry.VariantForm;
 import net.minecraft.SharedConstants;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -35,7 +35,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,10 +42,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-/**
- * Supplies shared client discovery descriptors and streams runtime tags without retaining one large
- * JSON byte array per tag. Baked geometry remains flyweight and is installed by the client hook.
- */
+/** Supplies the nine carrier discovery descriptors and their shared runtime tags. */
 public class RuntimePack {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final List<String> LEGACY_PACKS = List.of("generated-client-resources.zip", "generated-server-data.zip");
@@ -62,7 +58,6 @@ public class RuntimePack {
         .getBytes(StandardCharsets.UTF_8);
     private static final Map<Identifier, VariantForm> SERVER_TAGS = new LinkedHashMap<>();
     private static final Set<String> SERVER_NAMESPACES = Set.of(MINECRAFT_NAMESPACE, "c");
-    private static volatile List<Block> entries = List.of();
 
     static {
         addCommonTag(VariantForm.SLAB, "slabs");
@@ -75,8 +70,7 @@ public class RuntimePack {
         addTags(VariantForm.PRESSURE_PLATE, "pressure_plates", "pressure_plates");
     }
 
-    public static synchronized void bootstrap() {
-        RuntimePack.entries = List.of();
+    public static void bootstrap() {
         Path legacyDirectory = FMLPaths.CONFIGDIR.get().resolve(PatinaPandemonium.MOD_ID);
         for (String fileName : LEGACY_PACKS) {
             try {
@@ -85,10 +79,6 @@ public class RuntimePack {
                 LOGGER.warn("Could not remove legacy generated pack {}", fileName, error);
             }
         }
-    }
-
-    public static synchronized void updateEntries(List<Block> updatedEntries) {
-        RuntimePack.entries = Collections.unmodifiableList(updatedEntries);
     }
 
     private static void addCommonTag(VariantForm form, String path) {
@@ -121,6 +111,10 @@ public class RuntimePack {
             packType,
             new PackSelectionConfig(true, Pack.Position.TOP, false));
         if (pack != null) event.addRepositorySource(consumer -> consumer.accept(pack));
+    }
+
+    private static List<Block> entries() {
+        return DynamicVariantRegistry.generated();
     }
 
     private static class MemoryPackResources implements PackResources {
@@ -156,12 +150,12 @@ public class RuntimePack {
             if (packType != this.packType) return null;
             if (packType == PackType.SERVER_DATA) {
                 VariantForm form = SERVER_TAGS.get(id);
-                return form == null ? null : () -> new TagInputStream(RuntimePack.entries.iterator(), form);
+                return form == null ? null : () -> new TagInputStream(entries().iterator(), form);
             }
-            if (!id.getNamespace().equals(PatinaPandemonium.MOD_ID)) return null;
+            if (!id.getNamespace().equals(PatinaPandemonium.MOD_ID) || !isCarrierResource(id)) return null;
             String path = id.getPath();
-            if (path.startsWith(BLOCKSTATE_DIRECTORY) && path.endsWith(JSON_EXTENSION)) return () -> new ByteArrayInputStream(BLOCKSTATE_DESCRIPTOR);
-            if (path.startsWith(ITEM_DIRECTORY) && path.endsWith(JSON_EXTENSION)) return () -> new ByteArrayInputStream(ITEM_DESCRIPTOR);
+            if (path.startsWith(BLOCKSTATE_DIRECTORY)) return () -> new ByteArrayInputStream(BLOCKSTATE_DESCRIPTOR);
+            if (path.startsWith(ITEM_DIRECTORY)) return () -> new ByteArrayInputStream(ITEM_DESCRIPTOR);
             return null;
         }
 
@@ -172,13 +166,13 @@ public class RuntimePack {
             if (packType == PackType.SERVER_DATA) {
                 for (Map.Entry<Identifier, VariantForm> resource : SERVER_TAGS.entrySet()) {
                     if (resource.getKey().getNamespace().equals(namespace) && resource.getKey().getPath().startsWith(prefix)) {
-                        output.accept(resource.getKey(), () -> new TagInputStream(RuntimePack.entries.iterator(), resource.getValue()));
+                        output.accept(resource.getKey(), () -> new TagInputStream(entries().iterator(), resource.getValue()));
                     }
                 }
                 return;
             }
             if (!namespace.equals(PatinaPandemonium.MOD_ID)) return;
-            for (Block block : RuntimePack.entries) {
+            for (Block block : entries()) {
                 Identifier blockId = BuiltInRegistries.BLOCK.getKey(block);
                 Identifier blockState = PatinaPandemonium.id(BLOCKSTATE_DIRECTORY + blockId.getPath() + JSON_EXTENSION);
                 if (blockState.getPath().startsWith(prefix)) output.accept(blockState, () -> new ByteArrayInputStream(BLOCKSTATE_DESCRIPTOR));
@@ -207,6 +201,18 @@ public class RuntimePack {
 
         @Override
         public void close() {}
+
+        private boolean isCarrierResource(Identifier id) {
+            String path = id.getPath();
+            if (!path.endsWith(JSON_EXTENSION)
+                || !path.startsWith(BLOCKSTATE_DIRECTORY) && !path.startsWith(ITEM_DIRECTORY)) return false;
+            int start = path.lastIndexOf('/') + 1;
+            String name = path.substring(start, path.length() - JSON_EXTENSION.length());
+            for (Block block : entries()) {
+                if (BuiltInRegistries.BLOCK.getKey(block).getPath().equals(name)) return true;
+            }
+            return false;
+        }
     }
 
     private static class TagInputStream extends InputStream {
@@ -215,7 +221,7 @@ public class RuntimePack {
         private static final byte[] SUFFIX = "]}".getBytes(StandardCharsets.UTF_8);
         private final Iterator<Block> entries;
         private final VariantForm form;
-        private byte[] chunk = PREFIX;
+        private byte @Nullable [] chunk = PREFIX;
         private int offset;
         private boolean first = true;
         private boolean suffixWritten;
@@ -249,8 +255,7 @@ public class RuntimePack {
         private void advance() {
             while (this.entries.hasNext()) {
                 Block block = this.entries.next();
-                VariantData data = ((PatinaOxidizable) block).patinaData();
-                if (data.form() != this.form) continue;
+                if (!(block instanceof PatinaOxidizable oxidizable) || oxidizable.patinaForm() != this.form) continue;
                 String value = (this.first ? "\"" : ",\"") + BuiltInRegistries.BLOCK.getKey(block) + "\"";
                 this.first = false;
                 this.chunk = value.getBytes(StandardCharsets.UTF_8);

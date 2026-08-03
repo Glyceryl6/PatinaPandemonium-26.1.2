@@ -1,6 +1,6 @@
 package dev.patinapandemonium.block;
 
-import dev.patinapandemonium.registry.VariantData;
+import dev.patinapandemonium.registry.VariantForm;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
@@ -11,26 +11,23 @@ import net.minecraft.world.level.block.state.properties.BlockSetType;
 
 public class PatinaPressurePlateBlock extends PressurePlateBlock implements PatinaOxidizable {
 
-    private final VariantData data;
-
-    public PatinaPressurePlateBlock(BlockBehaviour.Properties properties, VariantData data) {
+    public PatinaPressurePlateBlock(BlockBehaviour.Properties properties) {
         super(BlockSetType.OAK, properties);
-        this.data = data;
     }
 
     @Override
-    public VariantData patinaData() {
-        return this.data;
+    public VariantForm patinaForm() {
+        return VariantForm.PRESSURE_PLATE;
     }
 
     @Override
     protected boolean isRandomlyTicking(BlockState state) {
-        return !this.data.waxed() && this.data.stage().next() != null;
+        return true;
     }
 
     @Override
     protected void randomTick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
-        if (!this.data.waxed()) this.changeOverTime(state, level, pos, random);
+        this.patinaRandomTick(level, pos, random);
     }
 
 }

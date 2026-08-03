@@ -1,6 +1,8 @@
 package dev.patinapandemonium.client;
 
+import dev.patinapandemonium.block.entity.PatinaVariantBlockEntity;
 import dev.patinapandemonium.config.PatinaRules;
+import dev.patinapandemonium.registry.VariantData;
 import dev.patinapandemonium.registry.VariantForm;
 import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
@@ -11,11 +13,14 @@ import net.minecraft.client.resources.model.geometry.QuadCollection;
 import net.minecraft.client.resources.model.sprite.Material;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.client.model.DelegateBlockStateModel;
 import net.neoforged.neoforge.client.model.quad.MutableQuad;
+import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -23,28 +28,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Reuses already baked source/template geometry and applies oxidation tint without new textures. */
+/** Selects source appearance from block-entity model data without multiplying registry entries. */
+@SuppressWarnings("deprecation")
 public class PatinaBlockStateModel extends DelegateBlockStateModel {
 
     private static final Map<CacheKey, BlockStateModelPart> PART_CACHE = new LinkedHashMap<>(128, 0.75F, true);
     private static final ThreadLocal<List<BlockStateModelPart>> COLLECTED_PARTS = ThreadLocal.withInitial(ArrayList::new);
 
     private final Map<BlockState, BlockStateModel> models;
-    private final Block source;
     private final Block template;
     private final VariantForm form;
-    private final Material.Baked sourceMaterial;
-    private final int tint;
 
-    public PatinaBlockStateModel(Map<BlockState, BlockStateModel> models, Block source, Block template,
-                                 VariantForm form, BlockStateModel delegate, Material.Baked sourceMaterial, int tint) {
+    public PatinaBlockStateModel(Map<BlockState, BlockStateModel> models, Block template, VariantForm form, BlockStateModel delegate) {
         super(delegate);
         this.models = models;
-        this.source = source;
         this.template = template;
         this.form = form;
-        this.sourceMaterial = sourceMaterial;
-        this.tint = tint;
     }
 
     public static void clearCache() {
@@ -56,68 +55,62 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
     @Override
     @Deprecated
     public void collectParts(RandomSource random, List<BlockStateModelPart> parts) {
-        this.collectParts(this.source.defaultBlockState(), random, parts);
+        this.collectParts(VariantData.defaultFor(this.form), Blocks.AIR.defaultBlockState(), null, null, random, parts);
     }
 
     @Override
     public void collectParts(BlockAndTintGetter level, BlockPos pos, BlockState state, RandomSource random,
                              List<BlockStateModelPart> parts) {
-        BlockState renderState = this.renderState(state);
-        BlockStateModel model = this.models.getOrDefault(renderState, this.delegate);
-        List<BlockStateModelPart> collected = COLLECTED_PARTS.get();
-        collected.clear();
-        model.collectParts(level, pos, renderState, random, collected);
-        this.addTransformed(collected, parts);
+        VariantData data = level.getModelData(pos).get(PatinaVariantBlockEntity.MODEL_DATA);
+        this.collectParts(data == null ? VariantData.defaultFor(this.form) : data.normalized(this.form), state, level, pos, random, parts);
     }
 
     @Override
     @Deprecated
     public Material.Baked particleMaterial() {
-        return this.sourceMaterial;
+        return this.context(VariantData.defaultFor(this.form)).sourceMaterial();
     }
 
     @Override
     public Material.Baked particleMaterial(BlockAndTintGetter level, BlockPos pos, BlockState state) {
-        return this.sourceMaterial;
+        VariantData data = level.getModelData(pos).get(PatinaVariantBlockEntity.MODEL_DATA);
+        return this.context(data == null ? VariantData.defaultFor(this.form) : data.normalized(this.form)).sourceMaterial();
     }
 
-    private void collectParts(BlockState state, RandomSource random, List<BlockStateModelPart> output) {
-        BlockState renderState = this.renderState(state);
+    private void collectParts(
+            VariantData data, BlockState carrierState,
+            @Nullable BlockAndTintGetter level, @Nullable BlockPos pos,
+            RandomSource random, List<BlockStateModelPart> output) {
+        RenderContext context = this.context(data);
+        BlockState renderState = this.form == VariantForm.FULL
+            ? context.source().defaultBlockState()
+            : this.template.withPropertiesOf(carrierState);
         BlockStateModel model = this.models.getOrDefault(renderState, this.delegate);
         List<BlockStateModelPart> collected = COLLECTED_PARTS.get();
         collected.clear();
-        model.collectParts(random, collected);
-        this.addTransformed(collected, output);
-    }
-
-    private BlockState renderState(BlockState state) {
-        return this.form == VariantForm.FULL
-            ? this.source.defaultBlockState()
-            : this.template.withPropertiesOf(state);
-    }
-
-    private void addTransformed(List<BlockStateModelPart> collected, List<BlockStateModelPart> output) {
-        for (BlockStateModelPart part : collected) {
-            output.add(this.transform(part));
-        }
+        if (level == null || pos == null || this.form == VariantForm.FULL) model.collectParts(random, collected);
+        else model.collectParts(level, pos, renderState, random, collected);
+        for (BlockStateModelPart part : collected) output.add(this.transform(context, part));
         collected.clear();
     }
 
-    private BlockStateModelPart transform(BlockStateModelPart part) {
-        int maximum = Math.max(0, PatinaRules.INSTANCE.maximumCachedModelParts);
-        if (maximum == 0) {
-            return this.createPart(part);
-        }
+    private RenderContext context(VariantData data) {
+        Block source = BuiltInRegistries.BLOCK.getValue(data.sourceId());
+        if (source == Blocks.AIR) source = Blocks.STONE;
+        BlockStateModel sourceModel = this.models.getOrDefault(source.defaultBlockState(), this.models.get(Blocks.STONE.defaultBlockState()));
+        Material.Baked material = sourceModel == null ? this.delegate.particleMaterial() : sourceModel.particleMaterial();
+        return new RenderContext(source, material, data.tint());
+    }
 
-        CacheKey key = new CacheKey(this, part);
+    private BlockStateModelPart transform(RenderContext context, BlockStateModelPart part) {
+        int maximum = Math.max(0, PatinaRules.INSTANCE.maximumCachedModelParts);
+        if (maximum == 0) return this.createPart(context, part);
+        CacheKey key = new CacheKey(context.source(), this.form, context.tint(), part);
         synchronized (PART_CACHE) {
             BlockStateModelPart cached = PART_CACHE.get(key);
-            if (cached != null) {
-                return cached;
-            }
+            if (cached != null) return cached;
         }
-
-        BlockStateModelPart transformed = this.createPart(part);
+        BlockStateModelPart transformed = this.createPart(context, part);
         synchronized (PART_CACHE) {
             PART_CACHE.put(key, transformed);
             Iterator<CacheKey> iterator = PART_CACHE.keySet().iterator();
@@ -130,29 +123,19 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
         return transformed;
     }
 
-    private BlockStateModelPart createPart(BlockStateModelPart part) {
+    private BlockStateModelPart createPart(RenderContext context, BlockStateModelPart part) {
         QuadCollection.Builder builder = new QuadCollection.Builder();
         for (Direction direction : Direction.values()) {
-            for (BakedQuad quad : part.getQuads(direction)) {
-                builder.addCulledFace(direction, this.transform(quad));
-            }
+            for (BakedQuad quad : part.getQuads(direction)) builder.addCulledFace(direction, this.transform(context, quad));
         }
-
-        for (BakedQuad quad : part.getQuads(null)) {
-            builder.addUnculledFace(this.transform(quad));
-        }
-
-        return new SimpleModelWrapper(builder.build(), part.ambientOcclusion().isTrue(), this.sourceMaterial);
+        for (BakedQuad quad : part.getQuads(null)) builder.addUnculledFace(this.transform(context, quad));
+        return new SimpleModelWrapper(builder.build(), part.ambientOcclusion().isTrue(), context.sourceMaterial());
     }
 
-    private BakedQuad transform(BakedQuad quad) {
+    private BakedQuad transform(RenderContext context, BakedQuad quad) {
         MutableQuad mutable = new MutableQuad().setFrom(quad);
-        if (this.form != VariantForm.FULL) {
-            mutable.setSpriteAndMoveUv(this.sourceMaterial);
-        }
-        for (int vertex = 0; vertex < 4; vertex++) {
-            mutable.setColor(vertex, multiply(mutable.color(vertex), this.tint));
-        }
+        if (this.form != VariantForm.FULL) mutable.setSpriteAndMoveUv(context.sourceMaterial());
+        for (int vertex = 0; vertex < 4; vertex++) mutable.setColor(vertex, multiply(mutable.color(vertex), context.tint()));
         return mutable.toBakedQuad();
     }
 
@@ -164,5 +147,8 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
         return alpha << 24 | red << 16 | green << 8 | blue;
     }
 
-    private record CacheKey(PatinaBlockStateModel owner, BlockStateModelPart part) {}
+    private record RenderContext(Block source, Material.Baked sourceMaterial, int tint) {}
+
+    private record CacheKey(Block source, VariantForm form, int tint, BlockStateModelPart part) {}
+
 }
