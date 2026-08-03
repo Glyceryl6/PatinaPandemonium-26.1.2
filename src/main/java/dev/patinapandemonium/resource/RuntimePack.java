@@ -23,6 +23,7 @@ import net.minecraft.server.packs.repository.PackSource;
 import net.minecraft.server.packs.resources.IoSupplier;
 import net.minecraft.util.GsonHelper;
 import net.minecraft.util.InclusiveRange;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.event.AddPackFindersEvent;
@@ -145,7 +146,7 @@ public class RuntimePack {
             if (packType != this.packType) return null;
             if (packType == PackType.SERVER_DATA) {
                 VariantForm form = SERVER_TAGS.get(id);
-                return form == null ? null : () -> new TagInputStream(entries().iterator(), form);
+                return form == null ? null : () -> new TagInputStream(entries().iterator(), form, id.getPath().startsWith(ITEM_TAG_DIRECTORY));
             }
             if (!id.getNamespace().equals(PatinaPandemonium.MOD_ID) || !isCarrierResource(id)) return null;
             String path = id.getPath();
@@ -161,18 +162,22 @@ public class RuntimePack {
             if (packType == PackType.SERVER_DATA) {
                 for (Map.Entry<Identifier, VariantForm> resource : SERVER_TAGS.entrySet()) {
                     if (resource.getKey().getNamespace().equals(namespace) && resource.getKey().getPath().startsWith(prefix)) {
-                        output.accept(resource.getKey(), () -> new TagInputStream(entries().iterator(), resource.getValue()));
+                        output.accept(resource.getKey(), () -> new TagInputStream(
+                            entries().iterator(), resource.getValue(), resource.getKey().getPath().startsWith(ITEM_TAG_DIRECTORY)));
                     }
                 }
                 return;
             }
+
             if (!namespace.equals(PatinaPandemonium.MOD_ID)) return;
             for (Block block : entries()) {
                 Identifier blockId = BuiltInRegistries.BLOCK.getKey(block);
                 Identifier blockState = PatinaPandemonium.id(BLOCKSTATE_DIRECTORY + blockId.getPath() + JSON_EXTENSION);
                 if (blockState.getPath().startsWith(prefix)) output.accept(blockState, () -> new ByteArrayInputStream(BLOCKSTATE_DESCRIPTOR));
-                Identifier item = PatinaPandemonium.id(ITEM_DIRECTORY + blockId.getPath() + JSON_EXTENSION);
-                if (item.getPath().startsWith(prefix)) output.accept(item, () -> new ByteArrayInputStream(ITEM_DESCRIPTOR));
+                if (block.asItem() != Items.AIR) {
+                    Identifier item = PatinaPandemonium.id(ITEM_DIRECTORY + blockId.getPath() + JSON_EXTENSION);
+                    if (item.getPath().startsWith(prefix)) output.accept(item, () -> new ByteArrayInputStream(ITEM_DESCRIPTOR));
+                }
             }
         }
 
@@ -204,7 +209,9 @@ public class RuntimePack {
                 : path.startsWith(ITEM_DIRECTORY) ? ITEM_DIRECTORY : null;
             if (directory == null) return false;
             String carrierPath = path.substring(directory.length(), path.length() - JSON_EXTENSION.length());
-            return DynamicVariantRegistry.isGeneratedId(PatinaPandemonium.id(carrierPath));
+            Block block = BuiltInRegistries.BLOCK.getValue(PatinaPandemonium.id(carrierPath));
+            return block instanceof PatinaOxidizable
+                && (!directory.equals(ITEM_DIRECTORY) || block.asItem() != Items.AIR);
         }
     }
 
@@ -214,14 +221,16 @@ public class RuntimePack {
         private static final byte[] SUFFIX = "]}".getBytes(StandardCharsets.UTF_8);
         private final Iterator<Block> entries;
         private final VariantForm form;
+        private final boolean itemTag;
         private byte @Nullable [] chunk = PREFIX;
         private int offset;
         private boolean first = true;
         private boolean suffixWritten;
 
-        private TagInputStream(Iterator<Block> entries, VariantForm form) {
+        private TagInputStream(Iterator<Block> entries, VariantForm form, boolean itemTag) {
             this.entries = entries;
             this.form = form;
+            this.itemTag = itemTag;
         }
 
         @Override
@@ -248,8 +257,11 @@ public class RuntimePack {
         private void advance() {
             while (this.entries.hasNext()) {
                 Block block = this.entries.next();
-                if (!(block instanceof PatinaOxidizable oxidizable) || oxidizable.patinaForm() != this.form) continue;
-                String value = (this.first ? "\"" : ",\"") + BuiltInRegistries.BLOCK.getKey(block) + "\"";
+                if (!(block instanceof PatinaOxidizable oxidizable) || oxidizable.patinaForm() != this.form
+                    || this.itemTag && block.asItem() == Items.AIR) continue;
+                String value = (this.first ? "\"" : ",\"") + (this.itemTag
+                    ? BuiltInRegistries.ITEM.getKey(block.asItem())
+                    : BuiltInRegistries.BLOCK.getKey(block)) + "\"";
                 this.first = false;
                 this.chunk = value.getBytes(StandardCharsets.UTF_8);
                 this.offset = 0;

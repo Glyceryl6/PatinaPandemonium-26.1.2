@@ -95,7 +95,11 @@ public class VariantFabricatorScreen extends AbstractContainerScreen<VariantFabr
         int relativeY = mouseY - this.topPos;
         int form = gridIndex(relativeX, relativeY, FORM_X, FORM_Y, FORM_SIZE, 3, 3);
         if (form >= 0 && form < VariantForm.values().length) {
-            graphics.setTooltipForNextFrame(this.font, Component.translatable("patina_pandemonium.form." + VariantForm.byOrdinal(form).id()), mouseX, mouseY);
+            VariantForm variantForm = VariantForm.byOrdinal(form);
+            Component name = Component.translatable("patina_pandemonium.form." + variantForm.id());
+            graphics.setTooltipForNextFrame(this.font, this.menu.supportsForm(variantForm)
+                ? name
+                : Component.translatable("container.patina_pandemonium.form_unavailable", name), mouseX, mouseY);
             return;
         }
         int dye = gridIndex(relativeX, relativeY, DYE_X, DYE_Y, DYE_SIZE, 4, 4);
@@ -117,8 +121,8 @@ public class VariantFabricatorScreen extends AbstractContainerScreen<VariantFabr
         int result = gridIndex(relativeX, relativeY, RESULT_X, RESULT_Y, RESULT_SIZE, 4, 2);
         List<VariantData> variants = this.menu.visibleVariants();
         if (result >= 0 && result < variants.size()) {
-            ItemStack stack = this.menu.preview(
-                variants.get(result).form(), variants.get(result).stage(), variants.get(result).waxed(), variants.get(result).dyeColor());
+            VariantData data = variants.get(result);
+            ItemStack stack = this.menu.preview(data.form(), data.stage(), data.waxed(), data.dyeColor());
             graphics.setTooltipForNextFrame(this.font, stack, mouseX, mouseY);
         }
     }
@@ -129,7 +133,9 @@ public class VariantFabricatorScreen extends AbstractContainerScreen<VariantFabr
         double y = event.y() - this.topPos;
         int buttonId = -1;
         int form = gridIndex(x, y, FORM_X, FORM_Y, FORM_SIZE, 3, 3);
-        if (form >= 0 && form < VariantForm.values().length) buttonId = VariantFabricatorMenu.FORM_BUTTON_START + form;
+        if (form >= 0 && form < VariantForm.values().length && this.menu.supportsForm(VariantForm.byOrdinal(form))) {
+            buttonId = VariantFabricatorMenu.FORM_BUTTON_START + form;
+        }
         int dye = gridIndex(x, y, DYE_X, DYE_Y, DYE_SIZE, 4, 4);
         if (buttonId < 0 && dye >= 0 && dye < DyeColor.VALUES.size()) buttonId = VariantFabricatorMenu.DYE_BUTTON_START + dye;
         int stage = gridIndex(x, y, STAGE_X, STAGE_Y, STAGE_SIZE, 4, 1);
@@ -150,10 +156,12 @@ public class VariantFabricatorScreen extends AbstractContainerScreen<VariantFabr
         for (int index = 0; index < VariantForm.values().length; index++) {
             int x = this.leftPos + FORM_X + index % 3 * FORM_SIZE;
             int y = this.topPos + FORM_Y + index / 3 * FORM_SIZE;
-            boolean selected = this.menu.selectedForm().ordinal() == index;
-            this.button(graphics, x, y, FORM_SIZE, FORM_SIZE, selected, inside(mouseX, mouseY, x, y, FORM_SIZE, FORM_SIZE));
-            ItemStack stack = this.menu.preview(VariantForm.byOrdinal(index), OxidationStage.FRESH, false, this.menu.selectedDye());
-            graphics.item(stack, x + 1, y + 1);
+            VariantForm form = VariantForm.byOrdinal(index);
+            boolean enabled = this.menu.supportsForm(form);
+            boolean selected = this.menu.selectedForm() == form;
+            this.button(graphics, x, y, FORM_SIZE, FORM_SIZE, selected, inside(mouseX, mouseY, x, y, FORM_SIZE, FORM_SIZE), enabled);
+            ItemStack stack = this.menu.preview(form, OxidationStage.FRESH, false, this.menu.selectedDye());
+            if (!stack.isEmpty()) graphics.item(stack, x + 1, y + 1);
         }
     }
 
@@ -222,9 +230,13 @@ public class VariantFabricatorScreen extends AbstractContainerScreen<VariantFabr
     }
 
     private void button(GuiGraphicsExtractor graphics, int x, int y, int width, int height, boolean selected, boolean hovered) {
-        graphics.fill(x, y, x + width, y + height, selected ? 0xFF254D46 : hovered ? 0xFF334744 : 0xFF1D292C);
-        graphics.outline(x, y, width, height, selected ? SELECTED : hovered ? HOVERED : BORDER);
-        if (hovered) graphics.requestCursor(CursorTypes.POINTING_HAND);
+        this.button(graphics, x, y, width, height, selected, hovered, true);
+    }
+
+    private void button(GuiGraphicsExtractor graphics, int x, int y, int width, int height, boolean selected, boolean hovered, boolean enabled) {
+        graphics.fill(x, y, x + width, y + height, !enabled ? 0xFF151B1E : selected ? 0xFF254D46 : hovered ? 0xFF334744 : 0xFF1D292C);
+        graphics.outline(x, y, width, height, !enabled ? 0xFF354541 : selected ? SELECTED : hovered ? HOVERED : BORDER);
+        if (hovered && enabled) graphics.requestCursor(CursorTypes.POINTING_HAND);
     }
 
     private static int gridIndex(double x, double y, int originX, int originY, int size, int columns, int rows) {

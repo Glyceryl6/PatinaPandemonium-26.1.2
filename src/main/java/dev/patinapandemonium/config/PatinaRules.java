@@ -22,9 +22,12 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 9;
+    public int schemaVersion = 10;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
+    public Set<String> excludedItems = new HashSet<>();
+    public boolean generateExternalVariants = true;
+    public int maximumDelegatedBlockStates = 256;
     public int maximumCreativeTabItems = 0;
     public int maximumCreativePreviewSources = 0;
     public double oxidationAttemptChance = 0.05688889D;
@@ -35,6 +38,7 @@ public class PatinaRules {
 
     public boolean namespaceAllowed(String namespace) {
         return !namespace.equals(PatinaPandemonium.MOD_ID)
+            && (namespace.equals("minecraft") || this.generateExternalVariants)
             && (this.excludedNamespaces == null || !this.excludedNamespaces.contains(namespace));
     }
 
@@ -61,13 +65,15 @@ public class PatinaRules {
                 }
             }
 
-            rules.schemaVersion = 9;
+            rules.schemaVersion = 10;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
             if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
+            if (rules.excludedItems == null) rules.excludedItems = new HashSet<>();
             if (rules.textureOverrides == null) rules.textureOverrides = new JsonObject();
             if (rules.existingFormOverrides == null) rules.existingFormOverrides = new JsonObject();
             rules.maximumCreativeTabItems = Math.max(0, rules.maximumCreativeTabItems);
             rules.maximumCreativePreviewSources = Math.max(0, rules.maximumCreativePreviewSources);
+            rules.maximumDelegatedBlockStates = Math.max(1, rules.maximumDelegatedBlockStates);
             rules.maximumCachedModelParts = Math.max(0, rules.maximumCachedModelParts);
             rules.maximumCachedItemQuads = Math.max(0, rules.maximumCachedItemQuads);
             rules.oxidationAttemptChance = Math.clamp(rules.oxidationAttemptChance, 0.0D, 1.0D);

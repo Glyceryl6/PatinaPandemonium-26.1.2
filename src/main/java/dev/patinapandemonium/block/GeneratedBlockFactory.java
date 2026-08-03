@@ -61,6 +61,12 @@ public class GeneratedBlockFactory {
         return create(form, source, properties, !source.defaultBlockState().canOcclude());
     }
 
+    public static Block createDelegated(Identifier id, Block source) {
+        BlockBehaviour.Properties properties = BlockBehaviour.Properties.ofFullCopy(source)
+                .setId(ResourceKey.create(Registries.BLOCK, id)).randomTicks();
+        return PatinaDelegatingBlock.create(source, properties);
+    }
+
     private static Block create(VariantForm form, Block source, BlockBehaviour.Properties properties, boolean nonOccluding) {
         if (NO_COLLISION_FORMS.contains(form)) properties.noCollision();
         if (nonOccluding || NO_OCCLUSION_FORMS.contains(form)) properties.noOcclusion();

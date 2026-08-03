@@ -64,22 +64,20 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
     @Override
     @Deprecated
     public Material.Baked particleMaterial() {
-        return this.context(VariantData.defaultFor(this.form), null, null).sourceMaterial();
+        return this.context(VariantData.defaultFor(this.form), Blocks.AIR.defaultBlockState(), null, null).sourceMaterial();
     }
 
     @Override
     public Material.Baked particleMaterial(BlockAndTintGetter level, BlockPos pos, BlockState state) {
         VariantData data = level.getModelData(pos).get(PatinaVariantBlockEntity.MODEL_DATA);
-        return this.context(data == null ? VariantData.defaultFor(this.form) : data.normalized(this.form), level, pos).sourceMaterial();
+        return this.context(data == null ? VariantData.defaultFor(this.form) : data.normalized(this.form), state, level, pos).sourceMaterial();
     }
 
     private void collectParts(VariantData data, BlockState carrierState,
                               @Nullable BlockAndTintGetter level, @Nullable BlockPos pos,
                               RandomSource random, List<BlockStateModelPart> output) {
-        RenderContext context = this.context(data, level, pos);
-        BlockState renderState = this.form == VariantForm.FULL
-            ? context.source().defaultBlockState()
-            : this.template.withPropertiesOf(carrierState);
+        RenderContext context = this.context(data, carrierState, level, pos);
+        BlockState renderState = this.form == VariantForm.FULL ? context.sourceState() : this.template.withPropertiesOf(carrierState);
         BlockStateModel model = this.models.getOrDefault(renderState, this.delegate);
         List<BlockStateModelPart> collected = COLLECTED_PARTS.get();
         collected.clear();
@@ -90,15 +88,15 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
     }
 
 
-    private RenderContext context(VariantData data, @Nullable BlockAndTintGetter level, @Nullable BlockPos pos) {
+    private RenderContext context(VariantData data, BlockState carrierState, @Nullable BlockAndTintGetter level, @Nullable BlockPos pos) {
         Block source = BuiltInRegistries.BLOCK.getValue(data.sourceId());
         if (source == Blocks.AIR) source = Blocks.STONE;
-        BlockState sourceState = source.defaultBlockState();
+        BlockState sourceState = source.withPropertiesOf(carrierState);
         BlockStateModel sourceModel = this.models.getOrDefault(sourceState, this.models.get(Blocks.STONE.defaultBlockState()));
         Material.Baked material = sourceModel == null ? this.delegate.particleMaterial() : sourceModel.particleMaterial();
         List<Integer> sourceTints = Minecraft.getInstance().getBlockColors().getTintSources(sourceState).stream()
             .map(tint -> level == null || pos == null ? tint.color(sourceState) : tint.colorInWorld(sourceState, level, pos)).toList();
-        return new RenderContext(source, material, data.tint(), sourceTints);
+        return new RenderContext(source, sourceState, material, data.tint(), sourceTints);
     }
 
     private BlockStateModelPart transform(RenderContext context, BlockStateModelPart part) {
@@ -166,7 +164,7 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
         return alpha << 24 | red << 16 | green << 8 | blue;
     }
 
-    private record RenderContext(Block source, Material.Baked sourceMaterial, int variantTint, List<Integer> sourceTints) {}
+    private record RenderContext(Block source, BlockState sourceState, Material.Baked sourceMaterial, int variantTint, List<Integer> sourceTints) {}
 
     private record CacheKey(Block source, VariantForm form, int tint, List<Integer> sourceTints, BlockStateModelPart part) {}
 
