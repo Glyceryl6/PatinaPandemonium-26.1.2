@@ -22,11 +22,11 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 7;
+    public int schemaVersion = 8;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
-    public int maximumCreativeTabItems = 4_096;
-    public int maximumCreativePreviewSources = 256;
+    public int maximumCreativeTabItems = 0;
+    public int maximumCreativePreviewSources = 0;
     public double oxidationAttemptChance = 0.05688889D;
     public int maximumCachedModelParts = 2_048;
     public int maximumCachedItemQuads = 4_096;
@@ -35,17 +35,17 @@ public class PatinaRules {
 
     public boolean namespaceAllowed(String namespace) {
         return !namespace.equals(PatinaPandemonium.MOD_ID)
-                && (this.excludedNamespaces == null || !this.excludedNamespaces.contains(namespace));
+            && (this.excludedNamespaces == null || !this.excludedNamespaces.contains(namespace));
     }
 
     private static PatinaRules load() {
         try {
             Files.createDirectories(FILE.getParent());
             PatinaRules rules = Files.exists(FILE)
-                    ? GSON.fromJson(JsonParser.parseString(Files.readString(FILE)), PatinaRules.class)
-                    : new PatinaRules();
+                ? GSON.fromJson(JsonParser.parseString(Files.readString(FILE)), PatinaRules.class)
+                : new PatinaRules();
             if (rules == null) rules = new PatinaRules();
-            rules.schemaVersion = 7;
+            rules.schemaVersion = 8;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
             if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
             if (rules.textureOverrides == null) rules.textureOverrides = new JsonObject();
@@ -54,7 +54,7 @@ public class PatinaRules {
             rules.maximumCreativePreviewSources = Math.max(0, rules.maximumCreativePreviewSources);
             rules.maximumCachedModelParts = Math.max(0, rules.maximumCachedModelParts);
             rules.maximumCachedItemQuads = Math.max(0, rules.maximumCachedItemQuads);
-            rules.oxidationAttemptChance = Math.clamp(rules.oxidationAttemptChance, 0.0D, 1.0D);
+            rules.oxidationAttemptChance = Math.max(0.0D, Math.min(1.0D, rules.oxidationAttemptChance));
             Files.writeString(FILE, GSON.toJson(rules));
             return rules;
         } catch (IOException | RuntimeException error) {
@@ -62,5 +62,4 @@ public class PatinaRules {
             return new PatinaRules();
         }
     }
-
 }

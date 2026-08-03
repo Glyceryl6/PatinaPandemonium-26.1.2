@@ -15,9 +15,10 @@ import java.util.Set;
 
 public class GeneratedBlockFactory {
 
-    private static final Set<VariantForm> NO_COLLISION_FORMS = Set.of(VariantForm.BUTTON, VariantForm.PRESSURE_PLATE);
     private static final Set<VariantForm> NO_OCCLUSION_FORMS = Set.of(
             VariantForm.CARPET, VariantForm.BUTTON, VariantForm.PRESSURE_PLATE);
+    private static final Set<VariantForm> NO_COLLISION_FORMS = Set.of(
+            VariantForm.BUTTON, VariantForm.PRESSURE_PLATE);
     private static final Map<VariantForm, BlockCreator> CREATORS = Map.of(
             VariantForm.FULL, PatinaBlock::new,
             VariantForm.SLAB, PatinaSlabBlock::new,
@@ -30,14 +31,18 @@ public class GeneratedBlockFactory {
             VariantForm.PRESSURE_PLATE, PatinaPressurePlateBlock::new);
 
     public static Block create(Identifier id, VariantForm form) {
+        return create(id, form, false);
+    }
+
+    public static Block create(Identifier id, VariantForm form, boolean nonOccluding) {
         BlockBehaviour.Properties properties = BlockBehaviour.Properties.of()
-                .strength(1.5F, 6.0F)
-                .sound(SoundType.STONE)
-                .pushReaction(PushReaction.BLOCK)
-                .setId(ResourceKey.create(Registries.BLOCK, id))
-                .randomTicks();
+            .strength(1.5F, 6.0F)
+            .sound(SoundType.STONE)
+            .pushReaction(PushReaction.BLOCK)
+            .setId(ResourceKey.create(Registries.BLOCK, id))
+            .randomTicks();
         if (NO_COLLISION_FORMS.contains(form)) properties.noCollision();
-        if (NO_OCCLUSION_FORMS.contains(form)) properties.noOcclusion();
+        if (nonOccluding || NO_OCCLUSION_FORMS.contains(form)) properties.noOcclusion();
         return CREATORS.get(form).create(properties);
     }
 

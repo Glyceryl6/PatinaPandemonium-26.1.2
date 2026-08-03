@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "key": {
+    "C": "minecraft:copper_ingot",
+    "H": "minecraft:honeycomb",
+    "P": "minecraft:piston",
+    "S": "minecraft:smooth_stone"
+  },
+  "pattern": [
+    "CPC",
+    "SHS",
+    "CCC"
+  ],
+  "result": {
+    "count": 1,
+    "id": "patina_pandemonium:variant_fabricator"
+  }
+}

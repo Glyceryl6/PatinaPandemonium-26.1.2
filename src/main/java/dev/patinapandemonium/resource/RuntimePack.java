@@ -35,12 +35,16 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
-/**
- * Supplies the nine carrier discovery descriptors and their shared runtime tags.
- */
+/** Supplies the shared carrier discovery descriptors and their shared runtime tags. */
 public class RuntimePack {
+
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final List<String> LEGACY_PACKS = List.of("generated-client-resources.zip", "generated-server-data.zip");
     private static final String MINECRAFT_NAMESPACE = "minecraft";
@@ -50,9 +54,9 @@ public class RuntimePack {
     private static final String ITEM_TAG_DIRECTORY = "tags/item/";
     private static final String JSON_EXTENSION = ".json";
     private static final byte[] BLOCKSTATE_DESCRIPTOR = "{\"variants\":{\"\":{\"model\":\"minecraft:block/stone\"}}}"
-            .getBytes(StandardCharsets.UTF_8);
+        .getBytes(StandardCharsets.UTF_8);
     private static final byte[] ITEM_DESCRIPTOR = "{\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:block/stone\"}}"
-            .getBytes(StandardCharsets.UTF_8);
+        .getBytes(StandardCharsets.UTF_8);
     private static final Map<Identifier, VariantForm> SERVER_TAGS = new LinkedHashMap<>();
     private static final Set<String> SERVER_NAMESPACES = Set.of(MINECRAFT_NAMESPACE, "c");
 
@@ -97,16 +101,16 @@ public class RuntimePack {
         if (packType != PackType.CLIENT_RESOURCES && packType != PackType.SERVER_DATA) return;
         String kind = packType == PackType.CLIENT_RESOURCES ? "client" : "server";
         PackLocationInfo location = new PackLocationInfo(
-                PatinaPandemonium.id("generated_" + kind).toString(),
-                Component.translatable("resourcePack.patina_pandemonium.generated_" + kind),
-                PackSource.BUILT_IN,
-                Optional.empty());
+            PatinaPandemonium.id("generated_" + kind).toString(),
+            Component.translatable("resourcePack.patina_pandemonium.generated_" + kind),
+            PackSource.BUILT_IN,
+            Optional.empty());
         MemoryPackResources resources = new MemoryPackResources(location, packType, kind);
         Pack pack = Pack.readMetaAndCreate(
-                location,
-                BuiltInPackSource.fixedResources(resources),
-                packType,
-                new PackSelectionConfig(true, Pack.Position.TOP, false));
+            location,
+            BuiltInPackSource.fixedResources(resources),
+            packType,
+            new PackSelectionConfig(true, Pack.Position.TOP, false));
         if (pack != null) event.addRepositorySource(consumer -> consumer.accept(pack));
     }
 
@@ -125,11 +129,11 @@ public class RuntimePack {
             this.location = location;
             this.packType = packType;
             this.metadataType = packType == PackType.CLIENT_RESOURCES
-                    ? PackMetadataSection.CLIENT_TYPE
-                    : PackMetadataSection.SERVER_TYPE;
+                ? PackMetadataSection.CLIENT_TYPE
+                : PackMetadataSection.SERVER_TYPE;
             this.metadata = new PackMetadataSection(
-                    Component.translatable("resourcePack.patina_pandemonium.generated_" + kind + ".description"),
-                    new InclusiveRange<>(SharedConstants.getCurrentVersion().packVersion(packType)));
+                Component.translatable("resourcePack.patina_pandemonium.generated_" + kind + ".description"),
+                new InclusiveRange<>(SharedConstants.getCurrentVersion().packVersion(packType)));
             JsonObject root = new JsonObject();
             root.add(this.metadataType.name(), this.metadataType.codec().encodeStart(JsonOps.INSTANCE, this.metadata).getOrThrow());
             this.packMetadata = GsonHelper.toStableString(root).getBytes(StandardCharsets.UTF_8);
@@ -172,11 +176,9 @@ public class RuntimePack {
             for (Block block : entries()) {
                 Identifier blockId = BuiltInRegistries.BLOCK.getKey(block);
                 Identifier blockState = PatinaPandemonium.id(BLOCKSTATE_DIRECTORY + blockId.getPath() + JSON_EXTENSION);
-                if (blockState.getPath().startsWith(prefix))
-                    output.accept(blockState, () -> new ByteArrayInputStream(BLOCKSTATE_DESCRIPTOR));
+                if (blockState.getPath().startsWith(prefix)) output.accept(blockState, () -> new ByteArrayInputStream(BLOCKSTATE_DESCRIPTOR));
                 Identifier item = PatinaPandemonium.id(ITEM_DIRECTORY + blockId.getPath() + JSON_EXTENSION);
-                if (item.getPath().startsWith(prefix))
-                    output.accept(item, () -> new ByteArrayInputStream(ITEM_DESCRIPTOR));
+                if (item.getPath().startsWith(prefix)) output.accept(item, () -> new ByteArrayInputStream(ITEM_DESCRIPTOR));
             }
         }
 
@@ -199,13 +201,12 @@ public class RuntimePack {
         }
 
         @Override
-        public void close() {
-        }
+        public void close() {}
 
         private boolean isCarrierResource(Identifier id) {
             String path = id.getPath();
             if (!path.endsWith(JSON_EXTENSION)
-                    || !path.startsWith(BLOCKSTATE_DIRECTORY) && !path.startsWith(ITEM_DIRECTORY)) return false;
+                || !path.startsWith(BLOCKSTATE_DIRECTORY) && !path.startsWith(ITEM_DIRECTORY)) return false;
             int start = path.lastIndexOf('/') + 1;
             String name = path.substring(start, path.length() - JSON_EXTENSION.length());
             for (Block block : entries()) {

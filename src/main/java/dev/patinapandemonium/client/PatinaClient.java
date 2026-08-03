@@ -17,25 +17,29 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ModelEvent;
+import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 
 import java.util.Map;
 
-/**
- * Replaces the nine carrier descriptors with component/model-data aware flyweight models.
- */
+/** Replaces the nine carrier descriptors with component/model-data aware flyweight models. */
 @EventBusSubscriber(modid = PatinaPandemonium.MOD_ID, value = Dist.CLIENT)
 public class PatinaClient {
 
+    @SubscribeEvent
+    public static void registerScreens(RegisterMenuScreensEvent event) {
+        event.register(DynamicVariantRegistry.VARIANT_FABRICATOR_MENU.get(), VariantFabricatorScreen::new);
+    }
+
     private static final Map<VariantForm, Block> TEMPLATES = Map.of(
-            VariantForm.FULL, Blocks.STONE,
-            VariantForm.SLAB, Blocks.STONE_SLAB,
-            VariantForm.STAIRS, Blocks.STONE_STAIRS,
-            VariantForm.WALL, Blocks.COBBLESTONE_WALL,
-            VariantForm.FENCE, Blocks.OAK_FENCE,
-            VariantForm.FENCE_GATE, Blocks.OAK_FENCE_GATE,
-            VariantForm.CARPET, Blocks.WHITE_CARPET,
-            VariantForm.BUTTON, Blocks.STONE_BUTTON,
-            VariantForm.PRESSURE_PLATE, Blocks.STONE_PRESSURE_PLATE);
+        VariantForm.FULL, Blocks.STONE,
+        VariantForm.SLAB, Blocks.STONE_SLAB,
+        VariantForm.STAIRS, Blocks.STONE_STAIRS,
+        VariantForm.WALL, Blocks.COBBLESTONE_WALL,
+        VariantForm.FENCE, Blocks.OAK_FENCE,
+        VariantForm.FENCE_GATE, Blocks.OAK_FENCE_GATE,
+        VariantForm.CARPET, Blocks.WHITE_CARPET,
+        VariantForm.BUTTON, Blocks.STONE_BUTTON,
+        VariantForm.PRESSURE_PLATE, Blocks.STONE_PRESSURE_PLATE);
 
     @SubscribeEvent
     public static void modifyBakingResult(ModelEvent.ModifyBakingResult event) {
@@ -47,6 +51,7 @@ public class PatinaClient {
         PatinaBlockStateModel.clearCache();
         PatinaItemModel.clearCache();
         if (fallbackBlock == null || fallbackItem == null) return;
+
         for (Block block : DynamicVariantRegistry.generated()) {
             VariantForm form = ((PatinaOxidizable) block).patinaForm();
             Block template = TEMPLATES.get(form);
@@ -57,5 +62,4 @@ public class PatinaClient {
             itemModels.put(BuiltInRegistries.BLOCK.getKey(block), itemModel);
         }
     }
-
 }

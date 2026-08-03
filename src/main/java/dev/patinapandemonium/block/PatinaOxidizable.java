@@ -28,16 +28,15 @@ public interface PatinaOxidizable extends EntityBlock, IBlockExtension {
 
     @Override
     default ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state, boolean includeData, Player player) {
-        return level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity
-                ? DynamicVariantRegistry.stack(blockEntity.data())
-                : DynamicVariantRegistry.stack(VariantData.defaultFor(this.patinaForm()));
+        VariantData data = level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity
+                ? blockEntity.data() : VariantData.defaultFor(this.patinaForm());
+        return DynamicVariantRegistry.stack(data.normalized(this.patinaForm()));
     }
 
     default void patinaRandomTick(ServerLevel level, BlockPos pos, RandomSource random) {
         if (!(level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity)) return;
         VariantData data = blockEntity.data();
-        if (data.waxed() || data.stage().next() == null || random.nextDouble() >= PatinaRules.INSTANCE.oxidationAttemptChance)
-            return;
+        if (data.waxed() || data.stage().next() == null || random.nextDouble() >= PatinaRules.INSTANCE.oxidationAttemptChance) return;
         VariantRuntime.next(data).ifPresent(blockEntity::setData);
     }
 

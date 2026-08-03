@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "patina_pandemonium:block/variant_fabricator" },
+    "facing=east": { "model": "patina_pandemonium:block/variant_fabricator", "y": 90 },
+    "facing=south": { "model": "patina_pandemonium:block/variant_fabricator", "y": 180 },
+    "facing=west": { "model": "patina_pandemonium:block/variant_fabricator", "y": 270 }
+  }
+}

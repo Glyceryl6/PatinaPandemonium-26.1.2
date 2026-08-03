@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/orientable",
+  "textures": {
+    "top": "patina_pandemonium:block/variant_fabricator_top",
+    "front": "patina_pandemonium:block/variant_fabricator_front",
+    "side": "patina_pandemonium:block/variant_fabricator_side"
+  }
+}

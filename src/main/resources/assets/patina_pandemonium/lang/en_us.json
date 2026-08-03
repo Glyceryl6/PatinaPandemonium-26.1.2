@@ -41,9 +41,18 @@
   "resourcePack.patina_pandemonium.generated_client.description": "Shared descriptors for nine flyweight carriers; logical variants are assembled on demand",
   "resourcePack.patina_pandemonium.generated_server": "Patina Pandemonium Dynamic Server Data",
   "resourcePack.patina_pandemonium.generated_server.description": "Runtime tags for the nine flyweight carriers and vanilla connection behavior",
-  "commands.patina.invalid_source": "That block is not an eligible full-block source",
+  "commands.patina.invalid_source": "Block %1$s is not an eligible full-block source",
   "commands.patina.invalid_form": "Unknown form; use full, slab, stairs, wall, fence, fence_gate, carpet, button, or pressure_plate",
   "commands.patina.invalid_stage": "Unknown oxidation stage; use fresh, exposed, weathered, or oxidized",
   "commands.patina.invalid_dye": "Unknown dye; use none or a vanilla dye color",
-  "commands.patina.give.success": "Gave %1$s × %2$s to %3$s"
+  "commands.patina.give.success": "Gave %1$s × %2$s to %3$s",
+  "block.patina_pandemonium.variant_fabricator": "Variant Fabricator",
+  "container.patina_pandemonium.variant_fabricator": "Variant Fabricator",
+  "container.patina_pandemonium.forms": "Form",
+  "container.patina_pandemonium.colors": "Dye",
+  "container.patina_pandemonium.oxidation": "Oxidation filter",
+  "container.patina_pandemonium.variants": "Available variants",
+  "container.patina_pandemonium.output": "Output preview",
+  "container.patina_pandemonium.clear_stages": "Clear filter",
+  "container.patina_pandemonium.clear_stages.tooltip": "Clear every oxidation checkbox and show all stages"
 }

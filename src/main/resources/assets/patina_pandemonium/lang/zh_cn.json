@@ -41,9 +41,18 @@
   "resourcePack.patina_pandemonium.generated_client.description": "仅为九种享元载体提供共享描述，逻辑变种会在需要时组装",
   "resourcePack.patina_pandemonium.generated_server": "锈色狂欢动态服务端数据",
   "resourcePack.patina_pandemonium.generated_server.description": "为九种享元载体提供原版连接判定所需的运行时标签",
-  "commands.patina.invalid_source": "该方块不是可用的完整方块来源",
+  "commands.patina.invalid_source": "方块 %1$s 不是可用的完整方块来源",
   "commands.patina.invalid_form": "未知形态；请使用 full、slab、stairs、wall、fence、fence_gate、carpet、button 或 pressure_plate",
   "commands.patina.invalid_stage": "未知氧化阶段；请使用 fresh、exposed、weathered 或 oxidized",
   "commands.patina.invalid_dye": "未知染色；请使用 none 或一种原版染料颜色",
-  "commands.patina.give.success": "已给予 %3$s %1$s 个 %2$s"
+  "commands.patina.give.success": "已给予 %3$s %1$s 个 %2$s",
+  "block.patina_pandemonium.variant_fabricator": "变种铸造台",
+  "container.patina_pandemonium.variant_fabricator": "变种铸造台",
+  "container.patina_pandemonium.forms": "形态",
+  "container.patina_pandemonium.colors": "染色",
+  "container.patina_pandemonium.oxidation": "氧化筛选",
+  "container.patina_pandemonium.variants": "可用变种",
+  "container.patina_pandemonium.output": "输出预览",
+  "container.patina_pandemonium.clear_stages": "清除筛选",
+  "container.patina_pandemonium.clear_stages.tooltip": "取消全部氧化阶段勾选；显示所有阶段"
 }

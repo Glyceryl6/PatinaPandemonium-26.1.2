@@ -6,7 +6,6 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.CreativeModeTab;
-import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
 public class ModCreativeTab {
@@ -17,23 +16,36 @@ public class ModCreativeTab {
     static {
         TABS.register("main", () -> CreativeModeTab.builder()
                 .title(Component.translatable("itemGroup.patina_pandemonium"))
-                .icon(Items.HONEYCOMB::getDefaultInstance)
+                .icon(() -> DynamicVariantRegistry.VARIANT_FABRICATOR_ITEM.get().getDefaultInstance())
                 .displayItems((_, output) -> {
                     PatinaRules rules = PatinaRules.INSTANCE;
+                    VariantForm[] forms = VariantForm.values();
+                    OxidationStage[] stages = OxidationStage.values();
+                    boolean[] waxStates = {false, true};
+                    int rowSize = forms.length;
                     int maximumItems = Math.max(0, rules.maximumCreativeTabItems);
+                    boolean limitedItems = maximumItems > 0;
+                    int maximumVariantItems = limitedItems ? Math.max(0, maximumItems - 1) / rowSize * rowSize : 0;
                     int maximumSources = Math.max(0, rules.maximumCreativePreviewSources);
                     int sourceCount = 0;
                     int itemCount = 0;
+                    sources:
                     for (Identifier sourceId : DynamicVariantRegistry.sourceIds()) {
                         if (maximumSources > 0 && sourceCount >= maximumSources) break;
-                        for (VariantForm form : VariantForm.values()) {
-                            if (maximumItems > 0 && itemCount >= maximumItems) return;
-                            output.accept(DynamicVariantRegistry.stack(new VariantData(
-                                    sourceId, OxidationStage.FRESH, false, form, null)));
-                            itemCount++;
+                        for (OxidationStage stage : stages) {
+                            for (boolean waxed : waxStates) {
+                                if (limitedItems && itemCount + rowSize > maximumVariantItems) break sources;
+                                for (VariantForm form : forms) {
+                                    output.accept(DynamicVariantRegistry.displayStack(new VariantData(sourceId, stage, waxed, form, null)));
+                                    itemCount++;
+                                }
+                            }
                         }
+
                         sourceCount++;
                     }
+
+                    output.accept(DynamicVariantRegistry.VARIANT_FABRICATOR_ITEM.get());
                 }).build());
     }
 

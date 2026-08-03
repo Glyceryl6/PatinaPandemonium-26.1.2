@@ -5,6 +5,7 @@ import dev.patinapandemonium.registry.DynamicVariantRegistry;
 import dev.patinapandemonium.registry.VariantData;
 import dev.patinapandemonium.registry.VariantForm;
 import it.unimi.dsi.fastutil.ints.IntList;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.item.ItemModel;
@@ -35,9 +36,7 @@ import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/**
- * Resolves the logical variant from the stack component and reuses already baked models.
- */
+/** Resolves the logical variant from the stack component and reuses already baked models. */
 public class PatinaItemModel implements ItemModel {
 
     private static final Map<CacheKey, BakedQuad> QUAD_CACHE = new LinkedHashMap<>(256, 0.75F, true);
@@ -86,7 +85,10 @@ public class PatinaItemModel implements ItemModel {
         Block source = BuiltInRegistries.BLOCK.getValue(data.sourceId());
         if (source == Blocks.AIR) source = Blocks.STONE;
         BlockStateModel sourceModel = this.blockModels.getOrDefault(source.defaultBlockState(), this.fallbackBlock);
-        return new RenderContext(source, sourceModel.particleMaterial(), data.tint());
+        BlockState sourceState = source.defaultBlockState();
+        List<Integer> sourceTints = Minecraft.getInstance().getBlockColors().getTintSources(sourceState)
+                .stream().map(tint -> tint.color(sourceState)).toList();
+        return new RenderContext(source, sourceModel.particleMaterial(), data.tint(), sourceTints);
     }
 
     private ItemModel itemDelegate(Block source) {
@@ -99,7 +101,7 @@ public class PatinaItemModel implements ItemModel {
     private BakedQuad transform(RenderContext context, BakedQuad quad) {
         int maximum = Math.max(0, PatinaRules.INSTANCE.maximumCachedItemQuads);
         if (maximum == 0) return this.createQuad(context, quad);
-        CacheKey key = new CacheKey(context.source(), this.form, context.tint(), quad);
+        CacheKey key = new CacheKey(context.source(), this.form, context.variantTint(), context.sourceTints(), quad);
         synchronized (QUAD_CACHE) {
             BakedQuad cached = QUAD_CACHE.get(key);
             if (cached != null) return cached;
@@ -120,9 +122,18 @@ public class PatinaItemModel implements ItemModel {
     private BakedQuad createQuad(RenderContext context, BakedQuad quad) {
         MutableQuad mutable = new MutableQuad().setFrom(quad);
         if (this.form != VariantForm.FULL) mutable.setSpriteAndMoveUv(context.sourceMaterial());
-        for (int vertex = 0; vertex < 4; vertex++)
-            mutable.setColor(vertex, multiply(mutable.color(vertex), context.tint()));
+        int tintIndex = quad.materialInfo().tintIndex();
+        int sourceTint = this.form == VariantForm.FULL
+            ? tint(context.sourceTints(), tintIndex)
+            : tint(context.sourceTints(), context.sourceTints().isEmpty() ? -1 : 0);
+        int combinedTint = multiply(context.variantTint(), sourceTint);
+        for (int vertex = 0; vertex < 4; vertex++) mutable.setColor(vertex, multiply(mutable.color(vertex), combinedTint));
+        mutable.setTintIndex(-1);
         return mutable.toBakedQuad();
+    }
+
+    private static int tint(List<Integer> tints, int index) {
+        return index < 0 || index >= tints.size() ? 0xFFFFFFFF : tints.get(index);
     }
 
     private static int multiply(int color, int tint) {
@@ -221,8 +232,7 @@ public class PatinaItemModel implements ItemModel {
         private final ItemStackRenderState.LayerRenderState output;
         private final RenderContext context;
 
-        private TransformingLayerRenderState(TransformingRenderState owner, ItemStackRenderState.LayerRenderState output,
-                                             RenderContext context) {
+        private TransformingLayerRenderState(TransformingRenderState owner, ItemStackRenderState.LayerRenderState output, RenderContext context) {
             owner.super();
             this.owner = owner;
             this.output = output;
@@ -315,16 +325,14 @@ public class PatinaItemModel implements ItemModel {
         @Override
         public boolean addAll(Collection<? extends BakedQuad> collection) {
             boolean changed = false;
-            for (BakedQuad quad : collection)
-                changed |= this.output.add(PatinaItemModel.this.transform(this.context, quad));
+            for (BakedQuad quad : collection) changed |= this.output.add(PatinaItemModel.this.transform(this.context, quad));
             return changed;
         }
 
         @Override
         public boolean addAll(int index, Collection<? extends BakedQuad> collection) {
             int insertion = index;
-            for (BakedQuad quad : collection)
-                this.output.add(insertion++, PatinaItemModel.this.transform(this.context, quad));
+            for (BakedQuad quad : collection) this.output.add(insertion++, PatinaItemModel.this.transform(this.context, quad));
             return insertion != index;
         }
 
@@ -340,10 +348,8 @@ public class PatinaItemModel implements ItemModel {
 
     }
 
-    private record RenderContext(Block source, Material.Baked sourceMaterial, int tint) {
-    }
+    private record RenderContext(Block source, Material.Baked sourceMaterial, int variantTint, List<Integer> sourceTints) {}
 
-    private record CacheKey(Block source, VariantForm form, int tint, BakedQuad quad) {
-    }
+    private record CacheKey(Block source, VariantForm form, int tint, List<Integer> sourceTints, BakedQuad quad) {}
 
 }
