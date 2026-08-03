@@ -9,15 +9,16 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import org.jspecify.annotations.Nullable;
 
-public record VariantData(Identifier sourceId, OxidationStage stage, boolean waxed, VariantForm form, @Nullable DyeColor dyeColor) {
+public record VariantData(Identifier sourceId, OxidationStage stage, boolean waxed, VariantForm form,
+                          @Nullable DyeColor dyeColor) {
 
     private static final int NO_DYE = -1;
     public static final Codec<VariantData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-        Identifier.CODEC.fieldOf("source").forGetter(VariantData::sourceId),
-        Codec.intRange(0, OxidationStage.values().length - 1).fieldOf("stage").forGetter(data -> data.stage().ordinal()),
-        Codec.BOOL.fieldOf("waxed").forGetter(VariantData::waxed),
-        Codec.intRange(0, VariantForm.values().length - 1).fieldOf("form").forGetter(data -> data.form().ordinal()),
-        Codec.intRange(NO_DYE, DyeColor.VALUES.size() - 1).fieldOf("dye").forGetter(VariantData::dyeId)
+            Identifier.CODEC.fieldOf("source").forGetter(VariantData::sourceId),
+            Codec.intRange(0, OxidationStage.values().length - 1).fieldOf("stage").forGetter(data -> data.stage().ordinal()),
+            Codec.BOOL.fieldOf("waxed").forGetter(VariantData::waxed),
+            Codec.intRange(0, VariantForm.values().length - 1).fieldOf("form").forGetter(data -> data.form().ordinal()),
+            Codec.intRange(NO_DYE, DyeColor.VALUES.size() - 1).fieldOf("dye").forGetter(VariantData::dyeId)
     ).apply(instance, VariantData::decode));
 
     public VariantData(Identifier sourceId, OxidationStage stage, boolean waxed, VariantForm form) {
@@ -31,8 +32,8 @@ public record VariantData(Identifier sourceId, OxidationStage stage, boolean wax
     public VariantData normalized(VariantForm form) {
         Block source = BuiltInRegistries.BLOCK.getValue(this.sourceId);
         Identifier sourceId = source == Blocks.AIR
-            ? BuiltInRegistries.BLOCK.getKey(Blocks.STONE)
-            : BuiltInRegistries.BLOCK.getKey(source);
+                ? BuiltInRegistries.BLOCK.getKey(Blocks.STONE)
+                : BuiltInRegistries.BLOCK.getKey(source);
         return new VariantData(sourceId, this.stage, this.waxed, form, this.dyeColor);
     }
 

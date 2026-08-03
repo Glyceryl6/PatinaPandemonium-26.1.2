@@ -31,16 +31,13 @@ import org.joml.Matrix4fc;
 import org.joml.Vector3fc;
 import org.jspecify.annotations.Nullable;
 
-import java.util.AbstractList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Resolves the logical variant from the stack component and reuses already baked models. */
+/**
+ * Resolves the logical variant from the stack component and reuses already baked models.
+ */
 public class PatinaItemModel implements ItemModel {
 
     private static final Map<CacheKey, BakedQuad> QUAD_CACHE = new LinkedHashMap<>(256, 0.75F, true);
@@ -123,7 +120,8 @@ public class PatinaItemModel implements ItemModel {
     private BakedQuad createQuad(RenderContext context, BakedQuad quad) {
         MutableQuad mutable = new MutableQuad().setFrom(quad);
         if (this.form != VariantForm.FULL) mutable.setSpriteAndMoveUv(context.sourceMaterial());
-        for (int vertex = 0; vertex < 4; vertex++) mutable.setColor(vertex, multiply(mutable.color(vertex), context.tint()));
+        for (int vertex = 0; vertex < 4; vertex++)
+            mutable.setColor(vertex, multiply(mutable.color(vertex), context.tint()));
         return mutable.toBakedQuad();
     }
 
@@ -317,14 +315,16 @@ public class PatinaItemModel implements ItemModel {
         @Override
         public boolean addAll(Collection<? extends BakedQuad> collection) {
             boolean changed = false;
-            for (BakedQuad quad : collection) changed |= this.output.add(PatinaItemModel.this.transform(this.context, quad));
+            for (BakedQuad quad : collection)
+                changed |= this.output.add(PatinaItemModel.this.transform(this.context, quad));
             return changed;
         }
 
         @Override
         public boolean addAll(int index, Collection<? extends BakedQuad> collection) {
             int insertion = index;
-            for (BakedQuad quad : collection) this.output.add(insertion++, PatinaItemModel.this.transform(this.context, quad));
+            for (BakedQuad quad : collection)
+                this.output.add(insertion++, PatinaItemModel.this.transform(this.context, quad));
             return insertion != index;
         }
 
@@ -340,8 +340,10 @@ public class PatinaItemModel implements ItemModel {
 
     }
 
-    private record RenderContext(Block source, Material.Baked sourceMaterial, int tint) {}
+    private record RenderContext(Block source, Material.Baked sourceMaterial, int tint) {
+    }
 
-    private record CacheKey(Block source, VariantForm form, int tint, BakedQuad quad) {}
+    private record CacheKey(Block source, VariantForm form, int tint, BakedQuad quad) {
+    }
 
 }

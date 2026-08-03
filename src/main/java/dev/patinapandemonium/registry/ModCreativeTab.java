@@ -16,25 +16,25 @@ public class ModCreativeTab {
 
     static {
         TABS.register("main", () -> CreativeModeTab.builder()
-            .title(Component.translatable("itemGroup.patina_pandemonium"))
-            .icon(Items.HONEYCOMB::getDefaultInstance)
-            .displayItems((_, output) -> {
-                PatinaRules rules = PatinaRules.INSTANCE;
-                int maximumItems = Math.max(0, rules.maximumCreativeTabItems);
-                int maximumSources = Math.max(0, rules.maximumCreativePreviewSources);
-                int sourceCount = 0;
-                int itemCount = 0;
-                for (Identifier sourceId : DynamicVariantRegistry.sourceIds()) {
-                    if (maximumSources > 0 && sourceCount >= maximumSources) break;
-                    for (VariantForm form : VariantForm.values()) {
-                        if (maximumItems > 0 && itemCount >= maximumItems) return;
-                        output.accept(DynamicVariantRegistry.stack(new VariantData(
-                            sourceId, OxidationStage.FRESH, false, form, null)));
-                        itemCount++;
+                .title(Component.translatable("itemGroup.patina_pandemonium"))
+                .icon(Items.HONEYCOMB::getDefaultInstance)
+                .displayItems((_, output) -> {
+                    PatinaRules rules = PatinaRules.INSTANCE;
+                    int maximumItems = Math.max(0, rules.maximumCreativeTabItems);
+                    int maximumSources = Math.max(0, rules.maximumCreativePreviewSources);
+                    int sourceCount = 0;
+                    int itemCount = 0;
+                    for (Identifier sourceId : DynamicVariantRegistry.sourceIds()) {
+                        if (maximumSources > 0 && sourceCount >= maximumSources) break;
+                        for (VariantForm form : VariantForm.values()) {
+                            if (maximumItems > 0 && itemCount >= maximumItems) return;
+                            output.accept(DynamicVariantRegistry.stack(new VariantData(
+                                    sourceId, OxidationStage.FRESH, false, form, null)));
+                            itemCount++;
+                        }
+                        sourceCount++;
                     }
-                    sourceCount++;
-                }
-            }).build());
+                }).build());
     }
 
 }

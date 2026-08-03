@@ -35,15 +35,15 @@ public class PatinaRules {
 
     public boolean namespaceAllowed(String namespace) {
         return !namespace.equals(PatinaPandemonium.MOD_ID)
-            && (this.excludedNamespaces == null || !this.excludedNamespaces.contains(namespace));
+                && (this.excludedNamespaces == null || !this.excludedNamespaces.contains(namespace));
     }
 
     private static PatinaRules load() {
         try {
             Files.createDirectories(FILE.getParent());
             PatinaRules rules = Files.exists(FILE)
-                ? GSON.fromJson(JsonParser.parseString(Files.readString(FILE)), PatinaRules.class)
-                : new PatinaRules();
+                    ? GSON.fromJson(JsonParser.parseString(Files.readString(FILE)), PatinaRules.class)
+                    : new PatinaRules();
             if (rules == null) rules = new PatinaRules();
             rules.schemaVersion = 7;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();

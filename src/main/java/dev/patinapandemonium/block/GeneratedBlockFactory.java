@@ -17,25 +17,25 @@ public class GeneratedBlockFactory {
 
     private static final Set<VariantForm> NO_COLLISION_FORMS = Set.of(VariantForm.BUTTON, VariantForm.PRESSURE_PLATE);
     private static final Set<VariantForm> NO_OCCLUSION_FORMS = Set.of(
-        VariantForm.CARPET, VariantForm.BUTTON, VariantForm.PRESSURE_PLATE);
+            VariantForm.CARPET, VariantForm.BUTTON, VariantForm.PRESSURE_PLATE);
     private static final Map<VariantForm, BlockCreator> CREATORS = Map.of(
-        VariantForm.FULL, PatinaBlock::new,
-        VariantForm.SLAB, PatinaSlabBlock::new,
-        VariantForm.STAIRS, properties -> new PatinaStairBlock(Blocks.STONE.defaultBlockState(), properties),
-        VariantForm.WALL, PatinaWallBlock::new,
-        VariantForm.FENCE, PatinaFenceBlock::new,
-        VariantForm.FENCE_GATE, PatinaFenceGateBlock::new,
-        VariantForm.CARPET, PatinaCarpetBlock::new,
-        VariantForm.BUTTON, PatinaButtonBlock::new,
-        VariantForm.PRESSURE_PLATE, PatinaPressurePlateBlock::new);
+            VariantForm.FULL, PatinaBlock::new,
+            VariantForm.SLAB, PatinaSlabBlock::new,
+            VariantForm.STAIRS, properties -> new PatinaStairBlock(Blocks.STONE.defaultBlockState(), properties),
+            VariantForm.WALL, PatinaWallBlock::new,
+            VariantForm.FENCE, PatinaFenceBlock::new,
+            VariantForm.FENCE_GATE, PatinaFenceGateBlock::new,
+            VariantForm.CARPET, PatinaCarpetBlock::new,
+            VariantForm.BUTTON, PatinaButtonBlock::new,
+            VariantForm.PRESSURE_PLATE, PatinaPressurePlateBlock::new);
 
     public static Block create(Identifier id, VariantForm form) {
         BlockBehaviour.Properties properties = BlockBehaviour.Properties.of()
-            .strength(1.5F, 6.0F)
-            .sound(SoundType.STONE)
-            .pushReaction(PushReaction.BLOCK)
-            .setId(ResourceKey.create(Registries.BLOCK, id))
-            .randomTicks();
+                .strength(1.5F, 6.0F)
+                .sound(SoundType.STONE)
+                .pushReaction(PushReaction.BLOCK)
+                .setId(ResourceKey.create(Registries.BLOCK, id))
+                .randomTicks();
         if (NO_COLLISION_FORMS.contains(form)) properties.noCollision();
         if (NO_OCCLUSION_FORMS.contains(form)) properties.noOcclusion();
         return CREATORS.get(form).create(properties);

@@ -22,13 +22,11 @@ import net.neoforged.neoforge.client.model.DelegateBlockStateModel;
 import net.neoforged.neoforge.client.model.quad.MutableQuad;
 import org.jspecify.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
-/** Selects source appearance from block-entity model data without multiplying registry entries. */
+/**
+ * Selects source appearance from block-entity model data without multiplying registry entries.
+ */
 @SuppressWarnings("deprecation")
 public class PatinaBlockStateModel extends DelegateBlockStateModel {
 
@@ -83,8 +81,8 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
             RandomSource random, List<BlockStateModelPart> output) {
         RenderContext context = this.context(data);
         BlockState renderState = this.form == VariantForm.FULL
-            ? context.source().defaultBlockState()
-            : this.template.withPropertiesOf(carrierState);
+                ? context.source().defaultBlockState()
+                : this.template.withPropertiesOf(carrierState);
         BlockStateModel model = this.models.getOrDefault(renderState, this.delegate);
         List<BlockStateModelPart> collected = COLLECTED_PARTS.get();
         collected.clear();
@@ -126,7 +124,8 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
     private BlockStateModelPart createPart(RenderContext context, BlockStateModelPart part) {
         QuadCollection.Builder builder = new QuadCollection.Builder();
         for (Direction direction : Direction.values()) {
-            for (BakedQuad quad : part.getQuads(direction)) builder.addCulledFace(direction, this.transform(context, quad));
+            for (BakedQuad quad : part.getQuads(direction))
+                builder.addCulledFace(direction, this.transform(context, quad));
         }
         for (BakedQuad quad : part.getQuads(null)) builder.addUnculledFace(this.transform(context, quad));
         return new SimpleModelWrapper(builder.build(), part.ambientOcclusion().isTrue(), context.sourceMaterial());
@@ -135,7 +134,8 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
     private BakedQuad transform(RenderContext context, BakedQuad quad) {
         MutableQuad mutable = new MutableQuad().setFrom(quad);
         if (this.form != VariantForm.FULL) mutable.setSpriteAndMoveUv(context.sourceMaterial());
-        for (int vertex = 0; vertex < 4; vertex++) mutable.setColor(vertex, multiply(mutable.color(vertex), context.tint()));
+        for (int vertex = 0; vertex < 4; vertex++)
+            mutable.setColor(vertex, multiply(mutable.color(vertex), context.tint()));
         return mutable.toBakedQuad();
     }
 
@@ -147,8 +147,10 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
         return alpha << 24 | red << 16 | green << 8 | blue;
     }
 
-    private record RenderContext(Block source, Material.Baked sourceMaterial, int tint) {}
+    private record RenderContext(Block source, Material.Baked sourceMaterial, int tint) {
+    }
 
-    private record CacheKey(Block source, VariantForm form, int tint, BlockStateModelPart part) {}
+    private record CacheKey(Block source, VariantForm form, int tint, BlockStateModelPart part) {
+    }
 
 }

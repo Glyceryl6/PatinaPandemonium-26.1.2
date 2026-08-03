@@ -63,11 +63,11 @@ public class PatinaVariantBlockEntity extends BlockEntity {
         Identifier fallback = VariantData.defaultFor(form(this.getBlockState())).sourceId();
         Identifier source = Identifier.tryParse(input.getStringOr(SOURCE_KEY, fallback.toString()));
         this.data = VariantData.decode(
-            source == null ? fallback : source,
-            input.getIntOr(STAGE_KEY, 0),
-            input.getBooleanOr(WAXED_KEY, false),
-            form(this.getBlockState()).ordinal(),
-            input.getIntOr(DYE_KEY, -1));
+                source == null ? fallback : source,
+                input.getIntOr(STAGE_KEY, 0),
+                input.getBooleanOr(WAXED_KEY, false),
+                form(this.getBlockState()).ordinal(),
+                input.getIntOr(DYE_KEY, -1));
         this.refreshModelData();
     }
 

@@ -14,18 +14,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.EmptyBlockGetter;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.ButtonBlock;
-import net.minecraft.world.level.block.CarpetBlock;
-import net.minecraft.world.level.block.DoorBlock;
-import net.minecraft.world.level.block.FenceBlock;
-import net.minecraft.world.level.block.FenceGateBlock;
-import net.minecraft.world.level.block.PressurePlateBlock;
-import net.minecraft.world.level.block.SlabBlock;
-import net.minecraft.world.level.block.StairBlock;
-import net.minecraft.world.level.block.TrapDoorBlock;
-import net.minecraft.world.level.block.WallBlock;
+import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.IEventBus;
@@ -35,11 +24,7 @@ import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import org.slf4j.Logger;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Supplier;
 
 /**
@@ -52,12 +37,12 @@ public class DynamicVariantRegistry {
     public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(PatinaPandemonium.MOD_ID);
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(PatinaPandemonium.MOD_ID);
     public static final DeferredRegister.DataComponents COMPONENTS = DeferredRegister.createDataComponents(
-        Registries.DATA_COMPONENT_TYPE, PatinaPandemonium.MOD_ID);
+            Registries.DATA_COMPONENT_TYPE, PatinaPandemonium.MOD_ID);
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITY_TYPES = DeferredRegister.create(
-        Registries.BLOCK_ENTITY_TYPE, PatinaPandemonium.MOD_ID);
+            Registries.BLOCK_ENTITY_TYPE, PatinaPandemonium.MOD_ID);
 
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<VariantData>> VARIANT_DATA =
-        COMPONENTS.registerComponentType("variant_data", builder -> builder.persistent(VariantData.CODEC));
+            COMPONENTS.registerComponentType("variant_data", builder -> builder.persistent(VariantData.CODEC));
 
     public static final DeferredBlock<Block> FULL = carrier("virtual_full", VariantForm.FULL);
     public static final DeferredBlock<Block> SLAB = carrier("virtual_slab", VariantForm.SLAB);
@@ -75,18 +60,18 @@ public class DynamicVariantRegistry {
     public static final DeferredItem<GeneratedBlockItem> WALL_ITEM = carrierItem("virtual_wall", WALL, VariantForm.WALL);
     public static final DeferredItem<GeneratedBlockItem> FENCE_ITEM = carrierItem("virtual_fence", FENCE, VariantForm.FENCE);
     public static final DeferredItem<GeneratedBlockItem> FENCE_GATE_ITEM = carrierItem(
-        "virtual_fence_gate", FENCE_GATE, VariantForm.FENCE_GATE);
+            "virtual_fence_gate", FENCE_GATE, VariantForm.FENCE_GATE);
     public static final DeferredItem<GeneratedBlockItem> CARPET_ITEM = carrierItem("virtual_carpet", CARPET, VariantForm.CARPET);
     public static final DeferredItem<GeneratedBlockItem> BUTTON_ITEM = carrierItem("virtual_button", BUTTON, VariantForm.BUTTON);
     public static final DeferredItem<GeneratedBlockItem> PRESSURE_PLATE_ITEM = carrierItem(
-        "virtual_pressure_plate", PRESSURE_PLATE, VariantForm.PRESSURE_PLATE);
+            "virtual_pressure_plate", PRESSURE_PLATE, VariantForm.PRESSURE_PLATE);
 
     private static final Map<VariantForm, Supplier<? extends Block>> CARRIERS = carriers();
     private static final Map<VariantForm, Supplier<? extends Item>> CARRIER_ITEMS = carrierItems();
 
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<PatinaVariantBlockEntity>> VARIANT_BLOCK_ENTITY =
-        BLOCK_ENTITY_TYPES.register("virtual_variant", () -> new BlockEntityType<>(
-            PatinaVariantBlockEntity::new, false, generated().toArray(Block[]::new)));
+            BLOCK_ENTITY_TYPES.register("virtual_variant", () -> new BlockEntityType<>(
+                    PatinaVariantBlockEntity::new, false, generated().toArray(Block[]::new)));
 
     private static volatile List<Identifier> sourceIds;
 
@@ -97,15 +82,17 @@ public class DynamicVariantRegistry {
         BLOCK_ENTITY_TYPES.register(modBus);
     }
 
-    /** Kept for the obsolete optional exporter; virtual variants intentionally have no per-combination JSON entries. */
+    /**
+     * Kept for the obsolete optional exporter; virtual variants intentionally have no per-combination JSON entries.
+     */
     public static List<VariantEntry> entries() {
         return List.of();
     }
 
     public static List<Block> generated() {
         return List.of(
-            FULL.get(), SLAB.get(), STAIRS.get(), WALL.get(), FENCE.get(),
-            FENCE_GATE.get(), CARPET.get(), BUTTON.get(), PRESSURE_PLATE.get());
+                FULL.get(), SLAB.get(), STAIRS.get(), WALL.get(), FENCE.get(),
+                FENCE_GATE.get(), CARPET.get(), BUTTON.get(), PRESSURE_PLATE.get());
     }
 
     public static Block carrier(VariantForm form) {
@@ -140,15 +127,16 @@ public class DynamicVariantRegistry {
             ArrayList<Identifier> discovered = new ArrayList<>();
             PatinaRules rules = PatinaRules.INSTANCE;
             BuiltInRegistries.BLOCK.entrySet().forEach(entry -> {
-                if (isSource(entry.getKey().identifier(), entry.getValue(), rules)) discovered.add(entry.getKey().identifier());
+                if (isSource(entry.getKey().identifier(), entry.getValue(), rules))
+                    discovered.add(entry.getKey().identifier());
             });
             discovered.sort(Identifier::compareTo);
             sourceIds = Collections.unmodifiableList(discovered);
             long variants = (long) sourceIds.size() * VariantForm.values().length * OxidationStage.values().length * 2L * 17L;
             int states = generated().stream().mapToInt(block -> block.getStateDefinition().getPossibleStates().size()).sum();
             LOGGER.info(
-                "Patina Pandemonium exposes {} logical variants from {} full-block sources through {} carriers and {} carrier states",
-                variants, sourceIds.size(), generated().size(), states);
+                    "Patina Pandemonium exposes {} logical variants from {} full-block sources through {} carriers and {} carrier states",
+                    variants, sourceIds.size(), generated().size(), states);
             return sourceIds;
         }
     }
@@ -159,24 +147,24 @@ public class DynamicVariantRegistry {
 
     public static boolean isSource(Identifier id, Block block, PatinaRules rules) {
         if (!rules.namespaceAllowed(id.getNamespace())
-            || rules.excludedBlocks != null && rules.excludedBlocks.contains(id.toString())
-            || block == null
-            || block == Blocks.AIR) return false;
+                || rules.excludedBlocks != null && rules.excludedBlocks.contains(id.toString())
+                || block == null
+                || block == Blocks.AIR) return false;
         if (block instanceof SlabBlock
-            || block instanceof StairBlock
-            || block instanceof WallBlock
-            || block instanceof FenceBlock
-            || block instanceof FenceGateBlock
-            || block instanceof CarpetBlock
-            || block instanceof ButtonBlock
-            || block instanceof PressurePlateBlock
-            || block instanceof DoorBlock
-            || block instanceof TrapDoorBlock) return false;
+                || block instanceof StairBlock
+                || block instanceof WallBlock
+                || block instanceof FenceBlock
+                || block instanceof FenceGateBlock
+                || block instanceof CarpetBlock
+                || block instanceof ButtonBlock
+                || block instanceof PressurePlateBlock
+                || block instanceof DoorBlock
+                || block instanceof TrapDoorBlock) return false;
 
         BlockState state = block.defaultBlockState();
         try {
             return Block.isShapeFullBlock(state.getShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO))
-                || Block.isShapeFullBlock(state.getCollisionShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO));
+                    || Block.isShapeFullBlock(state.getCollisionShape(EmptyBlockGetter.INSTANCE, BlockPos.ZERO));
         } catch (RuntimeException ignored) {
             return state.canOcclude();
         }
@@ -188,7 +176,7 @@ public class DynamicVariantRegistry {
 
     private static DeferredItem<GeneratedBlockItem> carrierItem(String name, Supplier<? extends Block> block, VariantForm form) {
         return ITEMS.registerItem(name,
-            properties -> new GeneratedBlockItem(block.get(), form, properties),
+                properties -> new GeneratedBlockItem(block.get(), form, properties),
                 Item.Properties::useBlockDescriptionPrefix);
     }
 

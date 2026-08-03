@@ -34,11 +34,11 @@ public class GeneratedBlockItem extends BlockItem {
         Block source = BuiltInRegistries.BLOCK.getValue(data.sourceId());
         if (source == Blocks.AIR) source = Blocks.STONE;
         return Component.translatable(
-            "block.patina_pandemonium.composed",
-            Component.translatable(data.stageKey()),
-            Component.translatable(data.dyeKey()),
-            source.getName(),
-            Component.translatable(data.formKey()));
+                "block.patina_pandemonium.composed",
+                Component.translatable(data.stageKey()),
+                Component.translatable(data.dyeKey()),
+                source.getName(),
+                Component.translatable(data.formKey()));
     }
 
     @Override

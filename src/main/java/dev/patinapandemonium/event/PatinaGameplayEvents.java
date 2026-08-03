@@ -26,7 +26,9 @@ import net.neoforged.neoforge.event.level.BlockDropsEvent;
 
 import java.util.Optional;
 
-/** Supplies the small amount of server behavior that previously depended on generated data packs. */
+/**
+ * Supplies the small amount of server behavior that previously depended on generated data packs.
+ */
 public class PatinaGameplayEvents {
 
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
@@ -67,17 +69,17 @@ public class PatinaGameplayEvents {
 
     public static void onBlockDrops(BlockDropsEvent event) {
         if (!(event.getState().getBlock() instanceof PatinaOxidizable)
-            || !(event.getBlockEntity() instanceof PatinaVariantBlockEntity blockEntity)) return;
+                || !(event.getBlockEntity() instanceof PatinaVariantBlockEntity blockEntity)) return;
         event.getDrops().clear();
         BlockPos pos = event.getPos();
         int count = event.getState().getBlock() instanceof SlabBlock
-            && event.getState().getValue(SlabBlock.TYPE) == SlabType.DOUBLE ? 2 : 1;
+                && event.getState().getValue(SlabBlock.TYPE) == SlabType.DOUBLE ? 2 : 1;
         event.getDrops().add(new ItemEntity(
-            event.getLevel(),
-            pos.getX() + 0.5D,
-            pos.getY() + 0.5D,
-            pos.getZ() + 0.5D,
-            DynamicVariantRegistry.stack(blockEntity.data(), count)));
+                event.getLevel(),
+                pos.getX() + 0.5D,
+                pos.getY() + 0.5D,
+                pos.getZ() + 0.5D,
+                DynamicVariantRegistry.stack(blockEntity.data(), count)));
     }
 
 }

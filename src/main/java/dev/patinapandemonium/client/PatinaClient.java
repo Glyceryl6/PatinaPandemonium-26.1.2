@@ -20,20 +20,22 @@ import net.neoforged.neoforge.client.event.ModelEvent;
 
 import java.util.Map;
 
-/** Replaces the nine carrier descriptors with component/model-data aware flyweight models. */
+/**
+ * Replaces the nine carrier descriptors with component/model-data aware flyweight models.
+ */
 @EventBusSubscriber(modid = PatinaPandemonium.MOD_ID, value = Dist.CLIENT)
 public class PatinaClient {
 
     private static final Map<VariantForm, Block> TEMPLATES = Map.of(
-        VariantForm.FULL, Blocks.STONE,
-        VariantForm.SLAB, Blocks.STONE_SLAB,
-        VariantForm.STAIRS, Blocks.STONE_STAIRS,
-        VariantForm.WALL, Blocks.COBBLESTONE_WALL,
-        VariantForm.FENCE, Blocks.OAK_FENCE,
-        VariantForm.FENCE_GATE, Blocks.OAK_FENCE_GATE,
-        VariantForm.CARPET, Blocks.WHITE_CARPET,
-        VariantForm.BUTTON, Blocks.STONE_BUTTON,
-        VariantForm.PRESSURE_PLATE, Blocks.STONE_PRESSURE_PLATE);
+            VariantForm.FULL, Blocks.STONE,
+            VariantForm.SLAB, Blocks.STONE_SLAB,
+            VariantForm.STAIRS, Blocks.STONE_STAIRS,
+            VariantForm.WALL, Blocks.COBBLESTONE_WALL,
+            VariantForm.FENCE, Blocks.OAK_FENCE,
+            VariantForm.FENCE_GATE, Blocks.OAK_FENCE_GATE,
+            VariantForm.CARPET, Blocks.WHITE_CARPET,
+            VariantForm.BUTTON, Blocks.STONE_BUTTON,
+            VariantForm.PRESSURE_PLATE, Blocks.STONE_PRESSURE_PLATE);
 
     @SubscribeEvent
     public static void modifyBakingResult(ModelEvent.ModifyBakingResult event) {

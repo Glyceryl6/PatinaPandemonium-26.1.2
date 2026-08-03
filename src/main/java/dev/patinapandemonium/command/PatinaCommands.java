@@ -22,7 +22,9 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import org.jspecify.annotations.Nullable;
 
-/** Gives any logical variant without pre-creating hundreds of thousands of registry entries. */
+/**
+ * Gives any logical variant without pre-creating hundreds of thousands of registry entries.
+ */
 public class PatinaCommands {
 
     private static final String SOURCE_ARGUMENT = "source";
@@ -33,27 +35,27 @@ public class PatinaCommands {
     private static final String COUNT_ARGUMENT = "count";
     private static final String NO_DYE = "none";
     private static final SimpleCommandExceptionType INVALID_SOURCE = new SimpleCommandExceptionType(
-        Component.translatable("commands.patina.invalid_source"));
+            Component.translatable("commands.patina.invalid_source"));
     private static final SimpleCommandExceptionType INVALID_FORM = new SimpleCommandExceptionType(
-        Component.translatable("commands.patina.invalid_form"));
+            Component.translatable("commands.patina.invalid_form"));
     private static final SimpleCommandExceptionType INVALID_STAGE = new SimpleCommandExceptionType(
-        Component.translatable("commands.patina.invalid_stage"));
+            Component.translatable("commands.patina.invalid_stage"));
     private static final SimpleCommandExceptionType INVALID_DYE = new SimpleCommandExceptionType(
-        Component.translatable("commands.patina.invalid_dye"));
+            Component.translatable("commands.patina.invalid_dye"));
 
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         event.getDispatcher().register(Commands.literal("patina")
-            .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
-            .then(Commands.literal("give")
-                .then(Commands.argument(SOURCE_ARGUMENT, IdentifierArgument.id())
-                    .then(Commands.argument(FORM_ARGUMENT, StringArgumentType.word())
-                        .then(Commands.argument(STAGE_ARGUMENT, StringArgumentType.word())
-                            .then(Commands.argument(WAXED_ARGUMENT, BoolArgumentType.bool())
-                                .then(Commands.argument(DYE_ARGUMENT, StringArgumentType.word())
-                                    .executes(context -> give(context, 1))
-                                    .then(Commands.argument(COUNT_ARGUMENT, IntegerArgumentType.integer(1, 6_400))
-                                        .executes(context -> give(
-                                            context, IntegerArgumentType.getInteger(context, COUNT_ARGUMENT)))))))))));
+                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                .then(Commands.literal("give")
+                        .then(Commands.argument(SOURCE_ARGUMENT, IdentifierArgument.id())
+                                .then(Commands.argument(FORM_ARGUMENT, StringArgumentType.word())
+                                        .then(Commands.argument(STAGE_ARGUMENT, StringArgumentType.word())
+                                                .then(Commands.argument(WAXED_ARGUMENT, BoolArgumentType.bool())
+                                                        .then(Commands.argument(DYE_ARGUMENT, StringArgumentType.word())
+                                                                .executes(context -> give(context, 1))
+                                                                .then(Commands.argument(COUNT_ARGUMENT, IntegerArgumentType.integer(1, 6_400))
+                                                                        .executes(context -> give(
+                                                                                context, IntegerArgumentType.getInteger(context, COUNT_ARGUMENT)))))))))));
     }
 
     private static int give(CommandContext<CommandSourceStack> context, int count) throws CommandSyntaxException {
@@ -64,10 +66,11 @@ public class PatinaCommands {
         OxidationStage stage = stage(StringArgumentType.getString(context, STAGE_ARGUMENT));
         if (stage == null) throw INVALID_STAGE.create();
         DyeColor dye = dye(StringArgumentType.getString(context, DYE_ARGUMENT));
-        if (dye == null && !NO_DYE.equals(StringArgumentType.getString(context, DYE_ARGUMENT))) throw INVALID_DYE.create();
+        if (dye == null && !NO_DYE.equals(StringArgumentType.getString(context, DYE_ARGUMENT)))
+            throw INVALID_DYE.create();
         ServerPlayer player = context.getSource().getPlayerOrException();
         ItemStack prototype = DynamicVariantRegistry.stack(new VariantData(
-            sourceId, stage, BoolArgumentType.getBool(context, WAXED_ARGUMENT), form, dye));
+                sourceId, stage, BoolArgumentType.getBool(context, WAXED_ARGUMENT), form, dye));
         int remaining = count;
         int maximumStackSize = prototype.getMaxStackSize();
         while (remaining > 0) {
@@ -86,7 +89,7 @@ public class PatinaCommands {
 
         player.containerMenu.broadcastChanges();
         context.getSource().sendSuccess(() -> Component.translatable(
-            "commands.patina.give.success", count,
+                "commands.patina.give.success", count,
                 prototype.getDisplayName(),
                 player.getDisplayName()), true);
         return count;
