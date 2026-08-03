@@ -55,7 +55,6 @@ public class PatinaClient {
         PatinaBlockStateModel.clearCache();
         PatinaItemModel.clearCache();
         if (fallbackBlock == null || fallbackItem == null) return;
-
         EnumMap<VariantForm, BlockStateModel> sharedBlockModels = new EnumMap<>(VariantForm.class);
         EnumMap<VariantForm, ItemModel> sharedItemModels = new EnumMap<>(VariantForm.class);
         for (VariantForm form : VariantForm.values()) {
@@ -74,11 +73,9 @@ public class PatinaClient {
             if (item != Items.AIR) itemModels.put(BuiltInRegistries.ITEM.getKey(item), sharedItemModels.get(form));
         }
 
-        for (Item item : DynamicVariantRegistry.standaloneVariantItems()) {
-            Identifier id = BuiltInRegistries.ITEM.getKey(item);
-            ItemModel delegate = originalItemModels.get(id);
-            if (delegate != null) itemModels.put(id, new PatinaItemModel(delegate, fallbackBlock));
-        }
+        itemModels.put(
+            DynamicVariantRegistry.VARIANT_ITEM_MODEL,
+            new PatinaItemModel(originalItemModels, fallbackItem, fallbackBlock));
     }
 
 }

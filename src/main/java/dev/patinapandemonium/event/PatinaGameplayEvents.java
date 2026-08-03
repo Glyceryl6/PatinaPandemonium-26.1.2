@@ -37,7 +37,10 @@ import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockDropsEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.tick.LevelTickEvent;
+import org.jspecify.annotations.Nullable;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -48,6 +51,7 @@ public class PatinaGameplayEvents {
 
     private static final Set<Item> IGNITERS = Set.of(Items.FLINT_AND_STEEL, Items.FIRE_CHARGE);
     private static final Map<Player, PendingVariantUse> PENDING_USES = new WeakHashMap<>();
+    private static final Map<ServerLevel, LinkedHashMap<BlockPos, PendingBlockReplacement>> PENDING_REPLACEMENTS = new WeakHashMap<>();
 
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         Player player = event.getEntity();
@@ -58,6 +62,10 @@ public class PatinaGameplayEvents {
         if (heldData == null) PENDING_USES.remove(player);
         else PENDING_USES.put(player, new PendingVariantUse(level.getGameTime(), heldData));
         BlockPos pos = event.getPos();
+        if (heldData != null && IGNITERS.contains(held.getItem()) && level instanceof ServerLevel serverLevel) {
+            queueFireReplacement(serverLevel, pos, heldData);
+            queueFireReplacement(serverLevel, pos.relative(event.getFace()), heldData);
+        }
         if (!(level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity)) return;
         VariantData current = blockEntity.data();
         Optional<VariantData> target = Optional.empty();
@@ -91,13 +99,42 @@ public class PatinaGameplayEvents {
             for (BlockSnapshot snapshot : multi.getReplacedBlockSnapshots()) {
                 BlockState placedState = snapshot.getCurrentState();
                 ItemVariantData data = heldVariant(player, placedState.getBlock(), pending);
-                if (data != null) replacePlacedBlock(level, snapshot.getPos(), placedState, data);
+                if (data != null) queueReplacement(level, snapshot.getPos(), placedState.getBlock(), data);
             }
             return;
         }
+
         BlockState placedState = event.getPlacedBlock();
         ItemVariantData data = heldVariant(player, placedState.getBlock(), pending);
-        if (data != null) replacePlacedBlock(level, event.getPos(), placedState, data);
+        if (data != null) queueReplacement(level, event.getPos(), placedState.getBlock(), data);
+    }
+
+    public static void onLevelTick(LevelTickEvent.Post event) {
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
+        LinkedHashMap<BlockPos, PendingBlockReplacement> pending = PENDING_REPLACEMENTS.remove(level);
+        if (pending == null) return;
+        LinkedHashMap<BlockPos, PreparedBlockReplacement> prepared = new LinkedHashMap<>();
+        pending.forEach((pos, replacement) -> {
+            BlockState state = level.getBlockState(pos);
+            Block expected = replacement.expectedSource();
+            if (expected != null && state.getBlock() != expected) return;
+            if (expected == null && (!(state.getBlock() instanceof BaseFireBlock)
+                || replacement.previousSource() instanceof BaseFireBlock)) return;
+            Block source = state.getBlock();
+            Block carrier = DynamicVariantRegistry.delegatedCarrier(source);
+            if (carrier == null) return;
+            prepared.put(pos, new PreparedBlockReplacement(
+                carrier.withPropertiesOf(state),
+                replacement.data().forBlock(BuiltInRegistries.BLOCK.getKey(source))));
+        });
+        int flags = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE | Block.UPDATE_SUPPRESS_DROPS;
+        prepared.forEach((pos, replacement) -> {
+            level.setBlock(pos, replacement.state(), flags);
+            if (level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity) {
+                blockEntity.setData(replacement.data());
+            }
+        });
+        prepared.forEach((pos, replacement) -> level.updateNeighborsAt(pos, replacement.state().getBlock()));
     }
 
     public static void onItemTooltip(ItemTooltipEvent event) {
@@ -121,6 +158,7 @@ public class PatinaGameplayEvents {
                         stack, VariantForm.FULL, data.stage(), data.waxed(), data.dyeColor(), stack.getCount()));
                 }
             }
+
             if (!event.getDrops().isEmpty() || delegated.source().asItem() == Items.AIR) return;
             event.getDrops().add(new ItemEntity(
                 event.getLevel(), event.getPos().getX() + 0.5D, event.getPos().getY() + 0.5D, event.getPos().getZ() + 0.5D,
@@ -128,6 +166,7 @@ public class PatinaGameplayEvents {
                     new ItemStack(delegated.source()), VariantForm.FULL, data.stage(), data.waxed(), data.dyeColor(), 1)));
             return;
         }
+
         event.getDrops().clear();
         BlockPos pos = event.getPos();
         int count = event.getState().getBlock() instanceof SlabBlock
@@ -137,15 +176,15 @@ public class PatinaGameplayEvents {
             DynamicVariantRegistry.stack(data, count)));
     }
 
-    private static void replacePlacedBlock(ServerLevel level, BlockPos pos, BlockState placedState, ItemVariantData data) {
-        Block source = placedState.getBlock();
-        Block carrier = DynamicVariantRegistry.delegatedCarrier(source);
-        if (carrier == null) return;
-        BlockState replacement = carrier.withPropertiesOf(placedState);
-        level.setBlock(pos, replacement, Block.UPDATE_ALL | Block.UPDATE_KNOWN_SHAPE);
-        if (level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity) {
-            blockEntity.setData(data.forBlock(BuiltInRegistries.BLOCK.getKey(source)));
-        }
+    private static void queueReplacement(ServerLevel level, BlockPos pos, Block expectedSource, ItemVariantData data) {
+        PENDING_REPLACEMENTS.computeIfAbsent(level, _ -> new LinkedHashMap<>())
+            .put(pos.immutable(), new PendingBlockReplacement(expectedSource, null, data));
+    }
+
+    private static void queueFireReplacement(ServerLevel level, BlockPos pos, ItemVariantData data) {
+        Block previousSource = level.getBlockState(pos).getBlock();
+        PENDING_REPLACEMENTS.computeIfAbsent(level, _ -> new LinkedHashMap<>())
+            .put(pos.immutable(), new PendingBlockReplacement(null, previousSource, data));
     }
 
     private static boolean matchesPlacementSource(Block source, ItemVariantData data) {
@@ -153,7 +192,7 @@ public class PatinaGameplayEvents {
         return Block.byItem(sourceItem) == source || source instanceof BaseFireBlock && IGNITERS.contains(sourceItem);
     }
 
-    private static ItemVariantData heldVariant(Player player, Block placedBlock, PendingVariantUse pending) {
+    private static ItemVariantData heldVariant(Player player, Block placedBlock, @Nullable PendingVariantUse pending) {
         ItemVariantData mainHand = DynamicVariantRegistry.itemData(player.getMainHandItem());
         ItemVariantData offHand = DynamicVariantRegistry.itemData(player.getOffhandItem());
         if (mainHand != null && matchesPlacementSource(placedBlock, mainHand)) return mainHand;
@@ -162,4 +201,9 @@ public class PatinaGameplayEvents {
     }
 
     private record PendingVariantUse(long gameTime, ItemVariantData data) {}
+
+    private record PendingBlockReplacement(@Nullable Block expectedSource, @Nullable Block previousSource, ItemVariantData data) {}
+
+    private record PreparedBlockReplacement(BlockState state, VariantData data) {}
+
 }

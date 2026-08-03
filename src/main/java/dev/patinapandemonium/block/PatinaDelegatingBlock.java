@@ -22,6 +22,8 @@ import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.phys.BlockHitResult;
@@ -76,11 +78,6 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
     }
 
     @Override
-    protected RenderShape getRenderShape(BlockState state) {
-        return RenderShape.MODEL;
-    }
-
-    @Override
     protected boolean isPathfindable(BlockState state, PathComputationType type) {
         return this.sourceState(state).isPathfindable(type);
     }
@@ -88,12 +85,17 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
     @Override
     protected BlockState updateShape(BlockState state, LevelReader level, ScheduledTickAccess scheduledTickAccess, BlockPos pos,
                                      Direction direction, BlockPos neighborPos, BlockState neighborState, RandomSource random) {
-        BlockState updated = this.sourceState(state).updateShape(level, scheduledTickAccess, pos, direction, neighborPos, neighborState, random);
+        BlockState sourceNeighborState = neighborState.is(this) ? this.sourceState(neighborState) : neighborState;
+        BlockState updated = this.sourceState(state).updateShape(
+            level, scheduledTickAccess, pos, direction, neighborPos, sourceNeighborState, random);
         return updated.is(this.source) ? this.carrierState(updated) : updated;
     }
 
     @Override
     protected boolean canSurvive(BlockState state, LevelReader level, BlockPos pos) {
+        if (state.hasProperty(BlockStateProperties.DOUBLE_BLOCK_HALF)
+            && state.getValue(BlockStateProperties.DOUBLE_BLOCK_HALF) == DoubleBlockHalf.UPPER
+            && level.getBlockState(pos.below()).is(this)) return true;
         return this.sourceState(state).canSurvive(level, pos);
     }
 

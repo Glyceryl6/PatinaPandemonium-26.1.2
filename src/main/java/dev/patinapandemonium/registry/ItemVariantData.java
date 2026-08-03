@@ -9,20 +9,24 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import org.jspecify.annotations.Nullable;
 
-public record ItemVariantData(Identifier sourceId, OxidationStage stage, boolean waxed, @Nullable DyeColor dyeColor) {
+import java.util.Optional;
+
+public record ItemVariantData(Identifier sourceId, OxidationStage stage, boolean waxed, @Nullable DyeColor dyeColor, @Nullable Identifier modelId) {
 
     private static final int NO_DYE = -1;
     public static final Codec<ItemVariantData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
         Identifier.CODEC.fieldOf("source").forGetter(ItemVariantData::sourceId),
         Codec.intRange(0, OxidationStage.values().length - 1).fieldOf("stage").forGetter(data -> data.stage().ordinal()),
         Codec.BOOL.fieldOf("waxed").forGetter(ItemVariantData::waxed),
-        Codec.intRange(NO_DYE, DyeColor.VALUES.size() - 1).fieldOf("dye").forGetter(ItemVariantData::dyeId)
+        Codec.intRange(NO_DYE, DyeColor.VALUES.size() - 1).fieldOf("dye").forGetter(ItemVariantData::dyeId),
+        Identifier.CODEC.optionalFieldOf("model").forGetter(data -> Optional.ofNullable(data.modelId()))
     ).apply(instance, ItemVariantData::decode));
 
     public ItemVariantData normalized(Item item) {
         Item source = BuiltInRegistries.ITEM.getValue(this.sourceId);
         Identifier sourceId = source == Items.AIR ? BuiltInRegistries.ITEM.getKey(item) : BuiltInRegistries.ITEM.getKey(source);
-        return new ItemVariantData(sourceId, this.stage, this.waxed, this.dyeColor);
+        Identifier modelId = DynamicVariantRegistry.VARIANT_ITEM_MODEL.equals(this.modelId) ? sourceId : this.modelId;
+        return new ItemVariantData(sourceId, this.stage, this.waxed, this.dyeColor, modelId);
     }
 
     public VariantData forBlock(Identifier sourceId) {
@@ -46,8 +50,8 @@ public record ItemVariantData(Identifier sourceId, OxidationStage stage, boolean
         return this.dyeColor == null ? NO_DYE : this.dyeColor.getId();
     }
 
-    private static ItemVariantData decode(Identifier sourceId, int stage, boolean waxed, int dye) {
-        return new ItemVariantData(sourceId, OxidationStage.byOrdinal(stage), waxed, VariantData.dyeById(dye));
+    private static ItemVariantData decode(Identifier sourceId, int stage, boolean waxed, int dye, Optional<Identifier> modelId) {
+        return new ItemVariantData(sourceId, OxidationStage.byOrdinal(stage), waxed, VariantData.dyeById(dye), modelId.orElse(null));
     }
 
     private static int multiply(int color, int tint) {

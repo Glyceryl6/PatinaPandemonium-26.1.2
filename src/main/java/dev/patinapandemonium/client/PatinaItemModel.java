@@ -5,6 +5,7 @@ import dev.patinapandemonium.registry.DynamicVariantRegistry;
 import dev.patinapandemonium.registry.ItemVariantData;
 import dev.patinapandemonium.registry.VariantData;
 import dev.patinapandemonium.registry.VariantForm;
+import it.unimi.dsi.fastutil.ints.AbstractIntList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -16,6 +17,7 @@ import net.minecraft.client.renderer.special.SpecialModelRenderer;
 import net.minecraft.client.resources.model.cuboid.ItemTransform;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.client.resources.model.sprite.Material;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.RandomSource;
@@ -48,7 +50,7 @@ public class PatinaItemModel implements ItemModel {
     private final VariantForm form;
     private final ItemModel fallback;
     private final BlockStateModel fallbackBlock;
-    private final @Nullable ItemModel standalone;
+    private final @Nullable Map<Identifier, ItemModel> standaloneModels;
 
     public PatinaItemModel(Map<BlockState, BlockStateModel> blockModels, Map<Identifier, ItemModel> itemModels,
                            Block template, VariantForm form, ItemModel fallback, BlockStateModel fallbackBlock) {
@@ -58,17 +60,17 @@ public class PatinaItemModel implements ItemModel {
         this.form = form;
         this.fallback = fallback;
         this.fallbackBlock = fallbackBlock;
-        this.standalone = null;
+        this.standaloneModels = null;
     }
 
-    public PatinaItemModel(ItemModel standalone, BlockStateModel fallbackBlock) {
+    public PatinaItemModel(Map<Identifier, ItemModel> standaloneModels, ItemModel fallback, BlockStateModel fallbackBlock) {
         this.blockModels = Map.of();
         this.itemModels = Map.of();
         this.template = Blocks.STONE;
         this.form = VariantForm.FULL;
-        this.fallback = standalone;
+        this.fallback = fallback;
         this.fallbackBlock = fallbackBlock;
-        this.standalone = standalone;
+        this.standaloneModels = standaloneModels;
     }
 
     public static void clearCache() {
@@ -81,19 +83,21 @@ public class PatinaItemModel implements ItemModel {
     public void update(ItemStackRenderState renderState, ItemStack stack, ItemModelResolver resolver, ItemDisplayContext displayContext,
                        @Nullable ClientLevel level, @Nullable ItemOwner owner, int seed) {
         ItemVariantData itemData = DynamicVariantRegistry.itemData(stack);
-        if (this.standalone != null && itemData == null) {
-            this.standalone.update(renderState, stack, resolver, displayContext, level, owner, seed);
+        boolean standalone = this.standaloneModels != null;
+        if (standalone && itemData == null) {
+            this.fallback.update(renderState, stack, resolver, displayContext, level, owner, seed);
             return;
         }
-        RenderContext context = this.standalone == null
-            ? this.context(DynamicVariantRegistry.data(stack, this.form))
-            : this.context(itemData);
-        ItemModel delegate = this.standalone == null ? this.itemDelegate(context.source()) : this.standalone;
+        RenderContext context = standalone
+            ? this.context(Objects.requireNonNull(itemData))
+            : this.context(DynamicVariantRegistry.data(stack, this.form));
+        ItemModel delegate = standalone ? this.itemDelegate(Objects.requireNonNull(itemData)) : this.itemDelegate(context.source());
+        ItemStack renderingStack = standalone ? this.sourceModelStack(stack, Objects.requireNonNull(itemData)) : stack;
         renderState.appendModelIdentityElement(this);
         renderState.appendModelIdentityElement(context);
         TransformingRenderState transformed = new TransformingRenderState(renderState, context);
-        delegate.update(transformed, stack, resolver, displayContext, level, owner, seed);
-        if (this.standalone == null && transformed.usesSpecialModel() && delegate != this.fallback) {
+        delegate.update(transformed, renderingStack, resolver, displayContext, level, owner, seed);
+        if (!standalone && transformed.usesSpecialModel() && delegate != this.fallback) {
             renderState.clear();
             renderState.appendModelIdentityElement(this);
             renderState.appendModelIdentityElement(context);
@@ -122,6 +126,17 @@ public class PatinaItemModel implements ItemModel {
         return this.itemModels.getOrDefault(BuiltInRegistries.ITEM.getKey(item), this.fallback);
     }
 
+    private ItemModel itemDelegate(ItemVariantData data) {
+        Identifier modelId = data.modelId() == null ? data.sourceId() : data.modelId();
+        return Objects.requireNonNull(this.standaloneModels).getOrDefault(modelId, this.fallback);
+    }
+
+    private ItemStack sourceModelStack(ItemStack stack, ItemVariantData data) {
+        ItemStack source = stack.copy();
+        source.set(DataComponents.ITEM_MODEL, data.modelId() == null ? data.sourceId() : data.modelId());
+        return source;
+    }
+
     private BakedQuad transform(RenderContext context, BakedQuad quad) {
         int maximum = Math.max(0, PatinaRules.INSTANCE.maximumCachedItemQuads);
         if (maximum == 0) return this.createQuad(context, quad);
@@ -145,8 +160,16 @@ public class PatinaItemModel implements ItemModel {
 
     private BakedQuad createQuad(RenderContext context, BakedQuad quad) {
         MutableQuad mutable = new MutableQuad().setFrom(quad);
-        if (this.form != VariantForm.FULL) mutable.setSpriteAndMoveUv(context.sourceMaterial());
         int tintIndex = quad.materialInfo().tintIndex();
+        if (this.standaloneModels != null) {
+            if (tintIndex < 0) {
+                for (int vertex = 0; vertex < 4; vertex++) {
+                    mutable.setColor(vertex, multiply(mutable.color(vertex), context.variantTint()));
+                }
+            }
+            return mutable.toBakedQuad();
+        }
+        if (this.form != VariantForm.FULL) mutable.setSpriteAndMoveUv(context.sourceMaterial());
         int sourceTint = this.form == VariantForm.FULL
             ? tint(context.sourceTints(), tintIndex)
             : tint(context.sourceTints(), context.sourceTints().isEmpty() ? -1 : 0);
@@ -285,7 +308,8 @@ public class PatinaItemModel implements ItemModel {
 
         @Override
         public void setParticleMaterial(Material.Baked particleMaterial) {
-            this.output.setParticleMaterial(this.context.sourceMaterial());
+            this.output.setParticleMaterial(PatinaItemModel.this.standaloneModels == null
+                ? this.context.sourceMaterial() : particleMaterial);
         }
 
         @Override
@@ -311,7 +335,7 @@ public class PatinaItemModel implements ItemModel {
 
         @Override
         public IntList tintLayers() {
-            return this.output.tintLayers();
+            return new TransformingTintList(this.output.tintLayers(), this.context.variantTint());
         }
 
     }
@@ -368,6 +392,43 @@ public class PatinaItemModel implements ItemModel {
         @Override
         public void clear() {
             this.output.clear();
+        }
+
+    }
+
+    private static class TransformingTintList extends AbstractIntList {
+
+        private final IntList output;
+        private final int tint;
+
+        private TransformingTintList(IntList output, int tint) {
+            this.output = output;
+            this.tint = tint;
+        }
+
+        @Override
+        public int getInt(int index) {
+            return this.output.getInt(index);
+        }
+
+        @Override
+        public int size() {
+            return this.output.size();
+        }
+
+        @Override
+        public int set(int index, int value) {
+            return this.output.set(index, multiply(value, this.tint));
+        }
+
+        @Override
+        public void add(int index, int value) {
+            this.output.add(index, multiply(value, this.tint));
+        }
+
+        @Override
+        public int removeInt(int index) {
+            return this.output.removeInt(index);
         }
 
     }
