@@ -23,6 +23,7 @@ public class GeneratedBlockItem extends BlockItem {
         return Component.translatable(
                 "block.patina_pandemonium.composed",
                 Component.translatable(this.data.stageKey()),
+                Component.translatable(this.data.dyeKey()),
                 this.source.getName(),
                 Component.translatable(this.data.formKey()));
     }

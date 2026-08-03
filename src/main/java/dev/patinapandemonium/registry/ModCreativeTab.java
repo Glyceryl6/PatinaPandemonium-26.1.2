@@ -8,9 +8,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
-import java.util.LinkedHashSet;
-
-public final class ModCreativeTab {
+public class ModCreativeTab {
 
     public static final DeferredRegister<CreativeModeTab> TABS = DeferredRegister.create(
             Registries.CREATIVE_MODE_TAB, PatinaPandemonium.MOD_ID);
@@ -20,12 +18,9 @@ public final class ModCreativeTab {
                 .title(Component.translatable("itemGroup.patina_pandemonium"))
                 .icon(Items.HONEYCOMB::getDefaultInstance)
                 .displayItems((_, output) -> {
-                    LinkedHashSet<Item> seen = new LinkedHashSet<>();
-                    for (VariantEntry entry : DynamicVariantRegistry.entries()) {
+                    for (VariantEntry entry : DynamicVariantRegistry.generated()) {
                         Item item = entry.block().asItem();
-                        if (item != Items.AIR && seen.add(item)) {
-                            output.accept(item);
-                        }
+                        if (item != Items.AIR) output.accept(item);
                     }
                 }).build());
     }

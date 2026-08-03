@@ -4,17 +4,16 @@ import dev.patinapandemonium.registry.VariantData;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.level.block.PressurePlateBlock;
+import net.minecraft.world.level.block.CarpetBlock;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.BlockSetType;
 
-public class PatinaPressurePlateBlock extends PressurePlateBlock implements PatinaOxidizable {
+public class PatinaCarpetBlock extends CarpetBlock implements PatinaOxidizable {
 
     private final VariantData data;
 
-    public PatinaPressurePlateBlock(BlockBehaviour.Properties properties, VariantData data) {
-        super(BlockSetType.OAK, properties);
+    public PatinaCarpetBlock(BlockBehaviour.Properties properties, VariantData data) {
+        super(properties);
         this.data = data;
     }
 

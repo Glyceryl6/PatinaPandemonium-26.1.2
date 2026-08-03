@@ -17,7 +17,7 @@ import java.util.Set;
 public class GeneratedBlockFactory {
 
     private static final Set<VariantForm> NO_COLLISION_FORMS = Set.of(
-            VariantForm.BUTTON, VariantForm.PRESSURE_PLATE);
+            VariantForm.CARPET, VariantForm.BUTTON, VariantForm.PRESSURE_PLATE);
     private static final Map<VariantForm, BlockCreator> CREATORS = Map.of(
             VariantForm.FULL, (_, properties, data) -> new PatinaBlock(properties, data),
             VariantForm.SLAB, (_, properties, data) -> new PatinaSlabBlock(properties, data),
@@ -25,6 +25,7 @@ public class GeneratedBlockFactory {
             VariantForm.WALL, (_, properties, data) -> new PatinaWallBlock(properties, data),
             VariantForm.FENCE, (_, properties, data) -> new PatinaFenceBlock(properties, data),
             VariantForm.FENCE_GATE, (_, properties, data) -> new PatinaFenceGateBlock(properties, data),
+            VariantForm.CARPET, (_, properties, data) -> new PatinaCarpetBlock(properties, data),
             VariantForm.BUTTON, (_, properties, data) -> new PatinaButtonBlock(properties, data),
             VariantForm.PRESSURE_PLATE, (_, properties, data) -> new PatinaPressurePlateBlock(properties, data));
 

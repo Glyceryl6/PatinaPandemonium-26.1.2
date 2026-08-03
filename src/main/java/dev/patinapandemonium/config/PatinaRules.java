@@ -3,6 +3,7 @@ package dev.patinapandemonium.config;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.mojang.logging.LogUtils;
 import dev.patinapandemonium.PatinaPandemonium;
 import net.neoforged.fml.loading.FMLPaths;
@@ -21,18 +22,25 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
+    public int schemaVersion = 2;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
     public int maximumGeneratedBlocks = 200_000;
-    public int maximumGeneratedBlockStates = 250_000;
+    public int maximumGeneratedBlockStates = 1_000_000;
     public boolean memoryAwareBlockStateLimit = true;
-    public int estimatedBytesPerGeneratedBlockState = 32_768;
-    public int maximumCachedModelParts = 256;
+    public int estimatedBytesPerGeneratedBlock = 16_384;
+    public int estimatedBytesPerGeneratedBlockState = 4_096;
+    public double maximumGeneratedHeapFraction = 0.35D;
+    public double dyedFullBudgetFraction = 0.20D;
+    public int maximumCachedModelParts = 512;
+    public int maximumCachedItemQuads = 2_048;
+    public boolean dyedVariants = true;
     public boolean slabs = true;
     public boolean stairs = true;
     public boolean walls = true;
     public boolean fences = true;
     public boolean fenceGates = true;
+    public boolean carpets = true;
     public boolean buttons = true;
     public boolean pressurePlates = true;
     public JsonObject textureOverrides = new JsonObject();
@@ -47,8 +55,14 @@ public class PatinaRules {
         try {
             Files.createDirectories(FILE.getParent());
             if (Files.exists(FILE)) {
-                PatinaRules loaded = GSON.fromJson(Files.readString(FILE), PatinaRules.class);
+                JsonObject source = JsonParser.parseString(Files.readString(FILE)).getAsJsonObject();
+                PatinaRules loaded = GSON.fromJson(source, PatinaRules.class);
                 PatinaRules rules = loaded == null ? new PatinaRules() : loaded;
+                if (!source.has("schemaVersion") && !source.has("estimatedBytesPerGeneratedBlock")) {
+                    if (rules.maximumGeneratedBlockStates == 250_000) rules.maximumGeneratedBlockStates = 1_000_000;
+                    if (rules.estimatedBytesPerGeneratedBlockState == 32_768) rules.estimatedBytesPerGeneratedBlockState = 4_096;
+                }
+                rules.schemaVersion = 2;
                 Files.writeString(FILE, GSON.toJson(rules));
                 return rules;
             }

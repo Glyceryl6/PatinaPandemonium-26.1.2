@@ -101,12 +101,13 @@ public class GeneratedPackWriter {
             case WALL -> wall(output, namespace, path, primary);
             case FENCE -> fence(output, namespace, path, primary);
             case FENCE_GATE -> fenceGate(output, namespace, path, primary);
+            case CARPET -> carpet(output, namespace, path, primary);
             case BUTTON -> button(output, namespace, path, primary);
             case PRESSURE_PLATE -> pressurePlate(output, namespace, path, primary);
         }
 
         String inventoryModel = switch (data.form()) {
-            case FULL, SLAB, STAIRS, PRESSURE_PLATE -> modelPath;
+            case FULL, SLAB, STAIRS, CARPET, PRESSURE_PLATE -> modelPath;
             default -> modelPath + "_inventory";
         };
 
@@ -254,6 +255,11 @@ public class GeneratedPackWriter {
         putJson(output, "assets/" + namespace + "/blockstates/" + path + ".json", root);
     }
 
+    private static void carpet(Map<String, byte[]> output, String namespace, String path, String texture) {
+        templateModel(output, namespace, path, "minecraft:block/carpet", texture);
+        simpleBlockState(output, namespace, path, "block/" + path);
+    }
+
     private static void button(Map<String, byte[]> output, String namespace, String path, String texture) {
         templateModel(output, namespace, path, "minecraft:block/button", texture);
         templateModel(output, namespace, path + "_pressed", "minecraft:block/button_pressed", texture);
@@ -350,7 +356,8 @@ public class GeneratedPackWriter {
                     data.sourceId(),
                     data.stage(),
                     data.waxed(),
-                    VariantForm.FULL)));
+                    VariantForm.FULL,
+                    data.dyeColor())));
             if (base != null) {
                 Map<String, Object> shaped = formRecipe(data.form(), base.blockId().toString(), entry.blockId().toString());
                 if (shaped != null) {
@@ -364,7 +371,8 @@ public class GeneratedPackWriter {
                     data.sourceId(),
                     data.stage(),
                     false,
-                    data.form())));
+                    data.form(),
+                    data.dyeColor())));
             if (unwaxed != null) {
                 putJson(
                         output,
@@ -393,6 +401,7 @@ public class GeneratedPackWriter {
                     List.of("S#S", "S#S"),
                     Map.of("#", base, "S", "minecraft:stick"),
                     result, 1);
+            case CARPET -> shaped(List.of("##"), Map.of("#", base), result, 3);
             case BUTTON -> shaped(List.of("#"), Map.of("#", base), result, 1);
             case PRESSURE_PLATE -> shaped(List.of("##"), Map.of("#", base), result, 1);
             default -> null;
@@ -428,7 +437,8 @@ public class GeneratedPackWriter {
                         data.sourceId(),
                         data.stage().next(),
                         false,
-                        data.form())));
+                        data.form(),
+                        data.dyeColor())));
                 if (next != null) {
                     oxidizables.put(entry.blockId().toString(), Map.of("next_oxidation_stage", next.blockId().toString()));
                 }
@@ -439,7 +449,8 @@ public class GeneratedPackWriter {
                         data.sourceId(),
                         data.stage(),
                         true,
-                        data.form())));
+                        data.form(),
+                        data.dyeColor())));
                 if (waxed != null) {
                     waxables.put(entry.blockId().toString(), Map.of("waxed", waxed.blockId().toString()));
                 }
@@ -463,6 +474,7 @@ public class GeneratedPackWriter {
                 case WALL -> addBoth(blockTags, itemTags, "walls", id);
                 case FENCE -> addBoth(blockTags, itemTags, "fences", id);
                 case FENCE_GATE -> addBoth(blockTags, itemTags, "fence_gates", id);
+                case CARPET -> addBoth(blockTags, itemTags, "wool_carpets", id);
                 case BUTTON -> addBoth(blockTags, itemTags, "buttons", id);
                 case PRESSURE_PLATE -> addBoth(blockTags, itemTags, "pressure_plates", id);
                 default -> {}
@@ -520,7 +532,7 @@ public class GeneratedPackWriter {
     }
 
     private static String key(VariantData data) {
-        return data.sourceId() + "|" + data.stage() + "|" + data.waxed() + "|" + data.form();
+        return data.sourceId() + "|" + data.stage() + "|" + data.waxed() + "|" + data.form() + "|" + data.dyePath();
     }
 
     private static String sanitize(String value) {

@@ -44,7 +44,7 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
         this.template = template;
         this.form = form;
         this.sourceMaterial = sourceMaterial;
-        this.tint = 0xFF000000 | tint;
+        this.tint = tint;
     }
 
     public static void clearCache() {
