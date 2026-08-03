@@ -54,5 +54,12 @@
   "container.patina_pandemonium.variants": "Available variants",
   "container.patina_pandemonium.output": "Output preview",
   "container.patina_pandemonium.clear_stages": "Clear filter",
-  "container.patina_pandemonium.clear_stages.tooltip": "Clear every oxidation checkbox and show all stages"
+  "container.patina_pandemonium.clear_stages.tooltip": "Clear every oxidation checkbox and show all stages",
+  "itemGroup.patina_pandemonium.special_blocks": "Patina Pandemonium: Special Blocks",
+  "itemGroup.patina_pandemonium.external_blocks": "Patina Pandemonium: Modded Blocks",
+  "itemGroup.patina_pandemonium.external_items": "Patina Pandemonium: Modded Items",
+  "container.patina_pandemonium.form_unavailable": "%1$s is unavailable for this input",
+  "tooltip.patina_pandemonium.variant_stage": "State: %1$s",
+  "tooltip.patina_pandemonium.variant_dye": "Dye: %1$s",
+  "itemGroup.patina_pandemonium.items_category": "Patina Pandemonium: %1$s Items"
 }
