@@ -8,11 +8,9 @@ import dev.patinapandemonium.registry.ItemVariantData;
 import dev.patinapandemonium.registry.VariantData;
 import dev.patinapandemonium.registry.VariantForm;
 import dev.patinapandemonium.registry.VariantRuntime;
-import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
@@ -33,7 +31,6 @@ import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.SlabType;
 import net.neoforged.neoforge.common.util.BlockSnapshot;
-import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockDropsEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
@@ -64,8 +61,11 @@ public class PatinaGameplayEvents {
         BlockPos pos = event.getPos();
         if (heldData != null && IGNITERS.contains(held.getItem()) && level instanceof ServerLevel serverLevel) {
             queueFireReplacement(serverLevel, pos, heldData);
-            queueFireReplacement(serverLevel, pos.relative(event.getFace()), heldData);
+            if (event.getFace() != null) {
+                queueFireReplacement(serverLevel, pos.relative(event.getFace()), heldData);
+            }
         }
+
         if (!(level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity)) return;
         VariantData current = blockEntity.data();
         Optional<VariantData> target = Optional.empty();
@@ -134,16 +134,8 @@ public class PatinaGameplayEvents {
                 blockEntity.setData(replacement.data());
             }
         });
-        prepared.forEach((pos, replacement) -> level.updateNeighborsAt(pos, replacement.state().getBlock()));
-    }
 
-    public static void onItemTooltip(ItemTooltipEvent event) {
-        ItemVariantData data = DynamicVariantRegistry.itemData(event.getItemStack());
-        if (data == null) return;
-        event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.variant_stage", Component.translatable(data.stageKey()))
-            .withStyle(ChatFormatting.GRAY));
-        event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.variant_dye", Component.translatable(data.dyeKey()))
-            .withStyle(ChatFormatting.GRAY));
+        prepared.forEach((pos, replacement) -> level.updateNeighborsAt(pos, replacement.state().getBlock()));
     }
 
     public static void onBlockDrops(BlockDropsEvent event) {
@@ -154,16 +146,13 @@ public class PatinaGameplayEvents {
             for (ItemEntity drop : event.getDrops()) {
                 ItemStack stack = drop.getItem();
                 if (DynamicVariantRegistry.supportsFabrication(stack)) {
-                    drop.setItem(DynamicVariantRegistry.fabricate(
-                        stack, VariantForm.FULL, data.stage(), data.waxed(), data.dyeColor(), stack.getCount()));
+                    drop.setItem(DynamicVariantRegistry.fabricate(stack, VariantForm.FULL, data.stage(), data.waxed(), data.dyeColor(), stack.getCount()));
                 }
             }
 
             if (!event.getDrops().isEmpty() || delegated.source().asItem() == Items.AIR) return;
-            event.getDrops().add(new ItemEntity(
-                event.getLevel(), event.getPos().getX() + 0.5D, event.getPos().getY() + 0.5D, event.getPos().getZ() + 0.5D,
-                DynamicVariantRegistry.fabricate(
-                    new ItemStack(delegated.source()), VariantForm.FULL, data.stage(), data.waxed(), data.dyeColor(), 1)));
+            event.getDrops().add(new ItemEntity(event.getLevel(), event.getPos().getX() + 0.5D, event.getPos().getY() + 0.5D, event.getPos().getZ() + 0.5D,
+                DynamicVariantRegistry.fabricate(new ItemStack(delegated.source()), VariantForm.FULL, data.stage(), data.waxed(), data.dyeColor(), 1)));
             return;
         }
 

@@ -5,7 +5,6 @@ import dev.patinapandemonium.registry.DynamicVariantRegistry;
 import dev.patinapandemonium.registry.ItemVariantData;
 import dev.patinapandemonium.registry.VariantData;
 import dev.patinapandemonium.registry.VariantForm;
-import it.unimi.dsi.fastutil.ints.AbstractIntList;
 import it.unimi.dsi.fastutil.ints.IntList;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -35,7 +34,13 @@ import org.joml.Matrix4fc;
 import org.joml.Vector3fc;
 import org.jspecify.annotations.Nullable;
 
-import java.util.*;
+import java.util.AbstractList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -111,7 +116,7 @@ public class PatinaItemModel implements ItemModel {
         BlockStateModel sourceModel = this.blockModels.getOrDefault(source.defaultBlockState(), this.fallbackBlock);
         BlockState sourceState = source.defaultBlockState();
         List<Integer> sourceTints = Minecraft.getInstance().getBlockColors().getTintSources(sourceState)
-                .stream().map(tint -> tint.color(sourceState)).toList();
+            .stream().map(tint -> tint.color(sourceState)).toList();
         return new RenderContext(source, sourceModel.particleMaterial(), data.tint(), sourceTints);
     }
 
@@ -154,7 +159,6 @@ public class PatinaItemModel implements ItemModel {
                 iterator.remove();
             }
         }
-
         return transformed;
     }
 
@@ -162,10 +166,8 @@ public class PatinaItemModel implements ItemModel {
         MutableQuad mutable = new MutableQuad().setFrom(quad);
         int tintIndex = quad.materialInfo().tintIndex();
         if (this.standaloneModels != null) {
-            if (tintIndex < 0) {
-                for (int vertex = 0; vertex < 4; vertex++) {
-                    mutable.setColor(vertex, multiply(mutable.color(vertex), context.variantTint()));
-                }
+            for (int vertex = 0; vertex < 4; vertex++) {
+                mutable.setColor(vertex, multiply(mutable.color(vertex), context.variantTint()));
             }
             return mutable.toBakedQuad();
         }
@@ -270,7 +272,6 @@ public class PatinaItemModel implements ItemModel {
         public boolean isOversizedInGui() {
             return this.output.isOversizedInGui();
         }
-
     }
 
     private class TransformingLayerRenderState extends ItemStackRenderState.LayerRenderState {
@@ -335,9 +336,8 @@ public class PatinaItemModel implements ItemModel {
 
         @Override
         public IntList tintLayers() {
-            return new TransformingTintList(this.output.tintLayers(), this.context.variantTint());
+            return this.output.tintLayers();
         }
-
     }
 
     private class TransformingQuadList extends AbstractList<BakedQuad> {
@@ -393,48 +393,9 @@ public class PatinaItemModel implements ItemModel {
         public void clear() {
             this.output.clear();
         }
-
-    }
-
-    private static class TransformingTintList extends AbstractIntList {
-
-        private final IntList output;
-        private final int tint;
-
-        private TransformingTintList(IntList output, int tint) {
-            this.output = output;
-            this.tint = tint;
-        }
-
-        @Override
-        public int getInt(int index) {
-            return this.output.getInt(index);
-        }
-
-        @Override
-        public int size() {
-            return this.output.size();
-        }
-
-        @Override
-        public int set(int index, int value) {
-            return this.output.set(index, multiply(value, this.tint));
-        }
-
-        @Override
-        public void add(int index, int value) {
-            this.output.add(index, multiply(value, this.tint));
-        }
-
-        @Override
-        public int removeInt(int index) {
-            return this.output.removeInt(index);
-        }
-
     }
 
     private record RenderContext(Block source, Material.Baked sourceMaterial, int variantTint, List<Integer> sourceTints) {}
 
     private record CacheKey(Block source, VariantForm form, int tint, List<Integer> sourceTints, BakedQuad quad) {}
-
 }

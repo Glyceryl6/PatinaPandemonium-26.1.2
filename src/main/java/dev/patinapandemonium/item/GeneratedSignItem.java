@@ -7,7 +7,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.SignItem;
 import net.minecraft.world.level.block.Block;
 
-public final class GeneratedSignItem extends SignItem {
+public class GeneratedSignItem extends SignItem {
     private final Block source;
     private final VariantData data;
 
@@ -19,11 +19,11 @@ public final class GeneratedSignItem extends SignItem {
 
     @Override
     public Component getName(ItemStack stack) {
-        return Component.translatable(
-                "block.patina_pandemonium.composed",
-                Component.translatable(this.data.stageKey()),
-                this.source.getName(),
-                Component.translatable(this.data.formKey()));
+        return Component.empty()
+            .append(Component.translatable(this.data.stageKey()))
+            .append(Component.translatable(this.data.dyeKey()))
+            .append(this.source.getName())
+            .append(Component.translatable(this.data.formKey()));
     }
 
 }

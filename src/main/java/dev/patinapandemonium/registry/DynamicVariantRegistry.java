@@ -75,8 +75,11 @@ public class DynamicVariantRegistry {
         COMPONENTS.registerComponentType("item_variant_data", builder -> builder.persistent(ItemVariantData.CODEC));
 
     public static final DeferredBlock<VariantFabricatorBlock> VARIANT_FABRICATOR = BLOCKS.register(
-        "variant_fabricator", id -> new VariantFabricatorBlock(BlockBehaviour.Properties.of()
-                    .strength(3.5F, 6.0F).sound(SoundType.COPPER).setId(ResourceKey.create(Registries.BLOCK, id))));
+        "variant_fabricator",
+        id -> new VariantFabricatorBlock(BlockBehaviour.Properties.of()
+            .strength(3.5F, 6.0F)
+            .sound(SoundType.COPPER)
+            .setId(ResourceKey.create(Registries.BLOCK, id))));
     public static final DeferredItem<BlockItem> VARIANT_FABRICATOR_ITEM = ITEMS.registerItem(
         "variant_fabricator", properties -> new BlockItem(VARIANT_FABRICATOR.get(), properties.useBlockDescriptionPrefix()));
 
@@ -95,24 +98,20 @@ public class DynamicVariantRegistry {
     public static final DeferredBlock<Block> TRANSLUCENT_STAIRS = carrier("virtual_translucent_stairs", VariantForm.STAIRS, true);
     public static final DeferredBlock<Block> TRANSLUCENT_WALL = carrier("virtual_translucent_wall", VariantForm.WALL, true);
     public static final DeferredBlock<Block> TRANSLUCENT_FENCE = carrier("virtual_translucent_fence", VariantForm.FENCE, true);
-    public static final DeferredBlock<Block> TRANSLUCENT_FENCE_GATE = carrier(
-        "virtual_translucent_fence_gate", VariantForm.FENCE_GATE, true);
+    public static final DeferredBlock<Block> TRANSLUCENT_FENCE_GATE = carrier("virtual_translucent_fence_gate", VariantForm.FENCE_GATE, true);
     public static final DeferredBlock<Block> TRANSLUCENT_CARPET = carrier("virtual_translucent_carpet", VariantForm.CARPET, true);
     public static final DeferredBlock<Block> TRANSLUCENT_BUTTON = carrier("virtual_translucent_button", VariantForm.BUTTON, true);
-    public static final DeferredBlock<Block> TRANSLUCENT_PRESSURE_PLATE = carrier(
-        "virtual_translucent_pressure_plate", VariantForm.PRESSURE_PLATE, true);
+    public static final DeferredBlock<Block> TRANSLUCENT_PRESSURE_PLATE = carrier("virtual_translucent_pressure_plate", VariantForm.PRESSURE_PLATE, true);
 
     public static final DeferredItem<GeneratedBlockItem> FULL_ITEM = carrierItem("virtual_full", FULL, VariantForm.FULL);
     public static final DeferredItem<GeneratedBlockItem> SLAB_ITEM = carrierItem("virtual_slab", SLAB, VariantForm.SLAB);
     public static final DeferredItem<GeneratedBlockItem> STAIRS_ITEM = carrierItem("virtual_stairs", STAIRS, VariantForm.STAIRS);
     public static final DeferredItem<GeneratedBlockItem> WALL_ITEM = carrierItem("virtual_wall", WALL, VariantForm.WALL);
     public static final DeferredItem<GeneratedBlockItem> FENCE_ITEM = carrierItem("virtual_fence", FENCE, VariantForm.FENCE);
-    public static final DeferredItem<GeneratedBlockItem> FENCE_GATE_ITEM = carrierItem(
-        "virtual_fence_gate", FENCE_GATE, VariantForm.FENCE_GATE);
+    public static final DeferredItem<GeneratedBlockItem> FENCE_GATE_ITEM = carrierItem("virtual_fence_gate", FENCE_GATE, VariantForm.FENCE_GATE);
     public static final DeferredItem<GeneratedBlockItem> CARPET_ITEM = carrierItem("virtual_carpet", CARPET, VariantForm.CARPET);
     public static final DeferredItem<GeneratedBlockItem> BUTTON_ITEM = carrierItem("virtual_button", BUTTON, VariantForm.BUTTON);
-    public static final DeferredItem<GeneratedBlockItem> PRESSURE_PLATE_ITEM = carrierItem(
-        "virtual_pressure_plate", PRESSURE_PLATE, VariantForm.PRESSURE_PLATE);
+    public static final DeferredItem<GeneratedBlockItem> PRESSURE_PLATE_ITEM = carrierItem("virtual_pressure_plate", PRESSURE_PLATE, VariantForm.PRESSURE_PLATE);
 
     public static final DeferredItem<GeneratedBlockItem> TRANSLUCENT_FULL_ITEM = carrierItem(
         "virtual_translucent_full", TRANSLUCENT_FULL, VariantForm.FULL);
@@ -215,7 +214,16 @@ public class DynamicVariantRegistry {
     @Nullable
     public static ItemVariantData itemData(ItemStack stack) {
         ItemVariantData data = stack.get(ITEM_VARIANT_DATA.get());
-        return data == null ? null : data.normalized(stack.getItem());
+        if (data == null) return null;
+        ItemVariantData normalized = data.normalized(stack.getItem());
+        if (!normalized.equals(data)) stack.set(ITEM_VARIANT_DATA.get(), normalized);
+        if (!VARIANT_ITEM_MODEL.equals(stack.get(DataComponents.ITEM_MODEL))) {
+            stack.set(DataComponents.ITEM_MODEL, VARIANT_ITEM_MODEL);
+        }
+
+        Component name = variantItemName(stack, normalized);
+        if (!name.equals(stack.get(DataComponents.ITEM_NAME))) stack.set(DataComponents.ITEM_NAME, name);
+        return normalized;
     }
 
     public static ItemStack stack(VariantData data) {
@@ -576,9 +584,10 @@ public class DynamicVariantRegistry {
         namingStack.remove(DataComponents.ITEM_NAME);
         namingStack.set(DataComponents.ITEM_MODEL, data.modelId() == null ? data.sourceId() : data.modelId());
         Component sourceName = (source == Items.AIR ? stack.getItem() : source).getName(namingStack);
-        Component dye = data.dyeColor() == null ? Component.empty()
-            : Component.translatable("patina_pandemonium.dye_name", Component.translatable(data.dyeKey()));
-        return Component.translatable("item.patina_pandemonium.variant_name", Component.translatable(data.stageKey()), dye, sourceName);
+        return Component.empty()
+            .append(Component.translatable(data.stageKey()))
+            .append(Component.translatable(data.dyeKey()))
+            .append(sourceName);
     }
 
     @Nullable
@@ -615,8 +624,7 @@ public class DynamicVariantRegistry {
     }
 
     private static List<Block> legacyGenerated() {
-        return List.of(
-            FULL.get(), SLAB.get(), STAIRS.get(), WALL.get(), FENCE.get(), FENCE_GATE.get(), CARPET.get(), BUTTON.get(), PRESSURE_PLATE.get(),
+        return List.of(FULL.get(), SLAB.get(), STAIRS.get(), WALL.get(), FENCE.get(), FENCE_GATE.get(), CARPET.get(), BUTTON.get(), PRESSURE_PLATE.get(),
             TRANSLUCENT_FULL.get(), TRANSLUCENT_SLAB.get(), TRANSLUCENT_STAIRS.get(), TRANSLUCENT_WALL.get(), TRANSLUCENT_FENCE.get(),
             TRANSLUCENT_FENCE_GATE.get(), TRANSLUCENT_CARPET.get(), TRANSLUCENT_BUTTON.get(), TRANSLUCENT_PRESSURE_PLATE.get());
     }

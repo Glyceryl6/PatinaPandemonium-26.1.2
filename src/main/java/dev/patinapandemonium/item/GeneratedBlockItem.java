@@ -33,12 +33,11 @@ public class GeneratedBlockItem extends BlockItem {
         VariantData data = DynamicVariantRegistry.data(stack, this.form);
         Block source = BuiltInRegistries.BLOCK.getValue(data.sourceId());
         if (source == Blocks.AIR) source = Blocks.STONE;
-        return Component.translatable(
-                "block.patina_pandemonium.composed",
-                Component.translatable(data.stageKey()),
-                Component.translatable(data.dyeKey()),
-                source.getName(),
-                Component.translatable(data.formKey()));
+        return Component.empty()
+            .append(Component.translatable(data.stageKey()))
+            .append(Component.translatable(data.dyeKey()))
+            .append(source.getName())
+            .append(Component.translatable(data.formKey()));
     }
 
     @Override

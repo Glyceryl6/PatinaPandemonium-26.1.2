@@ -1,6 +1,5 @@
 {
   "itemGroup.patina_pandemonium": "锈色狂欢",
-  "block.patina_pandemonium.composed": "%1$s%2$s%3$s%4$s",
   "patina_pandemonium.stage.fresh": "",
   "patina_pandemonium.stage.exposed": "斑驳的",
   "patina_pandemonium.stage.weathered": "锈蚀的",
@@ -57,9 +56,5 @@
   "container.patina_pandemonium.clear_stages.tooltip": "取消全部氧化阶段勾选；显示所有阶段",
   "itemGroup.patina_pandemonium.special_blocks": "锈色狂欢：特殊方块",
   "container.patina_pandemonium.form_unavailable": "%1$s不适用于当前输入",
-  "tooltip.patina_pandemonium.variant_stage": "状态：%1$s",
-  "tooltip.patina_pandemonium.variant_dye": "染色：%1$s",
-  "item.patina_pandemonium.variant_name": "%1$s%2$s%3$s",
-  "patina_pandemonium.dye_name": "%1$s",
   "itemGroup.patina_pandemonium.category": "锈色狂欢：%1$s"
 }

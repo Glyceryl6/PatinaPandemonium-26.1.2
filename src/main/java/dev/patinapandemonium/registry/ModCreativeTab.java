@@ -29,31 +29,33 @@ public class ModCreativeTab {
 
     private static final boolean[] WAX_STATES = {false, true};
     private static final List<ResourceKey<CreativeModeTab>> ITEM_CATEGORY_TABS = List.of(
-            CreativeModeTabs.BUILDING_BLOCKS,
-            CreativeModeTabs.COLORED_BLOCKS,
-            CreativeModeTabs.NATURAL_BLOCKS,
-            CreativeModeTabs.FUNCTIONAL_BLOCKS,
-            CreativeModeTabs.REDSTONE_BLOCKS,
-            CreativeModeTabs.TOOLS_AND_UTILITIES,
-            CreativeModeTabs.COMBAT,
-            CreativeModeTabs.FOOD_AND_DRINKS,
-            CreativeModeTabs.INGREDIENTS,
-            CreativeModeTabs.SPAWN_EGGS,
-            CreativeModeTabs.OP_BLOCKS);
+        CreativeModeTabs.BUILDING_BLOCKS,
+        CreativeModeTabs.COLORED_BLOCKS,
+        CreativeModeTabs.NATURAL_BLOCKS,
+        CreativeModeTabs.FUNCTIONAL_BLOCKS,
+        CreativeModeTabs.REDSTONE_BLOCKS,
+        CreativeModeTabs.TOOLS_AND_UTILITIES,
+        CreativeModeTabs.COMBAT,
+        CreativeModeTabs.FOOD_AND_DRINKS,
+        CreativeModeTabs.INGREDIENTS,
+        CreativeModeTabs.SPAWN_EGGS);
     private static final ResourceKey<CreativeModeTab> MAIN_TAB = tabKey("main");
     private static final ResourceKey<CreativeModeTab> SPECIAL_BLOCKS_TAB = tabKey("special_blocks");
+    private static final ResourceKey<CreativeModeTab> LAST_ITEM_CATEGORY_TAB = itemTabKey(ITEM_CATEGORY_TABS.getLast());
 
-    public static final DeferredRegister<CreativeModeTab> TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, PatinaPandemonium.MOD_ID);
+    public static final DeferredRegister<CreativeModeTab> TABS = DeferredRegister.create(
+        Registries.CREATIVE_MODE_TAB, PatinaPandemonium.MOD_ID);
 
     static {
-        // NeoForge links the last vanilla category to the first registered mod tab. Keep a sink mirror first so
-        // the core tabs can safely point to BUILDING_BLOCKS without closing the vanilla ordering chain.
-        for (ResourceKey<CreativeModeTab> sourceTab : ITEM_CATEGORY_TABS) {
-            TABS.register("items/" + sourceTab.identifier().getPath(), () -> mirroredTab(sourceTab, null, false));
-        }
-
         TABS.register(MAIN_TAB.identifier().getPath(), ModCreativeTab::mainTab);
         TABS.register(SPECIAL_BLOCKS_TAB.identifier().getPath(), ModCreativeTab::specialBlocksTab);
+        ResourceKey<CreativeModeTab> previousTab = SPECIAL_BLOCKS_TAB;
+        for (ResourceKey<CreativeModeTab> sourceTab : ITEM_CATEGORY_TABS) {
+            ResourceKey<CreativeModeTab> mirrorTab = itemTabKey(sourceTab);
+            ResourceKey<CreativeModeTab> predecessor = previousTab;
+            TABS.register(mirrorTab.identifier().getPath(), () -> mirroredTab(sourceTab, null, false, predecessor));
+            previousTab = mirrorTab;
+        }
     }
 
     public static void register(IEventBus modBus) {
@@ -62,10 +64,9 @@ public class ModCreativeTab {
     }
 
     private static CreativeModeTab mainTab() {
-        return CreativeModeTab.builder()
-                .title(Component.translatable("itemGroup.patina_pandemonium"))
+        return CreativeModeTab.builder().title(Component.translatable("itemGroup.patina_pandemonium"))
                 .icon(() -> DynamicVariantRegistry.VARIANT_FABRICATOR_ITEM.get().getDefaultInstance())
-                .withTabsAfter(CreativeModeTabs.BUILDING_BLOCKS)
+                .withTabsBefore(CreativeModeTabs.SPAWN_EGGS)
                 .displayItems((_, output) -> {
                     addFullBlocks(output, false, new int[2]);
                     output.accept(DynamicVariantRegistry.VARIANT_FABRICATOR_ITEM.get());
@@ -73,22 +74,18 @@ public class ModCreativeTab {
     }
 
     private static CreativeModeTab specialBlocksTab() {
-        return CreativeModeTab.builder()
-                .title(Component.translatable("itemGroup.patina_pandemonium.special_blocks"))
-                .icon(Items.CANDLE::getDefaultInstance)
-                .withTabsBefore(MAIN_TAB)
-                .withTabsAfter(CreativeModeTabs.BUILDING_BLOCKS)
-                .displayItems((_, output) -> addSpecialBlocks(output, false, new int[2]))
-                .build();
+        return CreativeModeTab.builder().title(Component.translatable("itemGroup.patina_pandemonium.special_blocks"))
+                .icon(Items.CANDLE::getDefaultInstance).withTabsBefore(MAIN_TAB)
+                .displayItems((_, output) -> addSpecialBlocks(output, false, new int[2])).build();
     }
 
-    private static CreativeModeTab mirroredTab(ResourceKey<CreativeModeTab> sourceTabKey, CreativeModeTab knownSourceTab, boolean external) {
+    private static CreativeModeTab mirroredTab(ResourceKey<CreativeModeTab> sourceTabKey, CreativeModeTab knownSourceTab, boolean external, ResourceKey<CreativeModeTab> predecessor) {
         CreativeModeTab sourceTab = knownSourceTab == null ? BuiltInRegistries.CREATIVE_MODE_TAB.getValue(sourceTabKey.identifier()) : knownSourceTab;
         Component sourceName = sourceTab == null ? Component.literal(sourceTabKey.identifier().getPath()) : sourceTab.getDisplayName();
         Supplier<ItemStack> icon = sourceTab == null ? Items.IRON_INGOT::getDefaultInstance : () -> variantIcon(sourceTab.getIconItem());
         return CreativeModeTab.builder()
                 .title(Component.translatable("itemGroup.patina_pandemonium.category", sourceName))
-                .icon(icon).withTabsBefore(sourceTabKey)
+                .icon(icon).withTabsBefore(predecessor)
                 .displayItems((_, output) -> {
                     if (sourceTab == null) return;
                     addCategoryVariants(output, sourceTab, !external, new int[2]);
@@ -98,18 +95,18 @@ public class ModCreativeTab {
     private static void onTabAdded(Registry<CreativeModeTab> registry, int id, ResourceKey<CreativeModeTab> sourceKey, CreativeModeTab sourceTab) {
         Identifier sourceId = sourceKey.identifier();
         if (!PatinaRules.INSTANCE.generateExternalVariants
-                || sourceTab.getType() != CreativeModeTab.Type.CATEGORY
-                || sourceId.getNamespace().equals("minecraft")
-                || sourceId.getNamespace().equals(PatinaPandemonium.MOD_ID)) return;
+            || sourceTab.getType() != CreativeModeTab.Type.CATEGORY
+            || sourceId.getNamespace().equals("minecraft")
+            || sourceId.getNamespace().equals(PatinaPandemonium.MOD_ID)) return;
         Identifier mirrorId = PatinaPandemonium.id("compat/" + sourceId.getNamespace() + "/" + sourceId.getPath());
         if (registry.containsKey(mirrorId)) return;
-        Registry.register(registry, mirrorId, mirroredTab(sourceKey, sourceTab, true));
+        Registry.register(registry, mirrorId, mirroredTab(sourceKey, sourceTab, true, LAST_ITEM_CATEGORY_TAB));
     }
 
     private static ItemStack variantIcon(ItemStack source) {
         if (!DynamicVariantRegistry.supportsFabrication(source)) return source.copy();
         ItemStack variant = DynamicVariantRegistry.fabricate(
-                source, VariantForm.FULL, OxidationStage.OXIDIZED, false, null, 1);
+            source, VariantForm.FULL, OxidationStage.OXIDIZED, false, null, 1);
         return variant.isEmpty() ? source.copy() : variant;
     }
 
@@ -172,8 +169,7 @@ public class ModCreativeTab {
             Identifier itemId = BuiltInRegistries.ITEM.getKey(item);
             if (itemId.getNamespace().equals(PatinaPandemonium.MOD_ID) || !canAddSource(counts)) continue;
             if (!DynamicVariantRegistry.isExternal(itemId)) {
-                if (!includeVanillaItems || item instanceof BlockItem
-                        || !DynamicVariantRegistry.isStandaloneVariantItem(item)) continue;
+                if (!includeVanillaItems || item instanceof BlockItem || !DynamicVariantRegistry.isStandaloneVariantItem(item)) continue;
                 if (!addStandaloneVariants(output, source.copyWithCount(1), counts)) break;
                 counts[1]++;
                 continue;
@@ -216,6 +212,10 @@ public class ModCreativeTab {
     private static boolean canAddItems(int[] counts, int addition) {
         int maximum = Math.max(0, PatinaRules.INSTANCE.maximumCreativeTabItems);
         return maximum == 0 || counts[0] + addition <= maximum;
+    }
+
+    private static ResourceKey<CreativeModeTab> itemTabKey(ResourceKey<CreativeModeTab> sourceTab) {
+        return tabKey("items/" + sourceTab.identifier().getPath());
     }
 
     private static ResourceKey<CreativeModeTab> tabKey(String path) {
