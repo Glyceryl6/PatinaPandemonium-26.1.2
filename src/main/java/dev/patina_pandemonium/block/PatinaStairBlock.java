@@ -1,0 +1,32 @@
+package dev.patina_pandemonium.block;
+
+import dev.patina_pandemonium.registry.VariantForm;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.level.block.StairBlock;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.block.state.BlockState;
+
+public class PatinaStairBlock extends StairBlock implements PatinaOxidizable {
+
+    public PatinaStairBlock(BlockState baseState, BlockBehaviour.Properties properties) {
+        super(baseState, properties);
+    }
+
+    @Override
+    public VariantForm patinaForm() {
+        return VariantForm.STAIRS;
+    }
+
+    @Override
+    protected boolean isRandomlyTicking(BlockState state) {
+        return true;
+    }
+
+    @Override
+    protected void randomTick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
+        this.patinaRandomTick(level, pos, random);
+    }
+
+}
