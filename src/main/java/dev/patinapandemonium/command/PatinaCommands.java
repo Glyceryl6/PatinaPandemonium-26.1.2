@@ -7,6 +7,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
+import dev.patinapandemonium.PatinaPandemonium;
 import dev.patinapandemonium.config.PatinaRules;
 import dev.patinapandemonium.registry.DynamicVariantRegistry;
 import dev.patinapandemonium.registry.OxidationStage;
@@ -25,6 +26,8 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import org.jspecify.annotations.Nullable;
 
@@ -32,6 +35,7 @@ import java.util.Arrays;
 import java.util.stream.Stream;
 
 /** Gives any logical variant without pre-creating hundreds of thousands of registry entries. */
+@EventBusSubscriber(modid = PatinaPandemonium.MOD_ID)
 public class PatinaCommands {
 
     private static final String SOURCE_ARGUMENT = "source";
@@ -50,6 +54,7 @@ public class PatinaCommands {
     private static final SimpleCommandExceptionType INVALID_DYE = new SimpleCommandExceptionType(
         Component.translatable("commands.patina.invalid_dye"));
 
+    @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         event.getDispatcher().register(Commands.literal("patina")
             .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))

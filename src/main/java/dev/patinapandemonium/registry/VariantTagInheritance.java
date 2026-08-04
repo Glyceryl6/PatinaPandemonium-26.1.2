@@ -11,6 +11,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.neoforged.bus.api.EventPriority;
+import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
 import org.slf4j.Logger;
 
@@ -24,6 +26,7 @@ public class VariantTagInheritance {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onTagsUpdated(TagsUpdatedEvent event) {
         if (!event.shouldUpdateStaticData() || DynamicVariantRegistry.sourceBindings().isEmpty()) return;
         int blockMemberships = inheritBlockTags();

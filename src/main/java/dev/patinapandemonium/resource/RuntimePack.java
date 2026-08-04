@@ -25,6 +25,7 @@ import net.minecraft.util.GsonHelper;
 import net.minecraft.util.InclusiveRange;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
+import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.event.AddPackFindersEvent;
 import org.jspecify.annotations.Nullable;
@@ -91,6 +92,7 @@ public class RuntimePack {
         SERVER_TAGS.put(Identifier.fromNamespaceAndPath(tag.getNamespace(), ITEM_TAG_DIRECTORY + tag.getPath() + JSON_EXTENSION), form);
     }
 
+    @SubscribeEvent
     public static void onAddPackFinders(AddPackFindersEvent event) {
         PackType packType = event.getPackType();
         if (packType != PackType.CLIENT_RESOURCES && packType != PackType.SERVER_DATA) return;

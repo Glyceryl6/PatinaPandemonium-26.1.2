@@ -1,5 +1,6 @@
 package dev.patinapandemonium.event;
 
+import dev.patinapandemonium.PatinaPandemonium;
 import dev.patinapandemonium.block.PatinaDelegatingBlock;
 import dev.patinapandemonium.block.PatinaOxidizable;
 import dev.patinapandemonium.block.entity.PatinaVariantBlockEntity;
@@ -31,6 +32,9 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.SlabType;
+import net.neoforged.bus.api.EventPriority;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.common.ItemAbilities;
 import net.neoforged.neoforge.common.util.BlockSnapshot;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
@@ -50,6 +54,7 @@ import java.util.Set;
 import java.util.WeakHashMap;
 
 /** Supplies server behavior that cannot be represented by generated resources. */
+@EventBusSubscriber(modid = PatinaPandemonium.MOD_ID)
 public class PatinaGameplayEvents {
 
     private static final Set<Item> IGNITERS = Set.of(Items.FLINT_AND_STEEL, Items.FIRE_CHARGE);
@@ -57,6 +62,7 @@ public class PatinaGameplayEvents {
     private static final Map<ServerLevel, LinkedHashMap<BlockPos, PendingBlockReplacement>> PENDING_REPLACEMENTS = new WeakHashMap<>();
     private static final Map<ServerLevel, List<PendingLightningStrike>> PENDING_LIGHTNING_STRIKES = new WeakHashMap<>();
 
+    @SubscribeEvent(priority = EventPriority.HIGH)
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         Player player = event.getEntity();
         Level level = player.level();
@@ -104,12 +110,14 @@ public class PatinaGameplayEvents {
         event.setCanceled(true);
     }
 
+    @SubscribeEvent
     public static void onEntityJoinLevel(EntityJoinLevelEvent event) {
         if (!(event.getLevel() instanceof ServerLevel level) || !(event.getEntity() instanceof LightningBolt lightning) || event.loadedFromDisk()) return;
         BlockPos strikePos = BlockPos.containing(lightning.getX(), lightning.getY() - 1.0E-6D, lightning.getZ());
         PENDING_LIGHTNING_STRIKES.computeIfAbsent(level, _ -> new ArrayList<>()).add(new PendingLightningStrike(level.getGameTime() + 1L, strikePos));
     }
 
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onBlockPlaced(BlockEvent.EntityPlaceEvent event) {
         if (!(event.getLevel() instanceof ServerLevel level) || !(event.getEntity() instanceof Player player)) return;
         PendingVariantUse pending = PENDING_USES.remove(player);
@@ -128,12 +136,14 @@ public class PatinaGameplayEvents {
         if (data != null) replacePlacedBlock(level, event.getPos(), placedState, data);
     }
 
+    @SubscribeEvent
     public static void onLevelTick(LevelTickEvent.Post event) {
         if (!(event.getLevel() instanceof ServerLevel level)) return;
         processFireReplacements(level);
         processLightningStrikes(level);
     }
 
+    @SubscribeEvent
     public static void onBlockDrops(BlockDropsEvent event) {
         if (!(event.getState().getBlock() instanceof PatinaOxidizable)
             || !(event.getBlockEntity() instanceof PatinaVariantBlockEntity blockEntity)) return;
