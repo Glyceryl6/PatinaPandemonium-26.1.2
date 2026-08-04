@@ -99,14 +99,14 @@ public class PatinaGameplayEvents {
             for (BlockSnapshot snapshot : multi.getReplacedBlockSnapshots()) {
                 BlockState placedState = snapshot.getCurrentState();
                 ItemVariantData data = heldVariant(player, placedState.getBlock(), pending);
-                if (data != null) queueReplacement(level, snapshot.getPos(), placedState.getBlock(), data);
+                if (data != null) replacePlacedBlock(level, snapshot.getPos(), placedState, data);
             }
             return;
         }
 
         BlockState placedState = event.getPlacedBlock();
         ItemVariantData data = heldVariant(player, placedState.getBlock(), pending);
-        if (data != null) queueReplacement(level, event.getPos(), placedState.getBlock(), data);
+        if (data != null) replacePlacedBlock(level, event.getPos(), placedState, data);
     }
 
     public static void onLevelTick(LevelTickEvent.Post event) {
@@ -116,10 +116,7 @@ public class PatinaGameplayEvents {
         LinkedHashMap<BlockPos, PreparedBlockReplacement> prepared = new LinkedHashMap<>();
         pending.forEach((pos, replacement) -> {
             BlockState state = level.getBlockState(pos);
-            Block expected = replacement.expectedSource();
-            if (expected != null && state.getBlock() != expected) return;
-            if (expected == null && (!(state.getBlock() instanceof BaseFireBlock)
-                || replacement.previousSource() instanceof BaseFireBlock)) return;
+            if (!(state.getBlock() instanceof BaseFireBlock) || replacement.previousSource() instanceof BaseFireBlock) return;
             Block source = state.getBlock();
             Block carrier = DynamicVariantRegistry.delegatedCarrier(source);
             if (carrier == null) return;
@@ -165,15 +162,21 @@ public class PatinaGameplayEvents {
             DynamicVariantRegistry.stack(data, count)));
     }
 
-    private static void queueReplacement(ServerLevel level, BlockPos pos, Block expectedSource, ItemVariantData data) {
-        PENDING_REPLACEMENTS.computeIfAbsent(level, _ -> new LinkedHashMap<>())
-            .put(pos.immutable(), new PendingBlockReplacement(expectedSource, null, data));
+    private static void replacePlacedBlock(ServerLevel level, BlockPos pos, BlockState state, ItemVariantData data) {
+        Block carrier = DynamicVariantRegistry.delegatedCarrier(state.getBlock());
+        if (carrier == null) return;
+        VariantData variant = data.forBlock(BuiltInRegistries.BLOCK.getKey(state.getBlock()));
+        BlockState target = carrier.withPropertiesOf(state);
+        int flags = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE | Block.UPDATE_SUPPRESS_DROPS;
+        level.setBlock(pos, target, flags);
+        if (level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity) blockEntity.setData(variant);
+        level.updateNeighborsAt(pos, carrier);
     }
 
     private static void queueFireReplacement(ServerLevel level, BlockPos pos, ItemVariantData data) {
         Block previousSource = level.getBlockState(pos).getBlock();
         PENDING_REPLACEMENTS.computeIfAbsent(level, _ -> new LinkedHashMap<>())
-            .put(pos.immutable(), new PendingBlockReplacement(null, previousSource, data));
+            .put(pos.immutable(), new PendingBlockReplacement(previousSource, data));
     }
 
     private static boolean matchesPlacementSource(Block source, ItemVariantData data) {
@@ -191,7 +194,7 @@ public class PatinaGameplayEvents {
 
     private record PendingVariantUse(long gameTime, ItemVariantData data) {}
 
-    private record PendingBlockReplacement(@Nullable Block expectedSource, @Nullable Block previousSource, ItemVariantData data) {}
+    private record PendingBlockReplacement(Block previousSource, ItemVariantData data) {}
 
     private record PreparedBlockReplacement(BlockState state, VariantData data) {}
 

@@ -1,19 +1,22 @@
 package dev.patinapandemonium.item;
 
+import dev.patinapandemonium.block.PatinaDelegatingBlock;
 import dev.patinapandemonium.block.entity.PatinaVariantBlockEntity;
 import dev.patinapandemonium.registry.DynamicVariantRegistry;
 import dev.patinapandemonium.registry.VariantData;
 import dev.patinapandemonium.registry.VariantForm;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.InteractionResult;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import org.jspecify.annotations.Nullable;
 
 public class GeneratedBlockItem extends BlockItem {
 
@@ -31,24 +34,30 @@ public class GeneratedBlockItem extends BlockItem {
     @Override
     public Component getName(ItemStack stack) {
         VariantData data = DynamicVariantRegistry.data(stack, this.form);
-        Block source = BuiltInRegistries.BLOCK.getValue(data.sourceId());
-        if (source == Blocks.AIR) source = Blocks.STONE;
-        return Component.empty()
-            .append(Component.translatable(data.stageKey()))
-            .append(Component.translatable(data.dyeKey()))
-            .append(source.getName())
-            .append(Component.translatable(data.formKey()));
+        return DynamicVariantRegistry.generatedBlockName(stack, data);
     }
 
     @Override
-    public InteractionResult place(BlockPlaceContext context) {
-        VariantData data = DynamicVariantRegistry.data(context.getItemInHand(), this.form);
-        BlockPos pos = context.getClickedPos();
-        InteractionResult result = super.place(context);
-        if (result.consumesAction() && context.getLevel().getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity) {
-            blockEntity.setData(data);
-        }
-        return result;
+    public @Nullable BlockPlaceContext updatePlacementContext(BlockPlaceContext context) {
+        BlockItem sourceItem = this.sourceBlockItem();
+        return sourceItem == null ? super.updatePlacementContext(context) : sourceItem.updatePlacementContext(context);
+    }
+
+    @Override
+    protected boolean updateCustomBlockEntityTag(BlockPos pos, Level level, @Nullable Player player, ItemStack stack, BlockState state) {
+        boolean changed = super.updateCustomBlockEntityTag(pos, level, player, stack, state);
+        if (!(level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity)) return changed;
+        VariantData data = DynamicVariantRegistry.data(stack, this.form);
+        Identifier sourceId = DynamicVariantRegistry.sourceId(state.getBlock());
+        blockEntity.setData(sourceId == null ? data : data.withSourceId(sourceId));
+        return true;
+    }
+
+    @Nullable
+    private BlockItem sourceBlockItem() {
+        if (!(this.getBlock() instanceof PatinaDelegatingBlock delegated)) return null;
+        Item sourceItem = delegated.source().asItem();
+        return sourceItem instanceof BlockItem blockItem ? blockItem : null;
     }
 
 }

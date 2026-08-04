@@ -1,6 +1,7 @@
 package dev.patinapandemonium.block;
 
 import dev.patinapandemonium.block.entity.PatinaVariantBlockEntity;
+import dev.patinapandemonium.registry.DynamicVariantRegistry;
 import dev.patinapandemonium.registry.VariantData;
 import dev.patinapandemonium.registry.VariantForm;
 import net.minecraft.core.BlockPos;
@@ -11,14 +12,15 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.InsideBlockEffectApplier;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
@@ -75,6 +77,26 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
         if (source == null) return;
         Property<?>[] properties = source.getStateDefinition().getProperties().toArray(Property[]::new);
         builder.add(properties);
+    }
+
+    @Override
+    public @Nullable BlockState getStateForPlacement(BlockPlaceContext context) {
+        BlockState state = this.source.getStateForPlacement(context);
+        return state == null ? null : this.carrierState(state);
+    }
+
+    @Override
+    public void setPlacedBy(Level level, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
+        VariantData data = DynamicVariantRegistry.data(stack, VariantForm.FULL);
+        if (state.hasProperty(BlockStateProperties.DOUBLE_BLOCK_HALF)
+            && state.getValue(BlockStateProperties.DOUBLE_BLOCK_HALF) == DoubleBlockHalf.LOWER) {
+            BlockPos upperPos = pos.above();
+            level.setBlock(upperPos, state.setValue(BlockStateProperties.DOUBLE_BLOCK_HALF, DoubleBlockHalf.UPPER), Block.UPDATE_ALL);
+            if (level.getBlockEntity(upperPos) instanceof PatinaVariantBlockEntity blockEntity) blockEntity.setData(data);
+            return;
+        }
+        this.source.setPlacedBy(level, pos, this.sourceState(state), placer, stack);
+        this.restoreAround(level, pos, data);
     }
 
     @Override

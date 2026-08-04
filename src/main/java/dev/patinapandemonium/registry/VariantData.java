@@ -9,8 +9,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import org.jspecify.annotations.Nullable;
 
-public record VariantData(Identifier sourceId, OxidationStage stage, boolean waxed, VariantForm form,
-                          @Nullable DyeColor dyeColor) {
+public record VariantData(Identifier sourceId, OxidationStage stage, boolean waxed, VariantForm form, @Nullable DyeColor dyeColor) {
 
     private static final int NO_DYE = -1;
     public static final Codec<VariantData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -35,6 +34,10 @@ public record VariantData(Identifier sourceId, OxidationStage stage, boolean wax
                 ? BuiltInRegistries.BLOCK.getKey(Blocks.STONE)
                 : BuiltInRegistries.BLOCK.getKey(source);
         return new VariantData(sourceId, this.stage, this.waxed, form, this.dyeColor);
+    }
+
+    public VariantData withSourceId(Identifier sourceId) {
+        return new VariantData(sourceId, this.stage, this.waxed, this.form, this.dyeColor);
     }
 
     public VariantData withStage(OxidationStage stage) {

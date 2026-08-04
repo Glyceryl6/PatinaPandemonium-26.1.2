@@ -56,5 +56,6 @@
   "container.patina_pandemonium.clear_stages.tooltip": "Clear every oxidation checkbox and show all stages",
   "itemGroup.patina_pandemonium.special_blocks": "Patina Pandemonium: Special Blocks",
   "container.patina_pandemonium.form_unavailable": "%1$s is unavailable for this input",
-  "itemGroup.patina_pandemonium.category": "Patina Pandemonium: %1$s"
+  "itemGroup.patina_pandemonium.category": "Patina Pandemonium: %1$s",
+  "item.patina_pandemonium.variant_name": "%1$s%2$s%3$s%4$s"
 }
