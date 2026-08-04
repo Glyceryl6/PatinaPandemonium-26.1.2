@@ -23,7 +23,8 @@ public class PatinaPandemonium {
         ModCreativeTab.register(modBus);
         modBus.addListener(RuntimePack::onAddPackFinders);
         NeoForge.EVENT_BUS.addListener(PatinaCommands::onRegisterCommands);
-        NeoForge.EVENT_BUS.addListener(PatinaGameplayEvents::onRightClickBlock);
+        NeoForge.EVENT_BUS.addListener(EventPriority.HIGH, PatinaGameplayEvents::onRightClickBlock);
+        NeoForge.EVENT_BUS.addListener(PatinaGameplayEvents::onEntityJoinLevel);
         NeoForge.EVENT_BUS.addListener(PatinaGameplayEvents::onBlockDrops);
         NeoForge.EVENT_BUS.addListener(EventPriority.LOWEST, PatinaGameplayEvents::onBlockPlaced);
         NeoForge.EVENT_BUS.addListener(PatinaGameplayEvents::onLevelTick);

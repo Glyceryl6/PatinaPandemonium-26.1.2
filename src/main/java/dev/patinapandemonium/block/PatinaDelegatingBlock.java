@@ -7,6 +7,7 @@ import dev.patinapandemonium.registry.VariantForm;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -21,13 +22,17 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.Property;
+import net.minecraft.world.level.gameevent.GameEvent;
 import net.minecraft.world.level.pathfinder.PathComputationType;
+import net.minecraft.world.level.redstone.Orientation;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -77,6 +82,11 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
         if (source == null) return;
         Property<?>[] properties = source.getStateDefinition().getProperties().toArray(Property[]::new);
         builder.add(properties);
+    }
+
+    @Override
+    protected RenderShape getRenderShape(BlockState state) {
+        return RenderShape.MODEL;
     }
 
     @Override
@@ -198,6 +208,7 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
 
     @Override
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        if (this.source instanceof DoorBlock door) return this.useDoor(state, level, pos, player, door);
         VariantData data = this.data(level, pos);
         InteractionResult result = this.sourceState(state).useWithoutItem(level, player, hit);
         this.restoreAround(level, pos, data);
@@ -225,6 +236,45 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
     @Override
     protected void attack(BlockState state, Level level, BlockPos pos, Player player) {
         this.sourceState(state).attack(level, pos, player);
+    }
+
+    @Override
+    protected void neighborChanged(BlockState state, Level level, BlockPos pos, Block block, @Nullable Orientation orientation, boolean movedByPiston) {
+        if (!(this.source instanceof DoorBlock door) || !state.hasProperty(BlockStateProperties.POWERED)
+            || !state.hasProperty(BlockStateProperties.OPEN) || !state.hasProperty(BlockStateProperties.DOUBLE_BLOCK_HALF)) return;
+        DoubleBlockHalf half = state.getValue(BlockStateProperties.DOUBLE_BLOCK_HALF);
+        boolean signal = level.hasNeighborSignal(pos)
+            || level.hasNeighborSignal(pos.relative(half == DoubleBlockHalf.LOWER ? Direction.UP : Direction.DOWN));
+        if (block == this || signal == state.getValue(BlockStateProperties.POWERED)) return;
+        if (signal != state.getValue(BlockStateProperties.OPEN)) this.playDoorSound(null, level, pos, door, signal);
+        this.setDoorState(level, pos, state, signal, signal);
+    }
+
+    private InteractionResult useDoor(BlockState state, Level level, BlockPos pos, Player player, DoorBlock door) {
+        if (!door.type().canOpenByHand()) return InteractionResult.PASS;
+        boolean open = !state.getValue(BlockStateProperties.OPEN);
+        this.setDoorState(level, pos, state, open, state.getValue(BlockStateProperties.POWERED));
+        this.playDoorSound(player, level, pos, door, open);
+        return InteractionResult.SUCCESS;
+    }
+
+    private void setDoorState(Level level, BlockPos pos, BlockState state, boolean open, boolean powered) {
+        int flags = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE;
+        BlockState changed = state.setValue(BlockStateProperties.OPEN, open).setValue(BlockStateProperties.POWERED, powered);
+        level.setBlock(pos, changed, flags);
+        DoubleBlockHalf half = state.getValue(BlockStateProperties.DOUBLE_BLOCK_HALF);
+        BlockPos otherPos = half == DoubleBlockHalf.LOWER ? pos.above() : pos.below();
+        BlockState otherState = level.getBlockState(otherPos);
+        if (!otherState.is(this) || !otherState.hasProperty(BlockStateProperties.DOUBLE_BLOCK_HALF)
+            || otherState.getValue(BlockStateProperties.DOUBLE_BLOCK_HALF) == half) return;
+        level.setBlock(otherPos,
+            otherState.setValue(BlockStateProperties.OPEN, open).setValue(BlockStateProperties.POWERED, powered), flags);
+    }
+
+    private void playDoorSound(@Nullable Entity sourceEntity, Level level, BlockPos pos, DoorBlock door, boolean open) {
+        level.playSound(sourceEntity, pos, open ? door.type().doorOpen() : door.type().doorClose(), SoundSource.BLOCKS,
+            1.0F, level.getRandom().nextFloat() * 0.1F + 0.9F);
+        level.gameEvent(sourceEntity, open ? GameEvent.BLOCK_OPEN : GameEvent.BLOCK_CLOSE, pos);
     }
 
     @Nullable

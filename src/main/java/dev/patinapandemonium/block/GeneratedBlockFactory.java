@@ -21,7 +21,6 @@ public class GeneratedBlockFactory {
     private static final Set<VariantForm> NO_COLLISION_FORMS =
             Set.of(VariantForm.BUTTON, VariantForm.PRESSURE_PLATE);
     private static final Map<VariantForm, BlockCreator> CREATORS = Map.of(
-            VariantForm.FULL, PatinaBlock::new,
             VariantForm.SLAB, PatinaSlabBlock::new,
             VariantForm.WALL, PatinaWallBlock::new,
             VariantForm.FENCE, PatinaFenceBlock::new,
@@ -70,6 +69,7 @@ public class GeneratedBlockFactory {
     private static Block create(VariantForm form, Block source, BlockBehaviour.Properties properties, boolean nonOccluding) {
         if (NO_COLLISION_FORMS.contains(form)) properties.noCollision();
         if (nonOccluding || NO_OCCLUSION_FORMS.contains(form)) properties.noOcclusion();
+        if (form == VariantForm.FULL) return PatinaBlock.create(source, properties);
         return form == VariantForm.STAIRS
                 ? new PatinaStairBlock(source.defaultBlockState(), properties)
                 : CREATORS.get(form).create(properties);

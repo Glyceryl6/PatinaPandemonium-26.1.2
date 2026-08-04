@@ -421,8 +421,9 @@ public class DynamicVariantRegistry {
             Identifier id = sourceCarrierId(sourceId, form);
             Block block = GeneratedBlockFactory.create(id, form, source);
             Registry.register(BuiltInRegistries.BLOCK, id, block);
-            Item item = new GeneratedBlockItem(
-                block, form, new Item.Properties().useBlockDescriptionPrefix().setId(ResourceKey.create(Registries.ITEM, id)));
+            Item item = new GeneratedBlockItem(block, form,
+                    new Item.Properties().useBlockDescriptionPrefix()
+                            .setId(ResourceKey.create(Registries.ITEM, id)));
             helper.register(id, item);
             items.put(form, item);
             BLOCK_SOURCES.put(block, sourceId);
@@ -441,8 +442,9 @@ public class DynamicVariantRegistry {
         Registry.register(BuiltInRegistries.BLOCK, id, block);
         Item item = null;
         if (source.asItem() != Items.AIR) {
-            item = new GeneratedBlockItem(
-                block, VariantForm.FULL, new Item.Properties().useBlockDescriptionPrefix().setId(ResourceKey.create(Registries.ITEM, id)));
+            item = new GeneratedBlockItem(block, VariantForm.FULL,
+                    new Item.Properties().useBlockDescriptionPrefix()
+                            .setId(ResourceKey.create(Registries.ITEM, id)));
             helper.register(id, item);
             DELEGATED_ITEMS.put(sourceId, item);
             DELEGATED_ITEM_SOURCES.put(item, sourceId);
@@ -461,7 +463,9 @@ public class DynamicVariantRegistry {
         ArrayList<Identifier> discovered = new ArrayList<>();
         PatinaRules rules = PatinaRules.INSTANCE;
         BuiltInRegistries.BLOCK.entrySet().forEach(entry -> {
-            if (isFullSource(entry.getKey().identifier(), entry.getValue(), rules)) discovered.add(entry.getKey().identifier());
+            if (isFullSource(entry.getKey().identifier(), entry.getValue(), rules)) {
+                discovered.add(entry.getKey().identifier());
+            }
         });
         discovered.sort(Identifier::compareTo);
         return Collections.unmodifiableList(discovered);
@@ -471,7 +475,9 @@ public class DynamicVariantRegistry {
         ArrayList<Identifier> discovered = new ArrayList<>();
         PatinaRules rules = PatinaRules.INSTANCE;
         BuiltInRegistries.BLOCK.entrySet().forEach(entry -> {
-            if (isSpecialSource(entry.getKey().identifier(), entry.getValue(), rules)) discovered.add(entry.getKey().identifier());
+            if (isSpecialSource(entry.getKey().identifier(), entry.getValue(), rules)) {
+                discovered.add(entry.getKey().identifier());
+            }
         });
         discovered.sort(Identifier::compareTo);
         return Collections.unmodifiableList(discovered);
@@ -483,8 +489,7 @@ public class DynamicVariantRegistry {
         BuiltInRegistries.BLOCK.entrySet().forEach(entry -> {
             Identifier id = entry.getKey().identifier();
             Block block = entry.getValue();
-            if (isCommonBlockSource(id, block, rules)
-                && !(block instanceof EntityBlock)
+            if (isCommonBlockSource(id, block, rules) && !(block instanceof EntityBlock)
                 && block.getStateDefinition().getPossibleStates().size() <= rules.maximumDelegatedBlockStates
                 && PROPAGATION_BLOCK_TYPES.stream().anyMatch(type -> type.isInstance(block))) discovered.add(id);
         });
@@ -498,9 +503,7 @@ public class DynamicVariantRegistry {
         BuiltInRegistries.ITEM.entrySet().forEach(entry -> {
             Identifier id = entry.getKey().identifier();
             Item item = entry.getValue();
-            if (item != Items.AIR
-                && !(item instanceof BlockItem)
-                && rules.namespaceAllowed(id.getNamespace())
+            if (item != Items.AIR && !(item instanceof BlockItem) && rules.namespaceAllowed(id.getNamespace())
                 && (rules.excludedItems == null || !rules.excludedItems.contains(id.toString()))) discovered.add(id);
         });
         discovered.sort(Identifier::compareTo);
@@ -554,8 +557,7 @@ public class DynamicVariantRegistry {
     private static boolean isCommonBlockSource(Identifier id, Block block, PatinaRules rules) {
         return rules.namespaceAllowed(id.getNamespace())
             && (rules.excludedBlocks == null || !rules.excludedBlocks.contains(id.toString()))
-            && block != null
-            && block != Blocks.AIR
+            && block != null && block != Blocks.AIR
             && !(block instanceof PatinaOxidizable)
             && !(block instanceof VariantFabricatorBlock);
     }
