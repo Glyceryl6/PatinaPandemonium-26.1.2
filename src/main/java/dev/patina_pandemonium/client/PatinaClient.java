@@ -6,6 +6,7 @@ import dev.patina_pandemonium.block.PatinaOxidizable;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ItemVariantData;
 import dev.patina_pandemonium.registry.VariantForm;
+import net.minecraft.client.renderer.block.BlockModelRenderState;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
@@ -28,6 +29,7 @@ import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEvent;
 
+import java.lang.reflect.Field;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Map;
@@ -64,6 +66,48 @@ public class PatinaClient {
     public static int entityTint(EntityRenderState state) {
         Integer tint = state.getRenderData(ENTITY_TINT);
         return tint == null ? -1 : tint;
+    }
+
+    public static void applyBlockModelTint(Object renderState, int tint) {
+        if (tint == -1) return;
+        try {
+            Object blockModelState = null;
+            for (Field field : renderState.getClass().getFields()) {
+                Object value = field.get(renderState);
+                if (value != null && value.getClass().equals(BlockModelRenderState.class)) {
+                    blockModelState = value;
+                    break;
+                }
+            }
+
+            if (blockModelState == null) {
+                for (Field field : renderState.getClass().getDeclaredFields()) {
+                    field.setAccessible(true);
+                    Object value = field.get(renderState);
+                    if (value != null && value.getClass().equals(BlockModelRenderState.class)) {
+                        blockModelState = value;
+                        break;
+                    }
+                }
+            }
+
+            if (blockModelState == null) return;
+            for (Field field : blockModelState.getClass().getDeclaredFields()) {
+                if (field.getType() != int[].class) continue;
+                field.setAccessible(true);
+                int[] colors = (int[]) field.get(blockModelState);
+                if (colors == null) continue;
+                for (int index = 0; index < colors.length; index++) colors[index] = multiply(colors[index], tint);
+            }
+        } catch (ReflectiveOperationException ignored) {}
+    }
+
+    private static int multiply(int color, int tint) {
+        int alpha = (color >>> 24) * (tint >>> 24) / 0xFF;
+        int red = ((color >>> 16) & 0xFF) * ((tint >>> 16) & 0xFF) / 0xFF;
+        int green = ((color >>> 8) & 0xFF) * ((tint >>> 8) & 0xFF) / 0xFF;
+        int blue = (color & 0xFF) * (tint & 0xFF) / 0xFF;
+        return alpha << 24 | red << 16 | green << 8 | blue;
     }
 
     @SubscribeEvent

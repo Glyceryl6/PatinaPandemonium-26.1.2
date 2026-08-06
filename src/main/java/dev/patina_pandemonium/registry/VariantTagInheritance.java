@@ -1,6 +1,7 @@
 package dev.patina_pandemonium.registry;
 
 import com.mojang.logging.LogUtils;
+import dev.patina_pandemonium.PatinaPandemonium;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.MappedRegistry;
@@ -13,6 +14,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.TagsUpdatedEvent;
 import org.slf4j.Logger;
 
@@ -22,6 +24,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 
 /** Rebinds loaded block and item tags so every source-bound carrier is a real member of the source holder's tags. */
+@EventBusSubscriber(modid = PatinaPandemonium.MOD_ID)
 public class VariantTagInheritance {
 
     private static final Logger LOGGER = LogUtils.getLogger();

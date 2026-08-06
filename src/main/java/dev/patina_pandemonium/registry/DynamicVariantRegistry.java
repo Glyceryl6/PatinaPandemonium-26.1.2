@@ -729,11 +729,11 @@ public class DynamicVariantRegistry {
         ItemVariantData data = new ItemVariantData(sourceId, stage, waxed, dye, modelId);
         stack.set(ITEM_VARIANT_DATA.get(), data);
         stack.set(DataComponents.ITEM_MODEL, VARIANT_ITEM_MODEL);
-        stack.set(DataComponents.ITEM_NAME, variantItemName(stack, data));
+        stack.remove(DataComponents.ITEM_NAME);
         return stack;
     }
 
-    private static Component variantItemName(ItemStack stack, ItemVariantData data) {
+    public static Component variantItemName(ItemStack stack, ItemVariantData data) {
         Item source = BuiltInRegistries.ITEM.getValue(data.sourceId());
         if (source == Items.AIR) source = stack.getItem();
         ItemStack defaultStack = source.getDefaultInstance();

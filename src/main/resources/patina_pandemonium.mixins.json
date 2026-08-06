@@ -6,7 +6,8 @@
     "CrafterBlockMixin",
     "CraftingMenuMixin",
     "DispenserBlockMixin",
-    "ItemStackUseMixin"
+    "ItemStackUseMixin",
+    "ItemStackNameMixin"
   ],
   "injectors": {
     "defaultRequire": 1
@@ -17,6 +18,7 @@
   "client": [
     "AbstractBoatRendererMixin",
     "AbstractMinecartRendererMixin",
-    "LivingEntityRendererMixin"
+    "LivingEntityRendererMixin",
+    "TntRendererMixin"
   ]
 }
