@@ -219,6 +219,7 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
             this.clearResult();
             return ItemStack.EMPTY;
         }
+
         int available = this.inputSlot.getItem().getCount();
         int moved = 0;
         while (available > 0) {
@@ -230,6 +231,7 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
             moved += inserted;
             available -= inserted;
         }
+
         if (moved <= 0) return ItemStack.EMPTY;
         this.inputSlot.remove(moved);
         prototype.onCraftedBy(player, moved);
@@ -249,6 +251,7 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
                 this.visibleVariants.add(base.withWaxed(true));
             }
         }
+
         if (resetSelection || this.selectedResult.get() >= this.visibleVariants.size()) this.selectedResult.set(-1);
         this.setupResultSlot();
         this.updateListener.run();
@@ -275,4 +278,5 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
         this.resultSlot.set(ItemStack.EMPTY);
         this.broadcastChanges();
     }
+
 }

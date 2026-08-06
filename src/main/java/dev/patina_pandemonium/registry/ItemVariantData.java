@@ -3,6 +3,9 @@ package dev.patina_pandemonium.registry;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
@@ -21,6 +24,12 @@ public record ItemVariantData(Identifier sourceId, OxidationStage stage, boolean
         Codec.intRange(NO_DYE, DyeColor.VALUES.size() - 1).fieldOf("dye").forGetter(ItemVariantData::dyeId),
         Identifier.CODEC.optionalFieldOf("model").forGetter(data -> Optional.ofNullable(data.modelId()))
     ).apply(instance, ItemVariantData::decode));
+    public static final StreamCodec<RegistryFriendlyByteBuf, ItemVariantData> STREAM_CODEC = ByteBufCodecs.fromCodecWithRegistries(CODEC);
+
+    public static ItemVariantData defaultData() {
+        Identifier stone = BuiltInRegistries.ITEM.getKey(Items.STONE);
+        return new ItemVariantData(stone, OxidationStage.FRESH, false, null, stone);
+    }
 
     public ItemVariantData normalized(Item item) {
         Item source = BuiltInRegistries.ITEM.getValue(this.sourceId);

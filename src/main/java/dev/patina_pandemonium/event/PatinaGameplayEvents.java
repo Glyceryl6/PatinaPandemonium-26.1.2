@@ -18,6 +18,8 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
@@ -44,6 +46,7 @@ import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -61,6 +64,23 @@ public class PatinaGameplayEvents {
     private static final Map<Player, PendingVariantUse> PENDING_USES = new WeakHashMap<>();
     private static final Map<ServerLevel, LinkedHashMap<BlockPos, PendingBlockReplacement>> PENDING_REPLACEMENTS = new WeakHashMap<>();
     private static final Map<ServerLevel, List<PendingLightningStrike>> PENDING_LIGHTNING_STRIKES = new WeakHashMap<>();
+    private static final ThreadLocal<ArrayDeque<VariantUseFrame>> VARIANT_USE_CONTEXT = new ThreadLocal<>();
+
+    public static void beginVariantUse(ItemStack stack) {
+        ArrayDeque<VariantUseFrame> contexts = VARIANT_USE_CONTEXT.get();
+        if (contexts == null) {
+            contexts = new ArrayDeque<>();
+            VARIANT_USE_CONTEXT.set(contexts);
+        }
+        contexts.push(new VariantUseFrame(DynamicVariantRegistry.variantUseData(stack)));
+    }
+
+    public static void endVariantUse() {
+        ArrayDeque<VariantUseFrame> contexts = VARIANT_USE_CONTEXT.get();
+        if (contexts == null) return;
+        if (!contexts.isEmpty()) contexts.pop();
+        if (contexts.isEmpty()) VARIANT_USE_CONTEXT.remove();
+    }
 
     @SubscribeEvent(priority = EventPriority.HIGH)
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
@@ -112,9 +132,18 @@ public class PatinaGameplayEvents {
 
     @SubscribeEvent
     public static void onEntityJoinLevel(EntityJoinLevelEvent event) {
-        if (!(event.getLevel() instanceof ServerLevel level) || !(event.getEntity() instanceof LightningBolt lightning) || event.loadedFromDisk()) return;
-        BlockPos strikePos = BlockPos.containing(lightning.getX(), lightning.getY() - 1.0E-6D, lightning.getZ());
-        PENDING_LIGHTNING_STRIKES.computeIfAbsent(level, _ -> new ArrayList<>()).add(new PendingLightningStrike(level.getGameTime() + 1L, strikePos));
+        if (!(event.getLevel() instanceof ServerLevel level) || event.loadedFromDisk()) return;
+        Entity entity = event.getEntity();
+        if (entity instanceof LightningBolt lightning) {
+            BlockPos strikePos = BlockPos.containing(lightning.getX(), lightning.getY() - 1.0E-6D, lightning.getZ());
+            PENDING_LIGHTNING_STRIKES.computeIfAbsent(level, _ -> new ArrayList<>())
+                .add(new PendingLightningStrike(level.getGameTime() + 1L, strikePos));
+            return;
+        }
+        ItemVariantData data = currentVariantUse();
+        if (data != null && !(entity instanceof Player) && !(entity instanceof ItemEntity) && !(entity instanceof ExperienceOrb)) {
+            entity.setData(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get(), data);
+        }
     }
 
     @SubscribeEvent(priority = EventPriority.LOWEST)
@@ -264,13 +293,25 @@ public class PatinaGameplayEvents {
         return Block.byItem(sourceItem) == source || source instanceof BaseFireBlock && IGNITERS.contains(sourceItem);
     }
 
+    @Nullable
+    private static ItemVariantData currentVariantUse() {
+        ArrayDeque<VariantUseFrame> contexts = VARIANT_USE_CONTEXT.get();
+        if (contexts == null) return null;
+        for (VariantUseFrame frame : contexts) {
+            if (frame.data() != null) return frame.data();
+        }
+        return null;
+    }
+
     private static ItemVariantData heldVariant(Player player, Block placedBlock, @Nullable PendingVariantUse pending) {
         ItemVariantData mainHand = DynamicVariantRegistry.itemData(player.getMainHandItem());
         ItemVariantData offHand = DynamicVariantRegistry.itemData(player.getOffhandItem());
         if (mainHand != null && matchesPlacementSource(placedBlock, mainHand)) return mainHand;
         if (offHand != null && matchesPlacementSource(placedBlock, offHand)) return offHand;
-        return pending != null && matchesPlacementSource(placedBlock, pending.data()) ? pending.data() : null;
+        return pending != null && DynamicVariantRegistry.delegatedCarrier(placedBlock) != null ? pending.data() : null;
     }
+
+    private record VariantUseFrame(@Nullable ItemVariantData data) {}
 
     private record PendingVariantUse(long gameTime, ItemVariantData data) {}
 

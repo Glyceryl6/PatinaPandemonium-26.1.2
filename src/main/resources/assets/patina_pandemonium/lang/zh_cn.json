@@ -57,5 +57,7 @@
   "itemGroup.patina_pandemonium.special_blocks": "锈色狂欢：特殊方块",
   "container.patina_pandemonium.form_unavailable": "%1$s不适用于当前输入",
   "itemGroup.patina_pandemonium.category": "锈色狂欢：%1$s",
-  "item.patina_pandemonium.variant_name": "%1$s%2$s%3$s%4$s"
+  "item.patina_pandemonium.variant_name": "%1$s%2$s%3$s%4$s",
+  "jei.patina_pandemonium.variant_fabricator": "变种铸造台可将任意受支持的完整方块或物品转换为指定氧化阶段、涂蜡状态、染色与制品形态。",
+  "jei.patina_pandemonium.crafting_inheritance": "JEI 会将数据组件不同的变种区分为不同子类型。原版合成配方仍可照常查看；实际合成时，只要原料包含变种，产物会继承最深的氧化阶段。混用涂蜡与未涂蜡原料时产物为未涂蜡；染色不一致时不继承染色。"
 }

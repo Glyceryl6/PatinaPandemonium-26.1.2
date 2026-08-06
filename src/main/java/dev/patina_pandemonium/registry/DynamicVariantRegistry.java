@@ -24,12 +24,14 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.flag.FeatureFlags;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.*;
+import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.event.BlockEntityTypeAddBlocksEvent;
 import net.neoforged.neoforge.registries.*;
 import org.jspecify.annotations.Nullable;
@@ -48,7 +50,6 @@ public class DynamicVariantRegistry {
     private static final List<Class<? extends Block>> PROCESSED_BLOCK_TYPES = List.of(
         SlabBlock.class, StairBlock.class, WallBlock.class, FenceBlock.class, FenceGateBlock.class, CarpetBlock.class,
         ButtonBlock.class, PressurePlateBlock.class);
-    private static final List<Class<? extends Block>> PROPAGATION_BLOCK_TYPES = List.of(BaseFireBlock.class);
     private static final Map<VariantForm, Class<? extends Block>> FORM_TYPES = Map.of(
         VariantForm.SLAB, SlabBlock.class,
         VariantForm.STAIRS, StairBlock.class,
@@ -68,11 +69,18 @@ public class DynamicVariantRegistry {
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITY_TYPES = DeferredRegister.create(
         Registries.BLOCK_ENTITY_TYPE, PatinaPandemonium.MOD_ID);
     public static final DeferredRegister<MenuType<?>> MENUS = DeferredRegister.create(Registries.MENU, PatinaPandemonium.MOD_ID);
+    public static final DeferredRegister<AttachmentType<?>> ATTACHMENTS = DeferredRegister.create(
+        NeoForgeRegistries.ATTACHMENT_TYPES, PatinaPandemonium.MOD_ID);
 
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<VariantData>> VARIANT_DATA =
         COMPONENTS.registerComponentType("variant_data", builder -> builder.persistent(VariantData.CODEC));
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<ItemVariantData>> ITEM_VARIANT_DATA =
         COMPONENTS.registerComponentType("item_variant_data", builder -> builder.persistent(ItemVariantData.CODEC));
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<ItemVariantData>> ENTITY_VARIANT_DATA = ATTACHMENTS.register(
+        "entity_variant_data", () -> AttachmentType.builder(ItemVariantData::defaultData)
+            .serialize(ItemVariantData.CODEC.fieldOf("variant"))
+            .sync(ItemVariantData.STREAM_CODEC)
+            .build());
 
     public static final DeferredBlock<VariantFabricatorBlock> VARIANT_FABRICATOR = BLOCKS.register(
         "variant_fabricator",
@@ -142,6 +150,7 @@ public class DynamicVariantRegistry {
     private static final Map<VariantForm, Supplier<? extends Item>> TRANSLUCENT_CARRIER_ITEMS = translucentCarrierItems();
     private static final Map<Identifier, EnumMap<VariantForm, Item>> SOURCE_ITEMS = new LinkedHashMap<>();
     private static final Map<Identifier, EnumMap<VariantForm, Block>> EXISTING_FORMS = new LinkedHashMap<>();
+    private static final IdentityHashMap<Item, ExistingFormBinding> EXISTING_FORM_OUTPUTS = new IdentityHashMap<>();
     private static final Map<Identifier, Block> DELEGATED_CARRIERS = new LinkedHashMap<>();
     private static final Map<Identifier, Item> DELEGATED_ITEMS = new LinkedHashMap<>();
     private static final LinkedHashSet<Identifier> FULL_SOURCE_IDS = new LinkedHashSet<>();
@@ -174,6 +183,7 @@ public class DynamicVariantRegistry {
         BLOCKS.register(modBus);
         ITEMS.register(modBus);
         COMPONENTS.register(modBus);
+        ATTACHMENTS.register(modBus);
         BLOCK_ENTITY_TYPES.register(modBus);
         MENUS.register(modBus);
     }
@@ -188,6 +198,19 @@ public class DynamicVariantRegistry {
 
     public static List<CarrierBinding> sourceBindings() {
         return Collections.unmodifiableList(SOURCE_BINDINGS);
+    }
+
+    public static Set<Item> blockVariantItems() {
+        Set<Item> items = Collections.newSetFromMap(new IdentityHashMap<>());
+        items.addAll(ITEM_SOURCES.keySet());
+        items.addAll(DELEGATED_ITEM_SOURCES.keySet());
+        CARRIER_ITEMS.values().forEach(item -> items.add(item.get()));
+        TRANSLUCENT_CARRIER_ITEMS.values().forEach(item -> items.add(item.get()));
+        return Collections.unmodifiableSet(items);
+    }
+
+    public static Set<Item> standaloneVariantItems() {
+        return Collections.unmodifiableSet(STANDALONE_VARIANT_ITEMS);
     }
 
     public static boolean isStandaloneVariantItem(Item item) {
@@ -236,6 +259,72 @@ public class DynamicVariantRegistry {
         Component name = variantItemName(stack, normalized);
         if (!name.equals(stack.get(DataComponents.ITEM_NAME))) stack.set(DataComponents.ITEM_NAME, name);
         return normalized;
+    }
+
+    @Nullable
+    public static ItemVariantData peekItemData(ItemStack stack) {
+        ItemVariantData data = stack.get(ITEM_VARIANT_DATA.get());
+        return data == null ? null : data.normalized(stack.getItem());
+    }
+
+    @Nullable
+    public static ItemVariantData variantUseData(ItemStack stack) {
+        ItemVariantData itemData = peekItemData(stack);
+        if (itemData != null) return itemData;
+        VariantData blockData = stack.get(VARIANT_DATA.get());
+        Identifier sourceId = ITEM_SOURCES.get(stack.getItem());
+        if (sourceId == null) sourceId = DELEGATED_ITEM_SOURCES.get(stack.getItem());
+        if (blockData == null && sourceId == null) return null;
+        VariantData normalized = (blockData == null
+            ? new VariantData(sourceId, OxidationStage.FRESH, false, VariantForm.FULL, null)
+            : blockData).normalized(blockData == null ? VariantForm.FULL : blockData.form());
+        Item sourceItem = BuiltInRegistries.BLOCK.getValue(normalized.sourceId()).asItem();
+        Identifier itemId = sourceItem == Items.AIR ? BuiltInRegistries.ITEM.getKey(stack.getItem()) : BuiltInRegistries.ITEM.getKey(sourceItem);
+        Identifier modelId = stack.get(DataComponents.ITEM_MODEL);
+        return new ItemVariantData(itemId, normalized.stage(), normalized.waxed(), normalized.dyeColor(), modelId == null ? itemId : modelId);
+    }
+
+    public static ItemStack inheritCraftingVariant(CraftingInput input, ItemStack output) {
+        if (output.isEmpty()) return output;
+        OxidationStage stage = null;
+        boolean waxed = true;
+        boolean hasVariant = false;
+        DyeColor dye = null;
+        boolean dyeInitialized = false;
+        for (ItemStack ingredient : input.items()) {
+            VariantState state = variantState(ingredient);
+            if (state == null) continue;
+            hasVariant |= state.transformed();
+            if (stage == null || state.stage().ordinal() > stage.ordinal()) stage = state.stage();
+            waxed &= state.waxed();
+            if (!dyeInitialized) {
+                dye = state.dyeColor();
+                dyeInitialized = true;
+            } else if (dye != state.dyeColor()) {
+                dye = null;
+            }
+        }
+        if (!hasVariant || stage == null) return output;
+
+        ExistingFormBinding existing = EXISTING_FORM_OUTPUTS.get(output.getItem());
+        if (existing != null) {
+            VariantData data = new VariantData(existing.sourceId(), stage, waxed, existing.form(), dye);
+            return mergeCraftingOutput(output, displayStack(data, output.getCount()));
+        }
+        Identifier fullSource = fullSourceId(output);
+        if (fullSource != null) {
+            VariantData data = new VariantData(fullSource, stage, waxed, VariantForm.FULL, dye);
+            return mergeCraftingOutput(output, displayStack(data, output.getCount()));
+        }
+        Identifier specialSource = specialSourceId(output);
+        if (specialSource != null) {
+            VariantData data = new VariantData(specialSource, stage, waxed, VariantForm.FULL, dye);
+            return mergeCraftingOutput(output, delegatedStack(output, data, output.getCount()));
+        }
+        if (STANDALONE_VARIANT_ITEMS.contains(output.getItem())) {
+            return variantItemStack(output.copyWithCount(output.getCount()), stage, waxed, dye);
+        }
+        return output;
     }
 
     public static ItemStack stack(VariantData data) {
@@ -330,7 +419,9 @@ public class DynamicVariantRegistry {
 
     public static boolean isSpecialSource(Identifier id, Block block, PatinaRules rules) {
         if (!isCommonBlockSource(id, block, rules) || block instanceof EntityBlock || isProcessedBlock(block)) return false;
-        if (block.asItem() == Items.AIR || block.getStateDefinition().getPossibleStates().size() > rules.maximumDelegatedBlockStates) return false;
+        if (block.getStateDefinition().getPossibleStates().size() > rules.maximumDelegatedBlockStates) return false;
+        BlockState state = block.defaultBlockState();
+        if (block.asItem() == Items.AIR && state.getRenderShape() != RenderShape.MODEL && !(block instanceof BaseFireBlock)) return false;
         return !isFullSource(id, block, rules);
     }
 
@@ -373,13 +464,10 @@ public class DynamicVariantRegistry {
         if (!event.getRegistryKey().equals(Registries.ITEM) || sourceCarriersRegistered) return;
         List<Identifier> fullSources = discoverFullSources();
         List<Identifier> specialSources = discoverSpecialSources();
-        List<Identifier> propagationSources = discoverPropagationSources();
         List<Identifier> itemSources = discoverItemSources();
         event.register(Registries.ITEM, helper -> {
             for (Identifier sourceId : fullSources) registerFullSource(helper, sourceId);
-            LinkedHashSet<Identifier> delegated = new LinkedHashSet<>(specialSources);
-            delegated.addAll(propagationSources);
-            for (Identifier sourceId : delegated) registerDelegatedSource(helper, sourceId);
+            for (Identifier sourceId : specialSources) registerDelegatedSource(helper, sourceId);
         });
         for (Identifier sourceId : specialSources) {
             Item item = BuiltInRegistries.BLOCK.getValue(sourceId).asItem();
@@ -390,7 +478,13 @@ public class DynamicVariantRegistry {
             if (item != Items.AIR) STANDALONE_VARIANT_ITEMS.add(item);
         }
         FULL_SOURCE_IDS.addAll(fullSources);
-        for (Identifier sourceId : fullSources) EXISTING_FORMS.put(sourceId, discoverExistingForms(sourceId));
+        for (Identifier sourceId : fullSources) {
+            EnumMap<VariantForm, Block> forms = discoverExistingForms(sourceId);
+            EXISTING_FORMS.put(sourceId, forms);
+            forms.forEach((form, block) -> {
+                if (block.asItem() != Items.AIR) EXISTING_FORM_OUTPUTS.put(block.asItem(), new ExistingFormBinding(sourceId, form));
+            });
+        }
         SPECIAL_SOURCE_IDS.addAll(specialSources);
         sourceIds = List.copyOf(fullSources);
         specialSourceIds = List.copyOf(specialSources);
@@ -483,20 +577,6 @@ public class DynamicVariantRegistry {
         return Collections.unmodifiableList(discovered);
     }
 
-    private static List<Identifier> discoverPropagationSources() {
-        ArrayList<Identifier> discovered = new ArrayList<>();
-        PatinaRules rules = PatinaRules.INSTANCE;
-        BuiltInRegistries.BLOCK.entrySet().forEach(entry -> {
-            Identifier id = entry.getKey().identifier();
-            Block block = entry.getValue();
-            if (isCommonBlockSource(id, block, rules) && !(block instanceof EntityBlock)
-                && block.getStateDefinition().getPossibleStates().size() <= rules.maximumDelegatedBlockStates
-                && PROPAGATION_BLOCK_TYPES.stream().anyMatch(type -> type.isInstance(block))) discovered.add(id);
-        });
-        discovered.sort(Identifier::compareTo);
-        return Collections.unmodifiableList(discovered);
-    }
-
     private static List<Identifier> discoverItemSources() {
         ArrayList<Identifier> discovered = new ArrayList<>();
         PatinaRules rules = PatinaRules.INSTANCE;
@@ -526,8 +606,13 @@ public class DynamicVariantRegistry {
         LinkedHashSet<String> stems = new LinkedHashSet<>();
         String sourcePath = sourceId.getPath();
         stems.add(sourcePath);
-        addTrimmedStem(stems, sourcePath, "_planks");
-        addTrimmedStem(stems, sourcePath, "_block");
+        if (sourcePath.endsWith("_planks")) stems.add(sourcePath.substring(0, sourcePath.length() - "_planks".length()));
+        if (sourcePath.endsWith("_block")) {
+            String stem = sourcePath.substring(0, sourcePath.length() - "_block".length());
+            Identifier planksId = Identifier.fromNamespaceAndPath(sourceId.getNamespace(), stem + "_planks");
+            Block planks = BuiltInRegistries.BLOCK.getValue(planksId);
+            if (!isFullSource(planksId, planks, PatinaRules.INSTANCE)) stems.add(stem);
+        }
         if (sourcePath.endsWith("s")) stems.add(sourcePath.substring(0, sourcePath.length() - 1));
         for (String stem : List.copyOf(stems)) {
             Identifier candidateId = Identifier.fromNamespaceAndPath(sourceId.getNamespace(), stem + "_" + form.id());
@@ -548,10 +633,6 @@ public class DynamicVariantRegistry {
         if (candidateId == null) return null;
         Block candidate = BuiltInRegistries.BLOCK.getValue(candidateId);
         return candidate != Blocks.AIR && expectedType.isInstance(candidate) ? candidate : null;
-    }
-
-    private static void addTrimmedStem(Set<String> stems, String sourcePath, String suffix) {
-        if (sourcePath.endsWith(suffix)) stems.add(sourcePath.substring(0, sourcePath.length() - suffix.length()));
     }
 
     private static boolean isCommonBlockSource(Identifier id, Block block, PatinaRules rules) {
@@ -591,6 +672,41 @@ public class DynamicVariantRegistry {
     private static boolean isStandaloneItemId(Identifier id) {
         Item item = BuiltInRegistries.ITEM.getValue(id);
         return item != Items.AIR && STANDALONE_VARIANT_ITEMS.contains(item);
+    }
+
+    @Nullable
+    private static VariantState variantState(ItemStack stack) {
+        VariantData blockData = stack.get(VARIANT_DATA.get());
+        if (blockData != null) {
+            VariantData normalized = blockData.normalized(blockData.form());
+            return new VariantState(normalized.stage(), normalized.waxed(), normalized.dyeColor(), true);
+        }
+        ItemVariantData itemData = peekItemData(stack);
+        if (itemData != null) return new VariantState(itemData.stage(), itemData.waxed(), itemData.dyeColor(), true);
+        if (ITEM_SOURCES.containsKey(stack.getItem()) || DELEGATED_ITEM_SOURCES.containsKey(stack.getItem())) {
+            return new VariantState(OxidationStage.FRESH, false, null, true);
+        }
+        if (EXISTING_FORM_OUTPUTS.containsKey(stack.getItem()) || fullSourceId(stack) != null
+            || specialSourceId(stack) != null || STANDALONE_VARIANT_ITEMS.contains(stack.getItem())) {
+            return new VariantState(OxidationStage.FRESH, false, null, false);
+        }
+        return null;
+    }
+
+    private static ItemStack mergeCraftingOutput(ItemStack output, ItemStack target) {
+        if (target.isEmpty()) return output;
+        ItemStack result = output.transmuteCopy(target.getItem(), output.getCount());
+        result.remove(VARIANT_DATA.get());
+        result.remove(ITEM_VARIANT_DATA.get());
+        VariantData blockData = target.get(VARIANT_DATA.get());
+        ItemVariantData itemData = target.get(ITEM_VARIANT_DATA.get());
+        if (blockData != null) result.set(VARIANT_DATA.get(), blockData);
+        if (itemData != null) result.set(ITEM_VARIANT_DATA.get(), itemData);
+        Identifier modelId = target.get(DataComponents.ITEM_MODEL);
+        Component name = target.get(DataComponents.ITEM_NAME);
+        if (modelId != null) result.set(DataComponents.ITEM_MODEL, modelId);
+        if (name != null) result.set(DataComponents.ITEM_NAME, name);
+        return result;
     }
 
     private static ItemStack delegatedStack(ItemStack input, VariantData data, int count) {
@@ -751,6 +867,10 @@ public class DynamicVariantRegistry {
         Block source = BuiltInRegistries.BLOCK.getValue(sourceId);
         return source != Blocks.AIR && !source.defaultBlockState().canOcclude();
     }
+
+    private record ExistingFormBinding(Identifier sourceId, VariantForm form) {}
+
+    private record VariantState(OxidationStage stage, boolean waxed, @Nullable DyeColor dyeColor, boolean transformed) {}
 
     public record CarrierBinding(Identifier sourceId, VariantForm form, Block block, @Nullable Item item) {}
 
