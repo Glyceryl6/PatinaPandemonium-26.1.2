@@ -59,5 +59,8 @@
   "itemGroup.patina_pandemonium.category": "Patina Pandemonium: %1$s",
   "item.patina_pandemonium.variant_name": "%1$s%2$s%3$s%4$s",
   "jei.patina_pandemonium.variant_fabricator": "The Variant Fabricator converts any supported full block or item into a selected oxidation stage, wax state, dye, and construction form.",
-  "jei.patina_pandemonium.crafting_inheritance": "JEI distinguishes variants by their data components. Vanilla recipes remain visible normally; when crafting, any variant ingredient makes the output inherit the deepest oxidation stage. Mixing waxed and unwaxed ingredients produces an unwaxed result, and mixed dyes do not propagate."
+  "jei.patina_pandemonium.crafting_inheritance": "JEI distinguishes variants by their data components. Vanilla recipes remain visible normally; when crafting, any variant ingredient makes the output inherit the deepest oxidation stage. Mixing waxed and unwaxed ingredients produces an unwaxed result, and mixed dyes do not propagate.",
+  "effect.patina_pandemonium.tetanus": "Tetanus",
+  "jei.patina_pandemonium.variant_waxing": "Combine one plain honeycomb with one Patina-managed item or block in any crafting grid to wax it. Vanilla copper waxing recipes keep priority and are not matched by this dynamic recipe.",
+  "jei.patina_pandemonium.variant_risks": "Oxidized tools have reduced effective durability, rusty attackers and weapons can inflict Tetanus, and oxidized foods may cause Poison. Waxing reduces these risks without making a stage stronger than the preceding unwaxed stage."
 }

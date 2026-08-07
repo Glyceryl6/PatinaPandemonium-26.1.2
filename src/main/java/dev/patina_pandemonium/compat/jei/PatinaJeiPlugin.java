@@ -8,6 +8,7 @@ import mezz.jei.api.registration.IRecipeRegistration;
 import mezz.jei.api.registration.ISubtypeRegistration;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
+import net.minecraft.world.item.Items;
 
 @JeiPlugin
 public class PatinaJeiPlugin implements IModPlugin {
@@ -31,7 +32,10 @@ public class PatinaJeiPlugin implements IModPlugin {
     public void registerRecipes(IRecipeRegistration registration) {
         registration.addIngredientInfo(DynamicVariantRegistry.VARIANT_FABRICATOR.get(),
             Component.translatable("jei.patina_pandemonium.variant_fabricator"),
-            Component.translatable("jei.patina_pandemonium.crafting_inheritance"));
+            Component.translatable("jei.patina_pandemonium.crafting_inheritance"),
+            Component.translatable("jei.patina_pandemonium.variant_risks"));
+        registration.addIngredientInfo(Items.HONEYCOMB,
+            Component.translatable("jei.patina_pandemonium.variant_waxing"));
     }
 
 }

@@ -3,6 +3,7 @@ package dev.patina_pandemonium.registry;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
+import com.mojang.serialization.Codec;
 import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.block.GeneratedBlockFactory;
 import dev.patina_pandemonium.block.PatinaOxidizable;
@@ -10,8 +11,10 @@ import dev.patina_pandemonium.block.VariantFabricatorBlock;
 import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
 import dev.patina_pandemonium.block.entity.VariantFabricatorBlockEntity;
 import dev.patina_pandemonium.config.PatinaRules;
+import dev.patina_pandemonium.effect.TetanusMobEffect;
 import dev.patina_pandemonium.item.GeneratedBlockItem;
 import dev.patina_pandemonium.menu.VariantFabricatorMenu;
+import dev.patina_pandemonium.recipe.VariantWaxingRecipe;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponentType;
@@ -22,9 +25,11 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.flag.FeatureFlags;
+import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.*;
 import net.minecraft.world.item.crafting.CraftingInput;
+import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -69,6 +74,9 @@ public class DynamicVariantRegistry {
     public static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITY_TYPES = DeferredRegister.create(
         Registries.BLOCK_ENTITY_TYPE, PatinaPandemonium.MOD_ID);
     public static final DeferredRegister<MenuType<?>> MENUS = DeferredRegister.create(Registries.MENU, PatinaPandemonium.MOD_ID);
+    public static final DeferredRegister<RecipeSerializer<?>> RECIPE_SERIALIZERS = DeferredRegister.create(
+        Registries.RECIPE_SERIALIZER, PatinaPandemonium.MOD_ID);
+    public static final DeferredRegister<MobEffect> MOB_EFFECTS = DeferredRegister.create(Registries.MOB_EFFECT, PatinaPandemonium.MOD_ID);
     public static final DeferredRegister<AttachmentType<?>> ATTACHMENTS = DeferredRegister.create(
         NeoForgeRegistries.ATTACHMENT_TYPES, PatinaPandemonium.MOD_ID);
 
@@ -76,11 +84,16 @@ public class DynamicVariantRegistry {
         COMPONENTS.registerComponentType("variant_data", builder -> builder.persistent(VariantData.CODEC));
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<ItemVariantData>> ITEM_VARIANT_DATA =
         COMPONENTS.registerComponentType("item_variant_data", builder -> builder.persistent(ItemVariantData.CODEC));
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> ORIGINAL_MAX_DAMAGE =
+        COMPONENTS.registerComponentType("original_max_damage", builder -> builder.persistent(Codec.INT));
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<ItemVariantData>> ENTITY_VARIANT_DATA = ATTACHMENTS.register(
         "entity_variant_data", () -> AttachmentType.builder(ItemVariantData::defaultData)
-            .serialize(ItemVariantData.CODEC.fieldOf("variant"))
-            .sync(ItemVariantData.STREAM_CODEC)
-            .build());
+            .serialize(ItemVariantData.CODEC.fieldOf("variant")).sync(ItemVariantData.STREAM_CODEC).build());
+    public static final DeferredHolder<MobEffect, TetanusMobEffect> TETANUS = MOB_EFFECTS.register(
+        "tetanus", () -> new TetanusMobEffect(0x6F7F61));
+    public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<VariantWaxingRecipe>> VARIANT_WAXING_RECIPE =
+        RECIPE_SERIALIZERS.register("variant_waxing", () -> new RecipeSerializer<>(
+            VariantWaxingRecipe.MAP_CODEC, VariantWaxingRecipe.STREAM_CODEC));
 
     public static final DeferredBlock<VariantFabricatorBlock> VARIANT_FABRICATOR = BLOCKS.register(
         "variant_fabricator",
@@ -183,6 +196,8 @@ public class DynamicVariantRegistry {
         BLOCKS.register(modBus);
         ITEMS.register(modBus);
         COMPONENTS.register(modBus);
+        RECIPE_SERIALIZERS.register(modBus);
+        MOB_EFFECTS.register(modBus);
         ATTACHMENTS.register(modBus);
         BLOCK_ENTITY_TYPES.register(modBus);
         MENUS.register(modBus);
@@ -258,6 +273,7 @@ public class DynamicVariantRegistry {
         }
         Component name = variantItemName(stack, normalized);
         if (!name.equals(stack.get(DataComponents.ITEM_NAME))) stack.set(DataComponents.ITEM_NAME, name);
+        applyDurabilityProfile(stack, normalized);
         return normalized;
     }
 
@@ -269,7 +285,7 @@ public class DynamicVariantRegistry {
 
     @Nullable
     public static ItemVariantData variantUseData(ItemStack stack) {
-        ItemVariantData itemData = peekItemData(stack);
+        ItemVariantData itemData = itemData(stack);
         if (itemData != null) return itemData;
         VariantData blockData = stack.get(VARIANT_DATA.get());
         Identifier sourceId = ITEM_SOURCES.get(stack.getItem());
@@ -285,7 +301,7 @@ public class DynamicVariantRegistry {
     }
 
     public static ItemStack inheritCraftingVariant(CraftingInput input, ItemStack output) {
-        if (output.isEmpty()) return output;
+        if (output.isEmpty() || output.has(VARIANT_DATA.get()) || output.has(ITEM_VARIANT_DATA.get())) return output;
         OxidationStage stage = null;
         boolean waxed = true;
         boolean hasVariant = false;
@@ -370,15 +386,70 @@ public class DynamicVariantRegistry {
         return variantItemStack(input.copyWithCount(Math.max(1, count)), stage, waxed, dye);
     }
 
+    public static ItemStack transform(ItemStack input, OxidationStage stage, boolean waxed, @Nullable DyeColor dye) {
+        if (input.isEmpty() || !supportsFabrication(input)) return ItemStack.EMPTY;
+        VariantData current = input.get(VARIANT_DATA.get());
+        ItemStack target;
+        if (current != null) {
+            target = displayStack(new VariantData(current.sourceId(), stage, waxed, current.form(), dye), input.getCount());
+        } else {
+            ExistingFormBinding existing = EXISTING_FORM_OUTPUTS.get(input.getItem());
+            target = existing == null
+                ? fabricate(input, VariantForm.FULL, stage, waxed, dye, input.getCount())
+                : displayStack(new VariantData(existing.sourceId(), stage, waxed, existing.form(), dye), input.getCount());
+        }
+        return target.isEmpty() ? ItemStack.EMPTY : mergeCraftingOutput(input, target);
+    }
+
+    public static ItemStack waxedCopy(ItemStack input) {
+        VariantState state = variantState(input);
+        if (state == null || state.waxed() || hasExistingWaxingRecipe(input)) return ItemStack.EMPTY;
+        return transform(input, state.stage(), true, state.dyeColor());
+    }
+
+    public static ItemStack cleanOxidationCopy(ItemStack input) {
+        ItemVariantData itemData = peekItemData(input);
+        if (itemData != null) {
+            if (itemData.stage() == OxidationStage.FRESH || itemData.waxed()) return ItemStack.EMPTY;
+            Item source = BuiltInRegistries.ITEM.getValue(itemData.sourceId());
+            if (source == Items.AIR) return ItemStack.EMPTY;
+            ItemStack cleaned = input.transmuteCopy(source, input.getCount());
+            cleaned.remove(ITEM_VARIANT_DATA.get());
+            cleaned.remove(VARIANT_DATA.get());
+            if (itemData.modelId() == null || itemData.modelId().equals(itemData.sourceId())) cleaned.remove(DataComponents.ITEM_MODEL);
+            else cleaned.set(DataComponents.ITEM_MODEL, itemData.modelId());
+            cleaned.remove(DataComponents.ITEM_NAME);
+            restoreDurability(cleaned, input);
+            return cleaned;
+        }
+
+        VariantData blockData = input.get(VARIANT_DATA.get());
+        if (blockData == null || blockData.stage() == OxidationStage.FRESH || blockData.waxed()) return ItemStack.EMPTY;
+        VariantData cleanedData = new VariantData(blockData.sourceId(), OxidationStage.FRESH, false, blockData.form(), null);
+        ItemStack target = displayStack(cleanedData, input.getCount());
+        return target.isEmpty() ? ItemStack.EMPTY : mergeCraftingOutput(input, target);
+    }
+
+    public static double durabilityMultiplier(OxidationStage stage, boolean waxed) {
+        double[] multipliers = waxed ? PatinaRules.INSTANCE.waxedDurabilityMultipliers : PatinaRules.INSTANCE.durabilityMultipliers;
+        return multipliers[stage.ordinal()];
+    }
+
     public static boolean supportsFabrication(ItemStack stack) {
         if (stack.isEmpty()) return false;
-        if (fullSourceId(stack) != null || specialSourceId(stack) != null) return true;
-        ItemVariantData data = itemData(stack);
+        VariantData blockData = stack.get(VARIANT_DATA.get());
+        if (blockData != null) return BuiltInRegistries.BLOCK.getValue(blockData.sourceId()) != Blocks.AIR;
+        if (EXISTING_FORM_OUTPUTS.containsKey(stack.getItem()) || fullSourceId(stack) != null || specialSourceId(stack) != null) return true;
+        ItemVariantData data = peekItemData(stack);
         if (data != null) return isStandaloneItemId(data.sourceId());
         return STANDALONE_VARIANT_ITEMS.contains(stack.getItem());
     }
 
     public static boolean supportsForm(ItemStack stack, VariantForm form) {
+        VariantData blockData = stack.get(VARIANT_DATA.get());
+        if (blockData != null) return blockData.form() == form;
+        ExistingFormBinding existing = EXISTING_FORM_OUTPUTS.get(stack.getItem());
+        if (existing != null) return existing.form() == form;
         return supportsFabrication(stack) && (fullSourceId(stack) != null || form == VariantForm.FULL);
     }
 
@@ -702,6 +773,13 @@ public class DynamicVariantRegistry {
         ItemVariantData itemData = target.get(ITEM_VARIANT_DATA.get());
         if (blockData != null) result.set(VARIANT_DATA.get(), blockData);
         if (itemData != null) result.set(ITEM_VARIANT_DATA.get(), itemData);
+        Integer originalMaxDamage = target.get(ORIGINAL_MAX_DAMAGE.get());
+        Integer maxDamage = target.get(DataComponents.MAX_DAMAGE);
+        Integer damage = target.get(DataComponents.DAMAGE);
+        if (originalMaxDamage != null) result.set(ORIGINAL_MAX_DAMAGE.get(), originalMaxDamage);
+        else result.remove(ORIGINAL_MAX_DAMAGE.get());
+        if (maxDamage != null) result.set(DataComponents.MAX_DAMAGE, maxDamage);
+        if (damage != null) result.set(DataComponents.DAMAGE, damage);
         Identifier modelId = target.get(DataComponents.ITEM_MODEL);
         Component name = target.get(DataComponents.ITEM_NAME);
         if (modelId != null) result.set(DataComponents.ITEM_MODEL, modelId);
@@ -722,7 +800,7 @@ public class DynamicVariantRegistry {
     }
 
     private static ItemStack variantItemStack(ItemStack stack, OxidationStage stage, boolean waxed, @Nullable DyeColor dye) {
-        ItemVariantData existing = itemData(stack);
+        ItemVariantData existing = peekItemData(stack);
         Identifier sourceId = existing == null ? BuiltInRegistries.ITEM.getKey(stack.getItem()) : existing.sourceId();
         Identifier modelId = existing == null ? stack.get(DataComponents.ITEM_MODEL) : existing.modelId();
         if (modelId == null || VARIANT_ITEM_MODEL.equals(modelId)) modelId = sourceId;
@@ -730,7 +808,52 @@ public class DynamicVariantRegistry {
         stack.set(ITEM_VARIANT_DATA.get(), data);
         stack.set(DataComponents.ITEM_MODEL, VARIANT_ITEM_MODEL);
         stack.remove(DataComponents.ITEM_NAME);
+        applyDurabilityProfile(stack, data);
         return stack;
+    }
+
+    private static void applyDurabilityProfile(ItemStack stack, ItemVariantData data) {
+        if (!stack.has(DataComponents.MAX_DAMAGE)) return;
+        int currentMax = stack.getOrDefault(DataComponents.MAX_DAMAGE, 0);
+        if (currentMax <= 0) return;
+        int baseMax = stack.getOrDefault(ORIGINAL_MAX_DAMAGE.get(), 0);
+        double multiplier = durabilityMultiplier(data.stage(), data.waxed());
+        if (baseMax <= 0) {
+            baseMax = currentMax;
+            if (multiplier < 1.0D) stack.set(ORIGINAL_MAX_DAMAGE.get(), baseMax);
+        }
+        int targetMax = Math.max(1, (int) Math.floor(baseMax * multiplier));
+        if (targetMax == currentMax) return;
+        int currentDamage = stack.getOrDefault(DataComponents.DAMAGE, 0);
+        double remainingRatio = (double) Math.max(0, currentMax - currentDamage) / currentMax;
+        int targetDamage = Math.clamp(targetMax - (int) Math.round(targetMax * remainingRatio), 0, targetMax - 1);
+        if (targetMax < currentMax) stack.set(DataComponents.DAMAGE, targetDamage);
+        stack.set(DataComponents.MAX_DAMAGE, targetMax);
+        if (targetMax >= currentMax) stack.set(DataComponents.DAMAGE, targetDamage);
+    }
+
+    private static void restoreDurability(ItemStack cleaned, ItemStack source) {
+        int baseMax = source.getOrDefault(ORIGINAL_MAX_DAMAGE.get(), 0);
+        if (baseMax <= 0 || !cleaned.has(DataComponents.MAX_DAMAGE)) return;
+        int currentMax = Math.max(1, source.getOrDefault(DataComponents.MAX_DAMAGE, baseMax));
+        int currentDamage = source.getOrDefault(DataComponents.DAMAGE, 0);
+        double remainingRatio = (double) Math.max(0, currentMax - currentDamage) / currentMax;
+        cleaned.set(DataComponents.MAX_DAMAGE, baseMax);
+        cleaned.set(DataComponents.DAMAGE, Math.clamp(baseMax - (int) Math.round(baseMax * remainingRatio), 0, baseMax - 1));
+        cleaned.remove(ORIGINAL_MAX_DAMAGE.get());
+    }
+
+    private static boolean hasExistingWaxingRecipe(ItemStack stack) {
+        VariantData blockData = stack.get(VARIANT_DATA.get());
+        if (blockData != null) {
+            Block source = blockData.form() == VariantForm.FULL
+                ? BuiltInRegistries.BLOCK.getValue(blockData.sourceId()) : existingForm(blockData.sourceId(), blockData.form());
+            return source != null && source != Blocks.AIR && HoneycombItem.getWaxed(source.defaultBlockState()).isPresent();
+        }
+        ItemVariantData itemData = peekItemData(stack);
+        Item sourceItem = itemData == null ? stack.getItem() : BuiltInRegistries.ITEM.getValue(itemData.sourceId());
+        Block source = Block.byItem(sourceItem);
+        return source != Blocks.AIR && HoneycombItem.getWaxed(source.defaultBlockState()).isPresent();
     }
 
     public static Component variantItemName(ItemStack stack, ItemVariantData data) {

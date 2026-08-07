@@ -59,5 +59,8 @@
   "itemGroup.patina_pandemonium.category": "锈色狂欢：%1$s",
   "item.patina_pandemonium.variant_name": "%1$s%2$s%3$s%4$s",
   "jei.patina_pandemonium.variant_fabricator": "变种铸造台可将任意受支持的完整方块或物品转换为指定氧化阶段、涂蜡状态、染色与制品形态。",
-  "jei.patina_pandemonium.crafting_inheritance": "JEI 会将数据组件不同的变种区分为不同子类型。原版合成配方仍可照常查看；实际合成时，只要原料包含变种，产物会继承最深的氧化阶段。混用涂蜡与未涂蜡原料时产物为未涂蜡；染色不一致时不继承染色。"
+  "jei.patina_pandemonium.crafting_inheritance": "JEI 会将数据组件不同的变种区分为不同子类型。原版合成配方仍可照常查看；实际合成时，只要原料包含变种，产物会继承最深的氧化阶段。混用涂蜡与未涂蜡原料时产物为未涂蜡；染色不一致时不继承染色。",
+  "effect.patina_pandemonium.tetanus": "破伤风",
+  "jei.patina_pandemonium.variant_waxing": "在任意工作台中放入一个普通蜜脾和一个由锈色狂欢管理的物品或方块，即可得到对应的涂蜡版本。此动态配方不会匹配原版已经提供涂蜡配方的铜制品。",
+  "jei.patina_pandemonium.variant_risks": "氧化工具的有效耐久会降低；氧化生物或锈蚀武器可能施加破伤风；食用氧化食物可能中毒。涂蜡可以降低风险和耐久损失，但不会使当前阶段强于前一级未涂蜡阶段。"
 }

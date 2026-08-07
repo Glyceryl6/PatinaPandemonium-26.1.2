@@ -13,7 +13,7 @@ public class PatinaPandemonium {
     public static final String MOD_ID = "patina_pandemonium";
 
     public PatinaPandemonium(IEventBus modBus) {
-        RuntimePack.bootstrap();
+        RuntimePack.register(modBus);
         DynamicVariantRegistry.register(modBus);
         ModCreativeTab.register(modBus);
     }

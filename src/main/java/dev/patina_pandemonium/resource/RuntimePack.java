@@ -25,7 +25,7 @@ import net.minecraft.util.GsonHelper;
 import net.minecraft.util.InclusiveRange;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
-import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.loading.FMLPaths;
 import net.neoforged.neoforge.event.AddPackFindersEvent;
 import org.jspecify.annotations.Nullable;
@@ -48,13 +48,17 @@ public class RuntimePack {
     private static final String ITEM_DIRECTORY = "items/";
     private static final String BLOCK_TAG_DIRECTORY = "tags/block/";
     private static final String ITEM_TAG_DIRECTORY = "tags/item/";
+    private static final String RECIPE_DIRECTORY = "recipe/";
     private static final String JSON_EXTENSION = ".json";
     private static final byte[] BLOCKSTATE_DESCRIPTOR = "{\"variants\":{\"\":{\"model\":\"minecraft:block/stone\"}}}"
         .getBytes(StandardCharsets.UTF_8);
     private static final byte[] ITEM_DESCRIPTOR = "{\"model\":{\"type\":\"minecraft:model\",\"model\":\"minecraft:block/stone\"}}"
         .getBytes(StandardCharsets.UTF_8);
+    private static final Identifier VARIANT_WAXING_RECIPE = PatinaPandemonium.id(RECIPE_DIRECTORY + "variant_waxing" + JSON_EXTENSION);
+    private static final byte[] VARIANT_WAXING_RECIPE_DESCRIPTOR = "{\"type\":\"patina_pandemonium:variant_waxing\"}"
+        .getBytes(StandardCharsets.UTF_8);
     private static final Map<Identifier, VariantForm> SERVER_TAGS = new LinkedHashMap<>();
-    private static final Set<String> SERVER_NAMESPACES = Set.of(MINECRAFT_NAMESPACE, "c");
+    private static final Set<String> SERVER_NAMESPACES = Set.of(PatinaPandemonium.MOD_ID, MINECRAFT_NAMESPACE, "c");
 
     static {
         addCommonTag(VariantForm.SLAB, "slabs");
@@ -67,7 +71,8 @@ public class RuntimePack {
         addTags(VariantForm.PRESSURE_PLATE, "pressure_plates", "pressure_plates");
     }
 
-    public static void bootstrap() {
+    public static void register(IEventBus modBus) {
+        modBus.addListener(RuntimePack::onAddPackFinders);
         Path legacyDirectory = FMLPaths.CONFIGDIR.get().resolve(PatinaPandemonium.MOD_ID);
         for (String fileName : LEGACY_PACKS) {
             try {
@@ -92,7 +97,6 @@ public class RuntimePack {
         SERVER_TAGS.put(Identifier.fromNamespaceAndPath(tag.getNamespace(), ITEM_TAG_DIRECTORY + tag.getPath() + JSON_EXTENSION), form);
     }
 
-    @SubscribeEvent
     public static void onAddPackFinders(AddPackFindersEvent event) {
         PackType packType = event.getPackType();
         if (packType != PackType.CLIENT_RESOURCES && packType != PackType.SERVER_DATA) return;
@@ -147,6 +151,7 @@ public class RuntimePack {
         public IoSupplier<InputStream> getResource(PackType packType, Identifier id) {
             if (packType != this.packType) return null;
             if (packType == PackType.SERVER_DATA) {
+                if (VARIANT_WAXING_RECIPE.equals(id)) return () -> new ByteArrayInputStream(VARIANT_WAXING_RECIPE_DESCRIPTOR);
                 VariantForm form = SERVER_TAGS.get(id);
                 return form == null ? null : () -> new TagInputStream(entries().iterator(), form, id.getPath().startsWith(ITEM_TAG_DIRECTORY));
             }
@@ -162,6 +167,9 @@ public class RuntimePack {
             if (packType != this.packType) return;
             String prefix = startingPath.isEmpty() || startingPath.endsWith("/") ? startingPath : startingPath + "/";
             if (packType == PackType.SERVER_DATA) {
+                if (VARIANT_WAXING_RECIPE.getNamespace().equals(namespace) && VARIANT_WAXING_RECIPE.getPath().startsWith(prefix)) {
+                    output.accept(VARIANT_WAXING_RECIPE, () -> new ByteArrayInputStream(VARIANT_WAXING_RECIPE_DESCRIPTOR));
+                }
                 for (Map.Entry<Identifier, VariantForm> resource : SERVER_TAGS.entrySet()) {
                     if (resource.getKey().getNamespace().equals(namespace) && resource.getKey().getPath().startsWith(prefix)) {
                         output.accept(resource.getKey(), () -> new TagInputStream(

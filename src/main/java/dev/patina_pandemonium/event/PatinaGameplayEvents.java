@@ -4,6 +4,7 @@ import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.block.PatinaDelegatingBlock;
 import dev.patina_pandemonium.block.PatinaOxidizable;
 import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
+import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ItemVariantData;
 import dev.patina_pandemonium.registry.OxidationStage;
@@ -18,9 +19,13 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionResult;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.LightningBolt;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.DyeColor;
@@ -40,6 +45,11 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.common.ItemAbilities;
 import net.neoforged.neoforge.common.util.BlockSnapshot;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
+import net.neoforged.neoforge.event.entity.EntityStruckByLightningEvent;
+import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
+import net.neoforged.neoforge.event.entity.living.LivingDropsEvent;
+import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
+import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockDropsEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
@@ -143,6 +153,88 @@ public class PatinaGameplayEvents {
         ItemVariantData data = currentVariantUse();
         if (data != null && !(entity instanceof Player) && !(entity instanceof ItemEntity) && !(entity instanceof ExperienceOrb)) {
             entity.setData(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get(), data);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onMobPositionCheck(MobSpawnEvent.PositionCheck event) {
+        EntitySpawnReason reason = event.getSpawnType();
+        if (reason != EntitySpawnReason.NATURAL && reason != EntitySpawnReason.CHUNK_GENERATION) return;
+        Entity entity = event.getEntity();
+        if (!(entity.level() instanceof ServerLevel level) || entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get()) != null
+            || !level.isRainingAt(entity.blockPosition()) || level.getRandom().nextDouble() >= PatinaRules.INSTANCE.naturalVariantSpawnChance) return;
+        ItemVariantData base = ItemVariantData.defaultData();
+        entity.setData(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get(), new ItemVariantData(
+            base.sourceId(), randomNaturalStage(level), false, null, base.modelId()));
+    }
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onEntityStruckByLightning(EntityStruckByLightningEvent event) {
+        Entity entity = event.getEntity();
+        if (!(entity.level() instanceof ServerLevel)) return;
+        if (entity instanceof Player player) {
+            boolean inventoryChanged = false;
+            for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
+                ItemStack cleaned = DynamicVariantRegistry.cleanOxidationCopy(player.getInventory().getItem(slot));
+                if (cleaned.isEmpty()) continue;
+                player.getInventory().setItem(slot, cleaned);
+                inventoryChanged = true;
+            }
+            if (inventoryChanged) player.getInventory().setChanged();
+        }
+
+        ItemVariantData entityData = entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
+        if (entityData == null || entityData.waxed() || entityData.stage() == OxidationStage.FRESH) return;
+        entity.removeData(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
+        event.setCanceled(true);
+    }
+
+    @SubscribeEvent
+    public static void onLivingDamage(LivingDamageEvent.Post event) {
+        if (!(event.getEntity().level() instanceof ServerLevel) || event.getInflictedDamage() <= 0.0F
+            || !(event.getSource().getEntity() instanceof LivingEntity attacker)) return;
+        Entity directSource = event.getSource().getDirectEntity();
+        ItemStack weapon = attacker.getMainHandItem();
+        boolean directAttack = directSource == null || directSource == attacker;
+        ItemVariantData weaponData = directAttack && (weapon.has(DataComponents.WEAPON) || weapon.has(DataComponents.TOOL))
+            ? DynamicVariantRegistry.variantUseData(weapon) : null;
+        ItemVariantData data = strongestVariant(
+            attacker.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get()),
+            strongestVariant(
+                directSource == null ? null : directSource.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get()),
+                weaponData));
+        if (data == null || data.stage() == OxidationStage.FRESH) return;
+        int stage = data.stage().ordinal();
+        double chance = PatinaRules.INSTANCE.tetanusChances[stage]
+            * (data.waxed() ? PatinaRules.INSTANCE.waxTetanusMultiplier : 1.0D);
+        if (attacker.getRandom().nextDouble() >= chance) return;
+        event.getEntity().addEffect(new MobEffectInstance(
+            DynamicVariantRegistry.TETANUS, PatinaRules.INSTANCE.tetanusDurations[stage], Math.max(0, stage - 2)));
+    }
+
+    @SubscribeEvent
+    public static void onLivingUseItemFinished(LivingEntityUseItemEvent.Finish event) {
+        if (!(event.getEntity().level() instanceof ServerLevel)) return;
+        ItemStack consumed = event.getItem();
+        ItemVariantData data = DynamicVariantRegistry.variantUseData(consumed);
+        if (data == null || data.stage() == OxidationStage.FRESH || !consumed.has(DataComponents.FOOD)) return;
+        int stage = data.stage().ordinal();
+        double chance = PatinaRules.INSTANCE.foodPoisonChances[stage]
+            * (data.waxed() ? PatinaRules.INSTANCE.waxFoodRiskMultiplier : 1.0D);
+        if (event.getEntity().getRandom().nextDouble() >= chance) return;
+        event.getEntity().addEffect(new MobEffectInstance(
+            MobEffects.POISON, PatinaRules.INSTANCE.foodPoisonDurations[stage], Math.max(0, stage - 2)));
+    }
+
+    @SubscribeEvent
+    public static void onLivingDrops(LivingDropsEvent event) {
+        if (!(event.getEntity().level() instanceof ServerLevel)) return;
+        ItemVariantData data = event.getEntity().getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
+        if (data == null) return;
+        for (ItemEntity drop : event.getDrops()) {
+            ItemStack transformed = DynamicVariantRegistry.transform(
+                drop.getItem(), data.stage(), data.waxed(), data.dyeColor());
+            if (!transformed.isEmpty()) drop.setItem(transformed);
         }
     }
 
@@ -309,6 +401,27 @@ public class PatinaGameplayEvents {
         if (mainHand != null && matchesPlacementSource(placedBlock, mainHand)) return mainHand;
         if (offHand != null && matchesPlacementSource(placedBlock, offHand)) return offHand;
         return pending != null && DynamicVariantRegistry.delegatedCarrier(placedBlock) != null ? pending.data() : null;
+    }
+
+    private static OxidationStage randomNaturalStage(ServerLevel level) {
+        double[] weights = PatinaRules.INSTANCE.naturalVariantStageWeights;
+        double total = 0.0D;
+        for (int index = 1; index < weights.length; index++) total += weights[index];
+        double selected = level.getRandom().nextDouble() * total;
+        for (int index = 1; index < weights.length; index++) {
+            selected -= weights[index];
+            if (selected <= 0.0D) return OxidationStage.byOrdinal(index);
+        }
+        return OxidationStage.OXIDIZED;
+    }
+
+    @Nullable
+    private static ItemVariantData strongestVariant(@Nullable ItemVariantData first, @Nullable ItemVariantData second) {
+        if (first == null) return second;
+        if (second == null) return first;
+        int comparison = Integer.compare(first.stage().ordinal(), second.stage().ordinal());
+        if (comparison != 0) return comparison > 0 ? first : second;
+        return first.waxed() && !second.waxed() ? second : first;
     }
 
     private record VariantUseFrame(@Nullable ItemVariantData data) {}
