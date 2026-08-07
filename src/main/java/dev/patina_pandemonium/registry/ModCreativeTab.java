@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
+@SuppressWarnings({"BooleanMethodIsAlwaysInverted", "SameParameterValue"})
 public class ModCreativeTab {
 
     private static final boolean[] WAX_STATES = {false, true};
@@ -158,19 +159,15 @@ public class ModCreativeTab {
 
     private static void addCategoryVariants(CreativeModeTab.Output output, CreativeModeTab sourceTab, boolean includeVanillaItems, int[] counts) {
         Set<Identifier> fullSources = new HashSet<>();
-        Set<Item> blockSources = new HashSet<>();
+        Set<Identifier> specialSources = new HashSet<>();
+        Set<Item> itemSources = new HashSet<>();
         for (ItemStack source : sourceTab.getDisplayItems()) {
             Item item = source.getItem();
             Identifier itemId = BuiltInRegistries.ITEM.getKey(item);
-            if (itemId.getNamespace().equals(PatinaPandemonium.MOD_ID) || !canAddSource(counts)) continue;
-            if (!DynamicVariantRegistry.isExternal(itemId)) {
-                if (!includeVanillaItems || item instanceof BlockItem || !DynamicVariantRegistry.isStandaloneVariantItem(item)) continue;
-                if (!addStandaloneVariants(output, source.copyWithCount(1), counts)) break;
-                counts[1]++;
-                continue;
-            }
+            boolean external = DynamicVariantRegistry.isExternal(itemId);
+            if (itemId.getNamespace().equals(PatinaPandemonium.MOD_ID) || !canAddSource(counts)
+                || (!external && !includeVanillaItems) || (external && !PatinaRules.INSTANCE.generateExternalVariants)) continue;
 
-            if (!PatinaRules.INSTANCE.generateExternalVariants) continue;
             Identifier fullSource = DynamicVariantRegistry.fullSourceId(source);
             if (fullSource != null) {
                 if (!fullSources.add(fullSource)) continue;
@@ -179,8 +176,15 @@ public class ModCreativeTab {
                 continue;
             }
 
-            if (!DynamicVariantRegistry.isStandaloneVariantItem(item)) continue;
-            if (item instanceof BlockItem && !blockSources.add(item)) continue;
+            Identifier specialSource = DynamicVariantRegistry.specialSourceId(source);
+            if (specialSource != null) {
+                if (!specialSources.add(specialSource)) continue;
+                if (!addStandaloneVariants(output, source.copyWithCount(1), counts)) break;
+                counts[1]++;
+                continue;
+            }
+
+            if (!DynamicVariantRegistry.isStandaloneVariantItem(item) || !itemSources.add(item)) continue;
             if (!addStandaloneVariants(output, source.copyWithCount(1), counts)) break;
             counts[1]++;
         }

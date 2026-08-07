@@ -10,6 +10,7 @@ import dev.patina_pandemonium.registry.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
@@ -67,12 +68,27 @@ public class PatinaGameplayEvents {
     private static final ThreadLocal<ArrayDeque<VariantUseFrame>> VARIANT_USE_CONTEXT = new ThreadLocal<>();
 
     public static void beginVariantUse(ItemStack stack) {
+        pushVariantUse(DynamicVariantRegistry.variantUseData(stack));
+    }
+
+    public static void beginVariantUse(@Nullable VariantData data) {
+        if (data == null) {
+            pushVariantUse(null);
+            return;
+        }
+        Item sourceItem = BuiltInRegistries.BLOCK.getValue(data.sourceId()).asItem();
+        Identifier sourceId = sourceItem == Items.AIR ? data.sourceId() : BuiltInRegistries.ITEM.getKey(sourceItem);
+        pushVariantUse(new ItemVariantData(sourceId, data.stage(), data.waxed(), data.dyeColor(), sourceId));
+    }
+
+    private static void pushVariantUse(@Nullable ItemVariantData data) {
         ArrayDeque<VariantUseFrame> contexts = VARIANT_USE_CONTEXT.get();
         if (contexts == null) {
             contexts = new ArrayDeque<>();
             VARIANT_USE_CONTEXT.set(contexts);
         }
-        contexts.push(new VariantUseFrame(DynamicVariantRegistry.variantUseData(stack)));
+
+        contexts.push(new VariantUseFrame(data));
     }
 
     public static void endVariantUse() {
@@ -106,7 +122,10 @@ public class PatinaGameplayEvents {
         int levelEvent = -1;
         if (held.getItem() instanceof DyeItem dyeItem) {
             DyeColor dyeColor = dyeItem.components().get(DataComponents.DYE);
-            if (dyeColor != null && current.dyeColor() != dyeColor) target = Optional.of(current.withDye(dyeColor));
+            if (dyeColor != null && current.dyeColor() != dyeColor) {
+                target = Optional.of(current.withDye(dyeColor));
+            }
+
             sound = SoundEvents.DYE_USE;
         } else if (held.is(Items.HONEYCOMB)) {
             target = VariantRuntime.waxed(current);
@@ -146,7 +165,7 @@ public class PatinaGameplayEvents {
     public static void onBlockGrowFeature(BlockGrowFeatureEvent event) {
         if (!(event.getLevel() instanceof ServerLevel level)) return;
         SaplingGroup group = saplingGroup(level, event.getPos());
-        if (group == null || group.variants().stream().allMatch(data -> data == null)) return;
+        if (group == null || group.variants().stream().allMatch(Objects::isNull)) return;
         PatinaRules rules = PatinaRules.INSTANCE;
         BlockPos center = group.positions().getFirst();
         BlockPos min = center.offset(-rules.treeScanHorizontalRadius, -rules.treeScanBelow, -rules.treeScanHorizontalRadius);
@@ -154,8 +173,11 @@ public class PatinaGameplayEvents {
         Set<Long> existingWood = new HashSet<>();
         for (BlockPos candidate : BlockPos.betweenClosed(min, max)) {
             BlockState state = level.getBlockState(candidate);
-            if (state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES)) existingWood.add(candidate.asLong());
+            if (state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES)) {
+                existingWood.add(candidate.asLong());
+            }
         }
+
         long seed = event.getRandom().nextLong() ^ center.asLong() ^ Long.rotateLeft(level.getGameTime(), 17);
         PENDING_TREE_GROWTHS.computeIfAbsent(level, _ -> new ArrayList<>())
             .add(new PendingTreeGrowth(level.getGameTime() + 1L, min, max, existingWood, group.source(),
@@ -172,6 +194,7 @@ public class PatinaGameplayEvents {
                 .add(new PendingLightningStrike(level.getGameTime() + 1L, strikePos));
             return;
         }
+
         ItemVariantData data = currentVariantUse();
         if (data != null && !(entity instanceof Player) && !(entity instanceof ItemEntity) && !(entity instanceof ExperienceOrb)) {
             entity.setData(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get(), data);
@@ -202,6 +225,7 @@ public class PatinaGameplayEvents {
                 player.getInventory().setItem(slot, cleaned);
                 inventoryChanged = true;
             }
+
             if (inventoryChanged) player.getInventory().setChanged();
         }
 
@@ -445,7 +469,9 @@ public class PatinaGameplayEvents {
         double selected = random.nextDouble() * total;
         for (int index = first; index < weights.length; index++) {
             selected -= weights[index];
-            if (selected <= 0.0D) return OxidationStage.byOrdinal(index);
+            if (selected <= 0.0D) {
+                return OxidationStage.byOrdinal(index);
+            }
         }
 
         return OxidationStage.OXIDIZED;
@@ -465,11 +491,15 @@ public class PatinaGameplayEvents {
                 carrier.withPropertiesOf(state),
                 replacement.data().forBlock(BuiltInRegistries.BLOCK.getKey(source))));
         });
+
         int flags = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE | Block.UPDATE_SUPPRESS_DROPS;
         prepared.forEach((pos, replacement) -> {
             level.setBlock(pos, replacement.state(), flags);
-            if (level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity) blockEntity.setData(replacement.data());
+            if (level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity) {
+                blockEntity.setData(replacement.data());
+            }
         });
+
         prepared.forEach((pos, replacement) -> level.updateNeighborsAt(pos, replacement.state().getBlock()));
     }
 
@@ -571,6 +601,7 @@ public class PatinaGameplayEvents {
             selected -= weights[index];
             if (selected <= 0.0D) return OxidationStage.byOrdinal(index);
         }
+
         return OxidationStage.OXIDIZED;
     }
 

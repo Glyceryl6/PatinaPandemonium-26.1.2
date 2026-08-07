@@ -65,7 +65,7 @@ public class VillagerMixin {
         for (int index = 0; index < Math.min(restoredOffers.size(), currentOffers.size()); index++) {
             MerchantOffer restored = restoredOffers.get(index);
             MerchantOffer current = currentOffers.get(index);
-            MerchantOfferAccessor accessor = (MerchantOfferAccessor) (Object) restored;
+            MerchantOfferAccessor accessor = (MerchantOfferAccessor) restored;
             accessor.patina$setUses(current.getUses());
             accessor.patina$setDemand(current.getDemand());
         }

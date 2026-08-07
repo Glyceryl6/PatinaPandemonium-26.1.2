@@ -1,6 +1,7 @@
 package dev.patina_pandemonium.block;
 
 import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
+import dev.patina_pandemonium.event.PatinaGameplayEvents;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.VariantData;
 import dev.patina_pandemonium.registry.VariantForm;
@@ -23,7 +24,6 @@ import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.DoorBlock;
-import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
@@ -38,7 +38,7 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jspecify.annotations.Nullable;
 
-/** One registry carrier per non-full source block. Its state and common behavior are delegated to the source. */
+/** State-preserving carrier for delegated and stateful full source blocks. */
 public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
 
     private static final ThreadLocal<Block> CONSTRUCTION_SOURCE = new ThreadLocal<>();
@@ -82,11 +82,6 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
         if (source == null) return;
         Property<?>[] properties = source.getStateDefinition().getProperties().toArray(Property[]::new);
         builder.add(properties);
-    }
-
-    @Override
-    protected RenderShape getRenderShape(BlockState state) {
-        return RenderShape.MODEL;
     }
 
     @Override
@@ -194,7 +189,12 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
     @Override
     protected void randomTick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
         VariantData data = this.data(level, pos);
-        this.sourceState(state).randomTick(level, pos, random);
+        PatinaGameplayEvents.beginVariantUse(data);
+        try {
+            this.sourceState(state).randomTick(level, pos, random);
+        } finally {
+            PatinaGameplayEvents.endVariantUse();
+        }
         this.restore(level, pos, data);
         this.patinaRandomTick(level, pos, random);
     }
@@ -202,7 +202,12 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
     @Override
     protected void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
         VariantData data = this.data(level, pos);
-        this.sourceState(state).tick(level, pos, random);
+        PatinaGameplayEvents.beginVariantUse(data);
+        try {
+            this.sourceState(state).tick(level, pos, random);
+        } finally {
+            PatinaGameplayEvents.endVariantUse();
+        }
         this.restore(level, pos, data);
     }
 
@@ -210,7 +215,13 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
         if (this.source instanceof DoorBlock door) return this.useDoor(state, level, pos, player, door);
         VariantData data = this.data(level, pos);
-        InteractionResult result = this.sourceState(state).useWithoutItem(level, player, hit);
+        PatinaGameplayEvents.beginVariantUse(data);
+        InteractionResult result;
+        try {
+            result = this.sourceState(state).useWithoutItem(level, player, hit);
+        } finally {
+            PatinaGameplayEvents.endVariantUse();
+        }
         this.restoreAround(level, pos, data);
         return result;
     }
@@ -218,7 +229,13 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
     @Override
     protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
         VariantData data = this.data(level, pos);
-        InteractionResult result = this.sourceState(state).useItemOn(stack, level, player, hand, hit);
+        PatinaGameplayEvents.beginVariantUse(data);
+        InteractionResult result;
+        try {
+            result = this.sourceState(state).useItemOn(stack, level, player, hand, hit);
+        } finally {
+            PatinaGameplayEvents.endVariantUse();
+        }
         this.restoreAround(level, pos, data);
         return result;
     }
@@ -240,14 +257,26 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
 
     @Override
     protected void neighborChanged(BlockState state, Level level, BlockPos pos, Block block, @Nullable Orientation orientation, boolean movedByPiston) {
-        if (!(this.source instanceof DoorBlock door) || !state.hasProperty(BlockStateProperties.POWERED)
-            || !state.hasProperty(BlockStateProperties.OPEN) || !state.hasProperty(BlockStateProperties.DOUBLE_BLOCK_HALF)) return;
-        DoubleBlockHalf half = state.getValue(BlockStateProperties.DOUBLE_BLOCK_HALF);
-        boolean signal = level.hasNeighborSignal(pos)
-            || level.hasNeighborSignal(pos.relative(half == DoubleBlockHalf.LOWER ? Direction.UP : Direction.DOWN));
-        if (block == this || signal == state.getValue(BlockStateProperties.POWERED)) return;
-        if (signal != state.getValue(BlockStateProperties.OPEN)) this.playDoorSound(null, level, pos, door, signal);
-        this.setDoorState(level, pos, state, signal, signal);
+        if (this.source instanceof DoorBlock door && state.hasProperty(BlockStateProperties.POWERED)
+            && state.hasProperty(BlockStateProperties.OPEN) && state.hasProperty(BlockStateProperties.DOUBLE_BLOCK_HALF)) {
+            DoubleBlockHalf half = state.getValue(BlockStateProperties.DOUBLE_BLOCK_HALF);
+            boolean signal = level.hasNeighborSignal(pos)
+                || level.hasNeighborSignal(pos.relative(half == DoubleBlockHalf.LOWER ? Direction.UP : Direction.DOWN));
+            if (block == this || signal == state.getValue(BlockStateProperties.POWERED)) return;
+            if (signal != state.getValue(BlockStateProperties.OPEN)) this.playDoorSound(null, level, pos, door, signal);
+            this.setDoorState(level, pos, state, signal, signal);
+            return;
+        }
+
+        VariantData data = this.data(level, pos);
+        PatinaGameplayEvents.beginVariantUse(data);
+        try {
+            this.sourceState(state).handleNeighborChanged(level, pos, block == this ? this.source : block, orientation, movedByPiston);
+        } finally {
+            PatinaGameplayEvents.endVariantUse();
+        }
+
+        this.restoreAround(level, pos, data);
     }
 
     private InteractionResult useDoor(BlockState state, Level level, BlockPos pos, Player player, DoorBlock door) {
@@ -267,8 +296,7 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
         BlockState otherState = level.getBlockState(otherPos);
         if (!otherState.is(this) || !otherState.hasProperty(BlockStateProperties.DOUBLE_BLOCK_HALF)
             || otherState.getValue(BlockStateProperties.DOUBLE_BLOCK_HALF) == half) return;
-        level.setBlock(otherPos,
-            otherState.setValue(BlockStateProperties.OPEN, open).setValue(BlockStateProperties.POWERED, powered), flags);
+        level.setBlock(otherPos, otherState.setValue(BlockStateProperties.OPEN, open).setValue(BlockStateProperties.POWERED, powered), flags);
     }
 
     private void playDoorSound(@Nullable Entity sourceEntity, Level level, BlockPos pos, DoorBlock door, boolean open) {

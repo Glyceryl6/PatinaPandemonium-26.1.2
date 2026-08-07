@@ -18,7 +18,7 @@ public class TntRendererMixin {
     @Inject(method = "extractRenderState*", at = @At("TAIL"))
     private void patina$applyVariantTint(PrimedTnt entity, TntRenderState state, float partialTicks, CallbackInfo callback) {
         AttachmentType<ItemVariantData> type = DynamicVariantRegistry.ENTITY_VARIANT_DATA.get();
-        if (entity.hasData(type)) PatinaClient.applyBlockModelTint(state, entity.getData(type).tint());
+        if (entity.hasData(type)) PatinaClient.applyBlockModelTint(state.blockState, entity.getData(type).tint());
     }
 
 }

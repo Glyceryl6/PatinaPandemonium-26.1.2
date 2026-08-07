@@ -3,15 +3,21 @@ package dev.patina_pandemonium.client;
 import com.google.common.reflect.TypeToken;
 import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.block.PatinaOxidizable;
+import dev.patina_pandemonium.mixin.BlockModelRenderStateAccessor;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ItemVariantData;
 import dev.patina_pandemonium.registry.VariantForm;
 import net.minecraft.client.renderer.block.BlockModelRenderState;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
+import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.client.renderer.item.ItemModel;
 import net.minecraft.client.resources.model.ModelBakery;
+import net.minecraft.client.resources.model.SimpleModelWrapper;
+import net.minecraft.client.resources.model.geometry.BakedQuad;
+import net.minecraft.client.resources.model.geometry.QuadCollection;
+import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.context.ContextKey;
@@ -27,11 +33,12 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.client.event.ModelEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
+import net.neoforged.neoforge.client.model.quad.MutableQuad;
 import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEvent;
 
-import java.lang.reflect.Field;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Replaces carrier descriptors with shared model wrappers and exposes synchronized entity tint data to vanilla renderers. */
@@ -68,38 +75,26 @@ public class PatinaClient {
         return tint == null ? -1 : tint;
     }
 
-    public static void applyBlockModelTint(Object renderState, int tint) {
+    public static void applyBlockModelTint(BlockModelRenderState renderState, int tint) {
         if (tint == -1) return;
-        try {
-            Object blockModelState = null;
-            for (Field field : renderState.getClass().getFields()) {
-                Object value = field.get(renderState);
-                if (value != null && value.getClass().equals(BlockModelRenderState.class)) {
-                    blockModelState = value;
-                    break;
-                }
-            }
+        List<BlockStateModelPart> parts = ((BlockModelRenderStateAccessor) renderState).patina$getModelParts();
+        if (parts == null) return;
+        parts.replaceAll(part -> tintedPart(part, tint));
+    }
 
-            if (blockModelState == null) {
-                for (Field field : renderState.getClass().getDeclaredFields()) {
-                    field.setAccessible(true);
-                    Object value = field.get(renderState);
-                    if (value != null && value.getClass().equals(BlockModelRenderState.class)) {
-                        blockModelState = value;
-                        break;
-                    }
-                }
-            }
+    private static BlockStateModelPart tintedPart(BlockStateModelPart part, int tint) {
+        QuadCollection.Builder builder = new QuadCollection.Builder();
+        for (Direction direction : Direction.values()) {
+            for (BakedQuad quad : part.getQuads(direction)) builder.addCulledFace(direction, tintedQuad(quad, tint));
+        }
+        for (BakedQuad quad : part.getQuads(null)) builder.addUnculledFace(tintedQuad(quad, tint));
+        return new SimpleModelWrapper(builder.build(), part.ambientOcclusion().isTrue(), part.particleMaterial());
+    }
 
-            if (blockModelState == null) return;
-            for (Field field : blockModelState.getClass().getDeclaredFields()) {
-                if (field.getType() != int[].class) continue;
-                field.setAccessible(true);
-                int[] colors = (int[]) field.get(blockModelState);
-                if (colors == null) continue;
-                for (int index = 0; index < colors.length; index++) colors[index] = multiply(colors[index], tint);
-            }
-        } catch (ReflectiveOperationException ignored) {}
+    private static BakedQuad tintedQuad(BakedQuad quad, int tint) {
+        MutableQuad mutable = new MutableQuad().setFrom(quad);
+        for (int vertex = 0; vertex < 4; vertex++) mutable.setColor(vertex, multiply(mutable.color(vertex), tint));
+        return mutable.toBakedQuad();
     }
 
     private static int multiply(int color, int tint) {

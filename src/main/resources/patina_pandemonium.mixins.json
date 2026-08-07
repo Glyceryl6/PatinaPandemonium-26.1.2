@@ -10,7 +10,8 @@
     "ItemStackNameMixin",
     "LootTableMixin",
     "MerchantOfferAccessor",
-    "VillagerMixin"
+    "VillagerMixin",
+    "ServerLevelMixin"
   ],
   "injectors": {
     "defaultRequire": 1
@@ -21,7 +22,10 @@
   "client": [
     "AbstractBoatRendererMixin",
     "AbstractMinecartRendererMixin",
+    "BlockModelRenderStateAccessor",
+    "FallingBlockRendererMixin",
     "LivingEntityRendererMixin",
-    "TntRendererMixin"
+    "TntRendererMixin",
+    "TntMinecartRendererMixin"
   ]
 }

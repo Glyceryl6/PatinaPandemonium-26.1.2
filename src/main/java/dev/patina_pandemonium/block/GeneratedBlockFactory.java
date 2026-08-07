@@ -1,5 +1,6 @@
 package dev.patina_pandemonium.block;
 
+import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.registry.VariantForm;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
@@ -7,6 +8,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.material.PushReaction;
@@ -43,20 +45,17 @@ public class GeneratedBlockFactory {
         return create(form, Blocks.STONE, properties, nonOccluding);
     }
 
+    @SuppressWarnings("deprecation")
     public static Block create(Identifier id, VariantForm form, Block source) {
         BlockBehaviour.Properties properties = BlockBehaviour.Properties.ofFullCopy(source)
-                .mapColor(source.defaultMapColor())
-                .lightLevel(_ -> source.defaultBlockState().getLightEmission())
+                .mapColor(source.defaultMapColor()).lightLevel(_ -> source.defaultBlockState().getLightEmission())
                 .isValidSpawn((state, level, pos, _) -> state.isFaceSturdy(level, pos, Direction.UP) && state.getLightEmission(level, pos) < 14)
                 .isRedstoneConductor(BlockBehaviour.BlockStateBase::isCollisionShapeFullBlock)
                 .isSuffocating((state, level, pos) -> state.blocksMotion() && state.isCollisionShapeFullBlock(level, pos))
                 .isViewBlocking((state, level, pos) -> state.blocksMotion() && state.isCollisionShapeFullBlock(level, pos))
-                .postProcess((_, _, _) -> null)
-                .emissiveRendering((_, _, _) -> false)
-                .offsetType(BlockBehaviour.OffsetType.NONE)
-                .noLootTable()
-                .setId(ResourceKey.create(Registries.BLOCK, id))
-                .randomTicks();
+                .postProcess((_, _, _) -> null).emissiveRendering((_, _, _) -> false)
+                .offsetType(BlockBehaviour.OffsetType.NONE).noLootTable()
+                .setId(ResourceKey.create(Registries.BLOCK, id)).randomTicks();
         return create(form, source, properties, !source.defaultBlockState().canOcclude());
     }
 
@@ -69,7 +68,13 @@ public class GeneratedBlockFactory {
     private static Block create(VariantForm form, Block source, BlockBehaviour.Properties properties, boolean nonOccluding) {
         if (NO_COLLISION_FORMS.contains(form)) properties.noCollision();
         if (nonOccluding || NO_OCCLUSION_FORMS.contains(form)) properties.noOcclusion();
-        if (form == VariantForm.FULL) return PatinaBlock.create(source, properties);
+        if (form == VariantForm.FULL) {
+            int stateCount = source.getStateDefinition().getPossibleStates().size();
+            if (!(source instanceof EntityBlock) && stateCount > 1 && stateCount <= PatinaRules.INSTANCE.maximumDelegatedBlockStates) {
+                return PatinaDelegatingBlock.create(source, properties);
+            }
+            return PatinaBlock.create(source, properties);
+        }
         return form == VariantForm.STAIRS
                 ? new PatinaStairBlock(source.defaultBlockState(), properties)
                 : CREATORS.get(form).create(properties);
