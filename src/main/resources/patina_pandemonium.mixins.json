@@ -7,7 +7,10 @@
     "CraftingMenuMixin",
     "DispenserBlockMixin",
     "ItemStackUseMixin",
-    "ItemStackNameMixin"
+    "ItemStackNameMixin",
+    "LootTableMixin",
+    "MerchantOfferAccessor",
+    "VillagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

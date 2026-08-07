@@ -1,6 +1,7 @@
 package dev.patina_pandemonium.event;
 
 import dev.patina_pandemonium.PatinaPandemonium;
+import dev.patina_pandemonium.block.PatinaBlock;
 import dev.patina_pandemonium.block.PatinaDelegatingBlock;
 import dev.patina_pandemonium.block.PatinaOxidizable;
 import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
@@ -12,12 +13,16 @@ import dev.patina_pandemonium.registry.VariantData;
 import dev.patina_pandemonium.registry.VariantForm;
 import dev.patina_pandemonium.registry.VariantRuntime;
 import net.minecraft.core.BlockPos;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.Container;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -39,6 +44,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.SlabType;
+import net.minecraft.world.level.storage.loot.LootParams;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -50,14 +56,19 @@ import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDropsEvent;
 import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
 import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
+import net.neoforged.neoforge.event.entity.player.BonemealEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockDropsEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
+import net.neoforged.neoforge.event.level.BlockGrowFeatureEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
+import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -74,6 +85,8 @@ public class PatinaGameplayEvents {
     private static final Map<Player, PendingVariantUse> PENDING_USES = new WeakHashMap<>();
     private static final Map<ServerLevel, LinkedHashMap<BlockPos, PendingBlockReplacement>> PENDING_REPLACEMENTS = new WeakHashMap<>();
     private static final Map<ServerLevel, List<PendingLightningStrike>> PENDING_LIGHTNING_STRIKES = new WeakHashMap<>();
+    private static final Map<ServerLevel, List<PendingTreeGrowth>> PENDING_TREE_GROWTHS = new WeakHashMap<>();
+    private static final Map<Player, Integer> INVENTORY_OXIDATION_CURSORS = new WeakHashMap<>();
     private static final ThreadLocal<ArrayDeque<VariantUseFrame>> VARIANT_USE_CONTEXT = new ThreadLocal<>();
 
     public static void beginVariantUse(ItemStack stack) {
@@ -138,6 +151,38 @@ public class PatinaGameplayEvents {
         if ((held.is(Items.HONEYCOMB) || held.getItem() instanceof DyeItem) && !player.getAbilities().instabuild) held.shrink(1);
         event.setCancellationResult(InteractionResult.SUCCESS);
         event.setCanceled(true);
+    }
+
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
+    public static void onBonemeal(BonemealEvent event) {
+        if (!(event.getLevel() instanceof ServerLevel level) || !event.isValidBonemealTarget()) return;
+        ItemVariantData data = DynamicVariantRegistry.variantUseData(event.getStack());
+        if (data == null || data.stage() == OxidationStage.FRESH
+            || BuiltInRegistries.ITEM.getValue(data.sourceId()) != Items.BONE_MEAL) return;
+        if (level.getRandom().nextDouble() < PatinaRules.INSTANCE.bonemealSuccessChances[data.stage().ordinal()]) return;
+        Player player = event.getPlayer();
+        if (player == null || !player.getAbilities().instabuild) event.getStack().shrink(1);
+        event.setSuccessful(true);
+    }
+
+    @SubscribeEvent
+    public static void onBlockGrowFeature(BlockGrowFeatureEvent event) {
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
+        SaplingGroup group = saplingGroup(level, event.getPos());
+        if (group == null || group.variants().stream().allMatch(data -> data == null)) return;
+        PatinaRules rules = PatinaRules.INSTANCE;
+        BlockPos center = group.positions().getFirst();
+        BlockPos min = center.offset(-rules.treeScanHorizontalRadius, -rules.treeScanBelow, -rules.treeScanHorizontalRadius);
+        BlockPos max = center.offset(rules.treeScanHorizontalRadius, rules.treeScanHeight, rules.treeScanHorizontalRadius);
+        Set<Long> existingWood = new HashSet<>();
+        for (BlockPos candidate : BlockPos.betweenClosed(min, max)) {
+            BlockState state = level.getBlockState(candidate);
+            if (state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES)) existingWood.add(candidate.asLong());
+        }
+        long seed = event.getRandom().nextLong() ^ center.asLong() ^ Long.rotateLeft(level.getGameTime(), 17);
+        PENDING_TREE_GROWTHS.computeIfAbsent(level, _ -> new ArrayList<>())
+            .add(new PendingTreeGrowth(level.getGameTime() + 1L, min, max, existingWood, group.source(),
+                group.positions(), group.variants(), seed));
     }
 
     @SubscribeEvent
@@ -258,10 +303,33 @@ public class PatinaGameplayEvents {
     }
 
     @SubscribeEvent
+    public static void onPlayerTick(PlayerTickEvent.Post event) {
+        Player player = event.getEntity();
+        PatinaRules rules = PatinaRules.INSTANCE;
+        if (!(player instanceof ServerPlayer serverPlayer) || !(player.level() instanceof ServerLevel level)
+            || player.tickCount % rules.inventoryOxidationInterval != 0
+            || (!rules.inventoryOxidationAffectsCreative && player.getAbilities().instabuild)) return;
+        BlockPos exposurePos = player.blockPosition().above();
+        if ((rules.inventoryOxidationRequiresSky && !level.canSeeSky(exposurePos))
+            || (rules.inventoryOxidationRequiresRain && !level.isRainingAt(exposurePos))) return;
+        int size = player.getInventory().getContainerSize();
+        if (size <= 0) return;
+        int cursor = Math.floorMod(INVENTORY_OXIDATION_CURSORS.getOrDefault(player, 0), size);
+        INVENTORY_OXIDATION_CURSORS.put(player, (cursor + 1) % size);
+        if (level.getRandom().nextDouble() >= rules.inventoryOxidationAttemptChance) return;
+        ItemStack oxidized = DynamicVariantRegistry.oxidizedCopy(player.getInventory().getItem(cursor));
+        if (oxidized.isEmpty()) return;
+        player.getInventory().setItem(cursor, oxidized);
+        player.getInventory().setChanged();
+        serverPlayer.containerMenu.broadcastChanges();
+    }
+
+    @SubscribeEvent
     public static void onLevelTick(LevelTickEvent.Post event) {
         if (!(event.getLevel() instanceof ServerLevel level)) return;
         processFireReplacements(level);
         processLightningStrikes(level);
+        processTreeGrowths(level);
     }
 
     @SubscribeEvent
@@ -269,6 +337,22 @@ public class PatinaGameplayEvents {
         if (!(event.getState().getBlock() instanceof PatinaOxidizable)
             || !(event.getBlockEntity() instanceof PatinaVariantBlockEntity blockEntity)) return;
         VariantData data = blockEntity.data();
+        Block source = sourceBlock(event.getState().getBlock());
+        if (source.defaultBlockState().is(BlockTags.LEAVES)) {
+            BlockState sourceState = event.getState().getBlock() instanceof PatinaDelegatingBlock delegated
+                ? delegated.sourceState(event.getState()) : source.defaultBlockState();
+            List<ItemStack> sourceDrops = Block.getDrops(
+                sourceState, event.getLevel(), event.getPos(), null, event.getBreaker(), event.getTool());
+            event.getDrops().clear();
+            for (ItemStack stack : sourceDrops) {
+                ItemStack transformed = DynamicVariantRegistry.transform(stack, data.stage(), data.waxed(), data.dyeColor());
+                if (transformed.isEmpty()) transformed = stack;
+                event.getDrops().add(new ItemEntity(event.getLevel(), event.getPos().getX() + 0.5D,
+                    event.getPos().getY() + 0.5D, event.getPos().getZ() + 0.5D, transformed));
+            }
+            return;
+        }
+
         if (event.getState().getBlock() instanceof PatinaDelegatingBlock delegated) {
             for (ItemEntity drop : event.getDrops()) {
                 ItemStack stack = drop.getItem();
@@ -290,6 +374,104 @@ public class PatinaGameplayEvents {
         event.getDrops().add(new ItemEntity(
             event.getLevel(), pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D,
             DynamicVariantRegistry.stack(data, count)));
+    }
+
+    public static void transformGeneratedContainerLoot(Container container, LootParams params, long seed) {
+        PatinaRules rules = PatinaRules.INSTANCE;
+        RandomSource random = seed == 0L ? params.getLevel().getRandom() : RandomSource.create(seed ^ 0x6A09E667F3BCC909L);
+        boolean changed = false;
+        for (int slot = 0; slot < container.getContainerSize(); slot++) {
+            ItemStack stack = container.getItem(slot);
+            if (stack.isEmpty() || random.nextDouble() >= rules.containerLootVariantChance) continue;
+            OxidationStage stage = randomStage(random, rules.containerLootStageWeights, false);
+            boolean waxed = stage == OxidationStage.FRESH || random.nextDouble() < rules.containerLootWaxChance;
+            ItemStack transformed = DynamicVariantRegistry.transform(stack, stage, waxed, null);
+            if (transformed.isEmpty()) continue;
+            container.setItem(slot, transformed);
+            changed = true;
+        }
+
+        if (changed) container.setChanged();
+    }
+
+    private static void processTreeGrowths(ServerLevel level) {
+        List<PendingTreeGrowth> pending = PENDING_TREE_GROWTHS.get(level);
+        if (pending == null) return;
+        Iterator<PendingTreeGrowth> iterator = pending.iterator();
+        while (iterator.hasNext()) {
+            PendingTreeGrowth growth = iterator.next();
+            if (growth.dueGameTime() > level.getGameTime()) continue;
+            List<@Nullable VariantData> variants = new ArrayList<>();
+            for (int index = 0; index < growth.saplingPositions().size(); index++) {
+                BlockPos saplingPos = growth.saplingPositions().get(index);
+                if (sourceBlock(level.getBlockState(saplingPos).getBlock()) != growth.saplingSource()) {
+                    variants.add(growth.variants().get(index));
+                }
+            }
+
+            if (variants.isEmpty()) {
+                iterator.remove();
+                continue;
+            }
+
+            RandomSource random = RandomSource.create(growth.seed());
+            for (BlockPos candidate : BlockPos.betweenClosed(growth.min(), growth.max())) {
+                if (growth.existingWood().contains(candidate.asLong())) continue;
+                BlockState state = level.getBlockState(candidate);
+                boolean log = state.is(BlockTags.LOGS);
+                if (!log && !state.is(BlockTags.LEAVES)) continue;
+                double coverage = log ? PatinaRules.INSTANCE.treeLogVariantCoverage : PatinaRules.INSTANCE.treeLeafVariantCoverage;
+                if (random.nextDouble() >= coverage) continue;
+                VariantData selected = variants.get(random.nextInt(variants.size()));
+                if (selected != null) DynamicVariantRegistry.replaceSourceBlock(level, candidate, state, selected);
+            }
+
+            iterator.remove();
+        }
+
+        if (pending.isEmpty()) PENDING_TREE_GROWTHS.remove(level);
+    }
+
+    @Nullable
+    private static SaplingGroup saplingGroup(ServerLevel level, BlockPos pos) {
+        Block source = sourceBlock(level.getBlockState(pos).getBlock());
+        if (!source.defaultBlockState().is(BlockTags.SAPLINGS)) return null;
+        for (int xOffset = -1; xOffset <= 0; xOffset++) {
+            for (int zOffset = -1; zOffset <= 0; zOffset++) {
+                BlockPos origin = pos.offset(xOffset, 0, zOffset);
+                List<BlockPos> positions = List.of(origin, origin.east(), origin.south(), origin.east().south());
+                if (positions.stream().allMatch(candidate -> sourceBlock(level.getBlockState(candidate).getBlock()) == source)) {
+                    return new SaplingGroup(source, positions, positions.stream().map(candidate -> variantData(level, candidate)).toList());
+                }
+            }
+        }
+
+        return new SaplingGroup(source, List.of(pos.immutable()), Collections.singletonList(variantData(level, pos)));
+    }
+
+    @Nullable
+    private static VariantData variantData(ServerLevel level, BlockPos pos) {
+        return level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity ? blockEntity.data() : null;
+    }
+
+    private static Block sourceBlock(Block block) {
+        if (block instanceof PatinaDelegatingBlock delegated) return delegated.source();
+        if (block instanceof PatinaBlock patina) return patina.source();
+        return block;
+    }
+
+    private static OxidationStage randomStage(RandomSource random, double[] weights, boolean excludeFresh) {
+        int first = excludeFresh ? 1 : 0;
+        double total = 0.0D;
+        for (int index = first; index < weights.length; index++) total += weights[index];
+        if (total <= 0.0D) return excludeFresh ? OxidationStage.EXPOSED : OxidationStage.FRESH;
+        double selected = random.nextDouble() * total;
+        for (int index = first; index < weights.length; index++) {
+            selected -= weights[index];
+            if (selected <= 0.0D) return OxidationStage.byOrdinal(index);
+        }
+
+        return OxidationStage.OXIDIZED;
     }
 
     private static void processFireReplacements(ServerLevel level) {
@@ -433,5 +615,11 @@ public class PatinaGameplayEvents {
     private record PreparedBlockReplacement(BlockState state, VariantData data) {}
 
     private record PendingLightningStrike(long dueGameTime, BlockPos pos) {}
+
+    private record SaplingGroup(Block source, List<BlockPos> positions, List<@Nullable VariantData> variants) {}
+
+    private record PendingTreeGrowth(long dueGameTime, BlockPos min, BlockPos max, Set<Long> existingWood,
+                                     Block saplingSource, List<BlockPos> saplingPositions,
+                                     List<@Nullable VariantData> variants, long seed) {}
 
 }

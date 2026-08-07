@@ -23,7 +23,7 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 11;
+    public int schemaVersion = 12;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
     public Set<String> excludedItems = new HashSet<>();
@@ -42,6 +42,26 @@ public class PatinaRules {
     public int[] foodPoisonDurations = {0, 110, 160, 210};
     public double[] durabilityMultipliers = {1.0D, 0.80D, 0.62D, 0.45D};
     public double[] waxedDurabilityMultipliers = {1.0D, 0.88D, 0.70D, 0.52D};
+    public double[] bonemealSuccessChances = {1.0D, 0.82D, 0.58D, 0.34D};
+    public double treeLogVariantCoverage = 0.90D;
+    public double treeLeafVariantCoverage = 0.82D;
+    public int treeScanHorizontalRadius = 14;
+    public int treeScanBelow = 3;
+    public int treeScanHeight = 40;
+    public double villagerVariantTradeChance = 0.30D;
+    public double villagerReputationChanceReduction = 0.008D;
+    public double villagerMinimumChanceMultiplier = 0.15D;
+    public double villagerVariantDiscount = 0.20D;
+    public double villagerWaxChance = 0.30D;
+    public double[] villagerVariantStageWeights = {0.10D, 0.45D, 0.30D, 0.15D};
+    public double containerLootVariantChance = 0.12D;
+    public double containerLootWaxChance = 0.22D;
+    public double[] containerLootStageWeights = {0.08D, 0.47D, 0.30D, 0.15D};
+    public int inventoryOxidationInterval = 32;
+    public double inventoryOxidationAttemptChance = 0.05688889D;
+    public boolean inventoryOxidationRequiresSky = true;
+    public boolean inventoryOxidationRequiresRain = false;
+    public boolean inventoryOxidationAffectsCreative = false;
     public int maximumCachedModelParts = 2_048;
     public int maximumCachedItemQuads = 4_096;
     public JsonObject textureOverrides = new JsonObject();
@@ -76,7 +96,7 @@ public class PatinaRules {
                 }
             }
 
-            rules.schemaVersion = 11;
+            rules.schemaVersion = 12;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
             if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
             if (rules.excludedItems == null) rules.excludedItems = new HashSet<>();
@@ -87,10 +107,24 @@ public class PatinaRules {
             rules.maximumDelegatedBlockStates = Math.max(1, rules.maximumDelegatedBlockStates);
             rules.maximumCachedModelParts = Math.max(0, rules.maximumCachedModelParts);
             rules.maximumCachedItemQuads = Math.max(0, rules.maximumCachedItemQuads);
-            rules.oxidationAttemptChance = Math.clamp(rules.oxidationAttemptChance, 0.0D, 1.0D);
-            rules.naturalVariantSpawnChance = Math.clamp(rules.naturalVariantSpawnChance, 0.0D, 1.0D);
-            rules.waxTetanusMultiplier = Math.clamp(rules.waxTetanusMultiplier, 0.0D, 1.0D);
-            rules.waxFoodRiskMultiplier = Math.clamp(rules.waxFoodRiskMultiplier, 0.0D, 1.0D);
+            rules.treeScanHorizontalRadius = Math.clamp(rules.treeScanHorizontalRadius, 4, 32);
+            rules.treeScanBelow = Math.clamp(rules.treeScanBelow, 0, 8);
+            rules.treeScanHeight = Math.clamp(rules.treeScanHeight, 8, 96);
+            rules.inventoryOxidationInterval = Math.max(1, rules.inventoryOxidationInterval);
+            rules.oxidationAttemptChance = chance(rules.oxidationAttemptChance);
+            rules.naturalVariantSpawnChance = chance(rules.naturalVariantSpawnChance);
+            rules.waxTetanusMultiplier = chance(rules.waxTetanusMultiplier);
+            rules.waxFoodRiskMultiplier = chance(rules.waxFoodRiskMultiplier);
+            rules.treeLogVariantCoverage = chance(rules.treeLogVariantCoverage);
+            rules.treeLeafVariantCoverage = chance(rules.treeLeafVariantCoverage);
+            rules.villagerVariantTradeChance = chance(rules.villagerVariantTradeChance);
+            rules.villagerReputationChanceReduction = Math.max(0.0D, rules.villagerReputationChanceReduction);
+            rules.villagerMinimumChanceMultiplier = chance(rules.villagerMinimumChanceMultiplier);
+            rules.villagerVariantDiscount = chance(rules.villagerVariantDiscount);
+            rules.villagerWaxChance = chance(rules.villagerWaxChance);
+            rules.containerLootVariantChance = chance(rules.containerLootVariantChance);
+            rules.containerLootWaxChance = chance(rules.containerLootWaxChance);
+            rules.inventoryOxidationAttemptChance = chance(rules.inventoryOxidationAttemptChance);
             rules.naturalVariantStageWeights = normalized(rules.naturalVariantStageWeights, new double[]{0.0D, 0.50D, 0.32D, 0.18D});
             rules.tetanusChances = normalized(rules.tetanusChances, new double[]{0.0D, 0.22D, 0.34D, 0.46D});
             rules.tetanusDurations = normalized(rules.tetanusDurations, new int[]{0, 140, 200, 260});
@@ -98,19 +132,27 @@ public class PatinaRules {
             rules.foodPoisonDurations = normalized(rules.foodPoisonDurations, new int[]{0, 110, 160, 210});
             rules.durabilityMultipliers = normalized(rules.durabilityMultipliers, new double[]{1.0D, 0.80D, 0.62D, 0.45D});
             rules.waxedDurabilityMultipliers = normalized(rules.waxedDurabilityMultipliers, new double[]{1.0D, 0.88D, 0.70D, 0.52D});
-            double stageWeight = 0.0D;
+            rules.bonemealSuccessChances = normalized(rules.bonemealSuccessChances, new double[]{1.0D, 0.82D, 0.58D, 0.34D});
+            rules.villagerVariantStageWeights = normalized(rules.villagerVariantStageWeights, new double[]{0.10D, 0.45D, 0.30D, 0.15D});
+            rules.containerLootStageWeights = normalized(rules.containerLootStageWeights, new double[]{0.08D, 0.47D, 0.30D, 0.15D});
+            double naturalStageWeight = 0.0D;
             for (int index = 0; index < OxidationStage.values().length; index++) {
                 rules.naturalVariantStageWeights[index] = Math.max(0.0D, rules.naturalVariantStageWeights[index]);
-                stageWeight += index == 0 ? 0.0D : rules.naturalVariantStageWeights[index];
-                rules.tetanusChances[index] = Math.clamp(rules.tetanusChances[index], 0.0D, 1.0D);
+                naturalStageWeight += index == 0 ? 0.0D : rules.naturalVariantStageWeights[index];
+                rules.tetanusChances[index] = chance(rules.tetanusChances[index]);
                 rules.tetanusDurations[index] = Math.max(0, rules.tetanusDurations[index]);
-                rules.foodPoisonChances[index] = Math.clamp(rules.foodPoisonChances[index], 0.0D, 1.0D);
+                rules.foodPoisonChances[index] = chance(rules.foodPoisonChances[index]);
                 rules.foodPoisonDurations[index] = Math.max(0, rules.foodPoisonDurations[index]);
                 rules.durabilityMultipliers[index] = Math.clamp(rules.durabilityMultipliers[index], 0.01D, 1.0D);
                 rules.waxedDurabilityMultipliers[index] = Math.clamp(rules.waxedDurabilityMultipliers[index], 0.01D, 1.0D);
+                rules.bonemealSuccessChances[index] = chance(rules.bonemealSuccessChances[index]);
+                rules.villagerVariantStageWeights[index] = Math.max(0.0D, rules.villagerVariantStageWeights[index]);
+                rules.containerLootStageWeights[index] = Math.max(0.0D, rules.containerLootStageWeights[index]);
             }
             rules.naturalVariantStageWeights[0] = 0.0D;
-            if (stageWeight <= 0.0D) rules.naturalVariantStageWeights = new double[]{0.0D, 0.50D, 0.32D, 0.18D};
+            if (naturalStageWeight <= 0.0D) rules.naturalVariantStageWeights = new double[]{0.0D, 0.50D, 0.32D, 0.18D};
+            if (sum(rules.villagerVariantStageWeights) <= 0.0D) rules.villagerVariantStageWeights = new double[]{0.10D, 0.45D, 0.30D, 0.15D};
+            if (sum(rules.containerLootStageWeights) <= 0.0D) rules.containerLootStageWeights = new double[]{0.08D, 0.47D, 0.30D, 0.15D};
             normalizeDurabilityOrder(rules);
             Files.writeString(FILE, GSON.toJson(rules));
             return rules;
@@ -118,6 +160,16 @@ public class PatinaRules {
             LOGGER.warn("Could not load {}, using defaults", FILE, error);
             return new PatinaRules();
         }
+    }
+
+    private static double chance(double value) {
+        return Math.clamp(value, 0.0D, 1.0D);
+    }
+
+    private static double sum(double[] values) {
+        double result = 0.0D;
+        for (double value : values) result += value;
+        return result;
     }
 
     private static double[] normalized(double[] values, double[] defaults) {

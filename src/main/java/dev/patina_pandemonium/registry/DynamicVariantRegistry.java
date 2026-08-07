@@ -6,6 +6,7 @@ import com.mojang.logging.LogUtils;
 import com.mojang.serialization.Codec;
 import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.block.GeneratedBlockFactory;
+import dev.patina_pandemonium.block.PatinaDelegatingBlock;
 import dev.patina_pandemonium.block.PatinaOxidizable;
 import dev.patina_pandemonium.block.VariantFabricatorBlock;
 import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
@@ -24,6 +25,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.flag.FeatureFlags;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.inventory.MenuType;
@@ -162,6 +164,7 @@ public class DynamicVariantRegistry {
     private static final Map<VariantForm, Supplier<? extends Item>> CARRIER_ITEMS = carrierItems();
     private static final Map<VariantForm, Supplier<? extends Item>> TRANSLUCENT_CARRIER_ITEMS = translucentCarrierItems();
     private static final Map<Identifier, EnumMap<VariantForm, Item>> SOURCE_ITEMS = new LinkedHashMap<>();
+    private static final Map<Identifier, EnumMap<VariantForm, Block>> SOURCE_BLOCKS = new LinkedHashMap<>();
     private static final Map<Identifier, EnumMap<VariantForm, Block>> EXISTING_FORMS = new LinkedHashMap<>();
     private static final IdentityHashMap<Item, ExistingFormBinding> EXISTING_FORM_OUTPUTS = new IdentityHashMap<>();
     private static final Map<Identifier, Block> DELEGATED_CARRIERS = new LinkedHashMap<>();
@@ -407,6 +410,13 @@ public class DynamicVariantRegistry {
         return transform(input, state.stage(), true, state.dyeColor());
     }
 
+    public static ItemStack oxidizedCopy(ItemStack input) {
+        VariantState state = variantState(input);
+        OxidationStage next = state == null ? null : state.stage().next();
+        if (next == null || state.waxed()) return ItemStack.EMPTY;
+        return transform(input, next, false, state.dyeColor());
+    }
+
     public static ItemStack cleanOxidationCopy(ItemStack input) {
         ItemVariantData itemData = peekItemData(input);
         if (itemData != null) {
@@ -527,6 +537,22 @@ public class DynamicVariantRegistry {
         return DELEGATED_CARRIERS.get(sourceId);
     }
 
+    public static boolean replaceSourceBlock(ServerLevel level, BlockPos pos, BlockState sourceState, VariantData data) {
+        Identifier sourceId = BuiltInRegistries.BLOCK.getKey(sourceState.getBlock());
+        EnumMap<VariantForm, Block> sourceBlocks = SOURCE_BLOCKS.get(sourceId);
+        Block carrier = sourceBlocks == null ? null : sourceBlocks.get(VariantForm.FULL);
+        if (carrier == null) carrier = DELEGATED_CARRIERS.get(sourceId);
+        if (carrier == null) return false;
+        BlockState targetState = carrier instanceof PatinaDelegatingBlock ? carrier.withPropertiesOf(sourceState) : carrier.defaultBlockState();
+        int flags = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE | Block.UPDATE_SUPPRESS_DROPS;
+        if (!level.setBlock(pos, targetState, flags)) return false;
+        if (level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity) {
+            blockEntity.setData(new VariantData(sourceId, data.stage(), data.waxed(), VariantForm.FULL, data.dyeColor()));
+        }
+        level.updateNeighborsAt(pos, carrier);
+        return true;
+    }
+
     public static boolean isDelegatedSource(Block block) {
         return DELEGATED_CARRIERS.containsKey(BuiltInRegistries.BLOCK.getKey(block));
     }
@@ -582,6 +608,7 @@ public class DynamicVariantRegistry {
         Block source = BuiltInRegistries.BLOCK.getValue(sourceId);
         if (source == Blocks.AIR) return;
         EnumMap<VariantForm, Item> items = new EnumMap<>(VariantForm.class);
+        EnumMap<VariantForm, Block> blocks = new EnumMap<>(VariantForm.class);
         for (VariantForm form : VariantForm.values()) {
             Identifier id = sourceCarrierId(sourceId, form);
             Block block = GeneratedBlockFactory.create(id, form, source);
@@ -591,12 +618,14 @@ public class DynamicVariantRegistry {
                             .setId(ResourceKey.create(Registries.ITEM, id)));
             helper.register(id, item);
             items.put(form, item);
+            blocks.put(form, block);
             BLOCK_SOURCES.put(block, sourceId);
             ITEM_SOURCES.put(item, sourceId);
             SOURCE_CARRIERS.add(block);
             SOURCE_BINDINGS.add(new CarrierBinding(sourceId, form, block, item));
         }
         SOURCE_ITEMS.put(sourceId, items);
+        SOURCE_BLOCKS.put(sourceId, blocks);
     }
 
     private static void registerDelegatedSource(RegisterEvent.RegisterHelper<Item> helper, Identifier sourceId) {

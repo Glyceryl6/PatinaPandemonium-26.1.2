@@ -36,6 +36,10 @@ public class PatinaBlock extends Block implements PatinaOxidizable {
         this.source = source;
     }
 
+    public Block source() {
+        return this.source;
+    }
+
     @Override
     public VariantForm patinaForm() {
         return VariantForm.FULL;

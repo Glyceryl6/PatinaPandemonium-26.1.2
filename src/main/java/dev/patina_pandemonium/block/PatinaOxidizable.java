@@ -3,6 +3,7 @@ package dev.patina_pandemonium.block;
 import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
 import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
+import dev.patina_pandemonium.registry.OxidationStage;
 import dev.patina_pandemonium.registry.VariantData;
 import dev.patina_pandemonium.registry.VariantForm;
 import dev.patina_pandemonium.registry.VariantRuntime;
@@ -67,6 +68,25 @@ public interface PatinaOxidizable extends EntityBlock, IBlockExtension {
         if (!(level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity)) return;
         VariantData data = blockEntity.data();
         if (data.waxed() || data.stage().next() == null || random.nextDouble() >= PatinaRules.INSTANCE.oxidationAttemptChance) return;
+
+        int sameStage = 0;
+        int laterStage = 0;
+        int currentStage = data.stage().ordinal();
+        for (BlockPos neighborPos : BlockPos.withinManhattan(pos, 4, 4, 4)) {
+            if (neighborPos.distManhattan(pos) > 4) break;
+            if (neighborPos.equals(pos) || !level.hasChunkAt(neighborPos)
+                || !(level.getBlockEntity(neighborPos) instanceof PatinaVariantBlockEntity neighborEntity)) continue;
+            VariantData neighbor = neighborEntity.data();
+            if (neighbor.waxed()) continue;
+            int neighborStage = neighbor.stage().ordinal();
+            if (neighborStage < currentStage) return;
+            if (neighborStage == currentStage) sameStage++;
+            else laterStage++;
+        }
+
+        double ratio = (double) (laterStage + 1) / (laterStage + sameStage + 1);
+        double stageModifier = data.stage() == OxidationStage.FRESH ? 0.75D : 1.0D;
+        if (random.nextDouble() >= ratio * ratio * stageModifier) return;
         VariantRuntime.next(data).ifPresent(next -> setLinkedData(level, pos, next));
     }
 
