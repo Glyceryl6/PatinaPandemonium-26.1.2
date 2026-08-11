@@ -36,6 +36,7 @@ import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.model.quad.MutableQuad;
 import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEvent;
 
+import java.util.ArrayDeque;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -46,6 +47,7 @@ import java.util.Map;
 public class PatinaClient {
 
     private static final ContextKey<Integer> ENTITY_TINT = new ContextKey<>(PatinaPandemonium.id("entity_tint"));
+    private static final ThreadLocal<ArrayDeque<Integer>> MODEL_TINTS = new ThreadLocal<>();
     private static final Map<VariantForm, Block> TEMPLATES = Map.of(
         VariantForm.FULL, Blocks.STONE,
         VariantForm.SLAB, Blocks.STONE_SLAB,
@@ -75,11 +77,40 @@ public class PatinaClient {
         return tint == null ? -1 : tint;
     }
 
+    public static void beginModelTint(int tint) {
+        ArrayDeque<Integer> tints = MODEL_TINTS.get();
+        if (tints == null) {
+            tints = new ArrayDeque<>();
+            MODEL_TINTS.set(tints);
+        }
+        tints.push(tint);
+    }
+
+    public static void endModelTint() {
+        ArrayDeque<Integer> tints = MODEL_TINTS.get();
+        if (tints == null) return;
+        if (!tints.isEmpty()) tints.pop();
+        if (tints.isEmpty()) MODEL_TINTS.remove();
+    }
+
+    public static int applyModelTint(int color) {
+        ArrayDeque<Integer> tints = MODEL_TINTS.get();
+        return tints == null || tints.isEmpty() || tints.peek() == -1 ? color : multiply(color, tints.peek());
+    }
+
+    public static int[] applyModelTints(int[] colors) {
+        ArrayDeque<Integer> tints = MODEL_TINTS.get();
+        if (tints == null || tints.isEmpty() || tints.peek() == -1) return colors;
+        int[] tinted = colors.clone();
+        for (int index = 0; index < tinted.length; index++) tinted[index] = multiply(tinted[index], tints.peek());
+        return tinted;
+    }
+
     public static void applyBlockModelTint(BlockModelRenderState renderState, int tint) {
         if (tint == -1) return;
-        List<BlockStateModelPart> parts = ((BlockModelRenderStateAccessor) renderState).patina$getModelParts();
+        List<BlockStateModelPart> parts = ((BlockModelRenderStateAccessor) (Object) renderState).patina$getModelParts();
         if (parts == null) return;
-        parts.replaceAll(part -> tintedPart(part, tint));
+        for (int index = 0; index < parts.size(); index++) parts.set(index, tintedPart(parts.get(index), tint));
     }
 
     private static BlockStateModelPart tintedPart(BlockStateModelPart part, int tint) {
@@ -110,6 +141,7 @@ public class PatinaClient {
         ModelBakery.BakingResult result = event.getBakingResult();
         Map<BlockState, BlockStateModel> blockModels = result.blockStateModels();
         Map<Identifier, ItemModel> itemModels = result.itemStackModels();
+        Map<BlockState, BlockStateModel> originalBlockModels = new HashMap<>(blockModels);
         Map<Identifier, ItemModel> originalItemModels = new HashMap<>(itemModels);
         BlockStateModel fallbackBlock = blockModels.get(Blocks.STONE.defaultBlockState());
         ItemModel fallbackItem = itemModels.get(BuiltInRegistries.ITEM.getKey(Items.STONE));
@@ -121,8 +153,8 @@ public class PatinaClient {
         for (VariantForm form : VariantForm.values()) {
             Block template = TEMPLATES.get(form);
             BlockStateModel templateModel = blockModels.getOrDefault(template.defaultBlockState(), fallbackBlock);
-            sharedBlockModels.put(form, new PatinaBlockStateModel(blockModels, template, form, templateModel));
-            sharedItemModels.put(form, new PatinaItemModel(blockModels, itemModels, template, form, fallbackItem, fallbackBlock));
+            sharedBlockModels.put(form, new PatinaBlockStateModel(originalBlockModels, template, form, templateModel));
+            sharedItemModels.put(form, new PatinaItemModel(originalBlockModels, originalItemModels, template, form, fallbackItem, fallbackBlock));
         }
 
         for (Block block : DynamicVariantRegistry.generated()) {
@@ -132,6 +164,14 @@ public class PatinaClient {
             for (BlockState state : block.getStateDefinition().getPossibleStates()) blockModels.put(state, blockModel);
             Item item = block.asItem();
             if (item != Items.AIR) itemModels.put(BuiltInRegistries.ITEM.getKey(item), sharedItemModels.get(form));
+        }
+
+        for (Block block : BuiltInRegistries.BLOCK) {
+            if (!DynamicVariantRegistry.isNativeBlockEntitySource(block)) continue;
+            for (BlockState state : block.getStateDefinition().getPossibleStates()) {
+                BlockStateModel delegate = originalBlockModels.get(state);
+                if (delegate != null) blockModels.put(state, new PatinaBlockStateModel(originalBlockModels, block, delegate));
+            }
         }
 
         itemModels.put(DynamicVariantRegistry.VARIANT_ITEM_MODEL, new PatinaItemModel(originalItemModels, fallbackItem, fallbackBlock));

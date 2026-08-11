@@ -34,6 +34,7 @@ import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
@@ -91,6 +92,9 @@ public class DynamicVariantRegistry {
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<ItemVariantData>> ENTITY_VARIANT_DATA = ATTACHMENTS.register(
         "entity_variant_data", () -> AttachmentType.builder(ItemVariantData::defaultData)
             .serialize(ItemVariantData.CODEC.fieldOf("variant")).sync(ItemVariantData.STREAM_CODEC).build());
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<VariantData>> BLOCK_ENTITY_VARIANT_DATA = ATTACHMENTS.register(
+        "block_entity_variant_data", () -> AttachmentType.builder(() -> VariantData.defaultFor(VariantForm.FULL))
+            .serialize(VariantData.CODEC.fieldOf("variant")).sync(VariantData.STREAM_CODEC).build());
     public static final DeferredHolder<MobEffect, TetanusMobEffect> TETANUS = MOB_EFFECTS.register(
         "tetanus", () -> new TetanusMobEffect(0x6F7F61));
     public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<VariantWaxingRecipe>> VARIANT_WAXING_RECIPE =
@@ -171,6 +175,7 @@ public class DynamicVariantRegistry {
     private static final Map<Identifier, Item> DELEGATED_ITEMS = new LinkedHashMap<>();
     private static final LinkedHashSet<Identifier> FULL_SOURCE_IDS = new LinkedHashSet<>();
     private static final LinkedHashSet<Identifier> SPECIAL_SOURCE_IDS = new LinkedHashSet<>();
+    private static final LinkedHashSet<Identifier> NATIVE_BLOCK_ENTITY_SOURCE_IDS = new LinkedHashSet<>();
     private static final IdentityHashMap<Block, Identifier> BLOCK_SOURCES = new IdentityHashMap<>();
     private static final IdentityHashMap<Item, Identifier> ITEM_SOURCES = new IdentityHashMap<>();
     private static final IdentityHashMap<Item, Identifier> DELEGATED_ITEM_SOURCES = new IdentityHashMap<>();
@@ -232,7 +237,7 @@ public class DynamicVariantRegistry {
     }
 
     public static boolean isStandaloneVariantItem(Item item) {
-        return STANDALONE_VARIANT_ITEMS.contains(item);
+        return STANDALONE_VARIANT_ITEMS.contains(item) || isStandaloneItem(item);
     }
 
     public static Block carrier(VariantForm form) {
@@ -338,9 +343,12 @@ public class DynamicVariantRegistry {
         Identifier specialSource = specialSourceId(output);
         if (specialSource != null) {
             VariantData data = new VariantData(specialSource, stage, waxed, VariantForm.FULL, dye);
-            return mergeCraftingOutput(output, delegatedStack(output, data, output.getCount()));
+            ItemStack target = NATIVE_BLOCK_ENTITY_SOURCE_IDS.contains(specialSource)
+                ? variantItemStack(output.copyWithCount(output.getCount()), stage, waxed, dye)
+                : delegatedStack(output, data, output.getCount());
+            return mergeCraftingOutput(output, target);
         }
-        if (STANDALONE_VARIANT_ITEMS.contains(output.getItem())) {
+        if (isStandaloneVariantItem(output.getItem())) {
             return variantItemStack(output.copyWithCount(output.getCount()), stage, waxed, dye);
         }
         return output;
@@ -356,18 +364,32 @@ public class DynamicVariantRegistry {
 
     public static ItemStack displayStack(VariantData data, int count) {
         VariantData normalized = data.normalized(data.form());
+        boolean flag = normalized.stage() == OxidationStage.FRESH && !normalized.waxed() && normalized.dyeColor() == null;
+        if (isNativeBlockEntityVariant(normalized.sourceId(), normalized.form())) {
+            Block source = BuiltInRegistries.BLOCK.getValue(normalized.sourceId());
+            if (source.asItem() == Items.AIR) return ItemStack.EMPTY;
+            if (flag) return new ItemStack(source, Math.max(1, count));
+            return variantItemStack(new ItemStack(source, Math.max(1, count)), normalized.stage(), normalized.waxed(), normalized.dyeColor());
+        }
+
         Item specialItem = normalized.form() == VariantForm.FULL ? specialSourceItem(normalized.sourceId()) : null;
         if (specialItem != null) return delegatedStack(new ItemStack(specialItem, Math.max(1, count)), normalized, count);
-        if (normalized.stage() == OxidationStage.FRESH && !normalized.waxed() && normalized.dyeColor() == null) {
+        if (flag) {
             Block source = normalized.form() == VariantForm.FULL
                 ? BuiltInRegistries.BLOCK.getValue(normalized.sourceId()) : existingForm(normalized.sourceId(), normalized.form());
             if (source != null && source != Blocks.AIR && source.asItem() != Items.AIR) return new ItemStack(source, Math.max(1, count));
         }
+
         return stack(normalized, count);
     }
 
     public static ItemStack stack(VariantData data, int count) {
         VariantData normalized = data.normalized(data.form());
+        if (isNativeBlockEntityVariant(normalized.sourceId(), normalized.form())) {
+            Block source = BuiltInRegistries.BLOCK.getValue(normalized.sourceId());
+            return source.asItem() == Items.AIR ? ItemStack.EMPTY
+                : variantItemStack(new ItemStack(source, Math.max(1, count)), normalized.stage(), normalized.waxed(), normalized.dyeColor());
+        }
         Item specialItem = normalized.form() == VariantForm.FULL ? specialSourceItem(normalized.sourceId()) : null;
         if (specialItem != null) return delegatedStack(new ItemStack(specialItem, Math.max(1, count)), normalized, count);
         Item item = sourceItem(normalized.sourceId(), normalized.form());
@@ -384,6 +406,9 @@ public class DynamicVariantRegistry {
         if (fullSource != null) return displayStack(new VariantData(fullSource, stage, waxed, form, dye), count);
         Identifier specialSource = specialSourceId(input);
         if (specialSource != null) {
+            if (NATIVE_BLOCK_ENTITY_SOURCE_IDS.contains(specialSource)) {
+                return variantItemStack(input.copyWithCount(Math.max(1, count)), stage, waxed, dye);
+            }
             return delegatedStack(input, new VariantData(specialSource, stage, waxed, VariantForm.FULL, dye), count);
         }
         return variantItemStack(input.copyWithCount(Math.max(1, count)), stage, waxed, dye);
@@ -452,7 +477,7 @@ public class DynamicVariantRegistry {
         if (EXISTING_FORM_OUTPUTS.containsKey(stack.getItem()) || fullSourceId(stack) != null || specialSourceId(stack) != null) return true;
         ItemVariantData data = peekItemData(stack);
         if (data != null) return isStandaloneItemId(data.sourceId());
-        return STANDALONE_VARIANT_ITEMS.contains(stack.getItem());
+        return isStandaloneVariantItem(stack.getItem());
     }
 
     public static boolean supportsForm(ItemStack stack, VariantForm form) {
@@ -499,10 +524,12 @@ public class DynamicVariantRegistry {
     }
 
     public static boolean isSpecialSource(Identifier id, Block block, PatinaRules rules) {
-        if (!isCommonBlockSource(id, block, rules) || block instanceof EntityBlock || isProcessedBlock(block)) return false;
-        if (block.getStateDefinition().getPossibleStates().size() > rules.maximumDelegatedBlockStates) return false;
+        if (!isCommonBlockSource(id, block, rules) || isProcessedBlock(block)) return false;
+        if (!(block instanceof EntityBlock) && block.getStateDefinition().getPossibleStates().size() > rules.maximumDelegatedBlockStates
+            && !(block instanceof RedStoneWireBlock)) return false;
         BlockState state = block.defaultBlockState();
-        if (block.asItem() == Items.AIR && state.getRenderShape() != RenderShape.MODEL && !(block instanceof BaseFireBlock)) return false;
+        if (!(block instanceof EntityBlock) && block.asItem() == Items.AIR && state.getRenderShape() != RenderShape.MODEL
+            && !(block instanceof BaseFireBlock) && !(block instanceof RedStoneWireBlock)) return false;
         return !isFullSource(id, block, rules);
     }
 
@@ -549,12 +576,28 @@ public class DynamicVariantRegistry {
         if (level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity) {
             blockEntity.setData(new VariantData(sourceId, data.stage(), data.waxed(), VariantForm.FULL, data.dyeColor()));
         }
+
         level.updateNeighborsAt(pos, carrier);
         return true;
     }
 
     public static boolean isDelegatedSource(Block block) {
         return DELEGATED_CARRIERS.containsKey(BuiltInRegistries.BLOCK.getKey(block));
+    }
+
+    public static boolean isNativeBlockEntitySource(Block block) {
+        return NATIVE_BLOCK_ENTITY_SOURCE_IDS.contains(BuiltInRegistries.BLOCK.getKey(block));
+    }
+
+    @Nullable
+    public static VariantData blockEntityVariantData(BlockEntity blockEntity) {
+        if (blockEntity instanceof PatinaVariantBlockEntity patina) return patina.data();
+        return blockEntity.getExistingDataOrNull(BLOCK_ENTITY_VARIANT_DATA.get());
+    }
+
+    public static void setBlockEntityVariantData(BlockEntity blockEntity, VariantData data) {
+        if (blockEntity instanceof PatinaVariantBlockEntity patina) patina.setData(data);
+        else blockEntity.setData(BLOCK_ENTITY_VARIANT_DATA.get(), data.normalized(VariantForm.FULL));
     }
 
     private static void onRegister(RegisterEvent event) {
@@ -564,7 +607,11 @@ public class DynamicVariantRegistry {
         List<Identifier> itemSources = discoverItemSources();
         event.register(Registries.ITEM, helper -> {
             for (Identifier sourceId : fullSources) registerFullSource(helper, sourceId);
-            for (Identifier sourceId : specialSources) registerDelegatedSource(helper, sourceId);
+            for (Identifier sourceId : specialSources) {
+                Block source = BuiltInRegistries.BLOCK.getValue(sourceId);
+                if (source instanceof EntityBlock) NATIVE_BLOCK_ENTITY_SOURCE_IDS.add(sourceId);
+                else registerDelegatedSource(helper, sourceId);
+            }
         });
         for (Identifier sourceId : specialSources) {
             Item item = BuiltInRegistries.BLOCK.getValue(sourceId).asItem();
@@ -607,9 +654,15 @@ public class DynamicVariantRegistry {
     private static void registerFullSource(RegisterEvent.RegisterHelper<Item> helper, Identifier sourceId) {
         Block source = BuiltInRegistries.BLOCK.getValue(sourceId);
         if (source == Blocks.AIR) return;
+        boolean nativeBlockEntity = source instanceof EntityBlock;
+        if (nativeBlockEntity) {
+            NATIVE_BLOCK_ENTITY_SOURCE_IDS.add(sourceId);
+            if (source.asItem() != Items.AIR) STANDALONE_VARIANT_ITEMS.add(source.asItem());
+        }
         EnumMap<VariantForm, Item> items = new EnumMap<>(VariantForm.class);
         EnumMap<VariantForm, Block> blocks = new EnumMap<>(VariantForm.class);
         for (VariantForm form : VariantForm.values()) {
+            if (nativeBlockEntity && form == VariantForm.FULL) continue;
             Identifier id = sourceCarrierId(sourceId, form);
             Block block = GeneratedBlockFactory.create(id, form, source);
             Registry.register(BuiltInRegistries.BLOCK, id, block);
@@ -771,7 +824,14 @@ public class DynamicVariantRegistry {
 
     private static boolean isStandaloneItemId(Identifier id) {
         Item item = BuiltInRegistries.ITEM.getValue(id);
-        return item != Items.AIR && STANDALONE_VARIANT_ITEMS.contains(item);
+        return item != Items.AIR && isStandaloneVariantItem(item);
+    }
+
+    private static boolean isStandaloneItem(Item item) {
+        if (item == Items.AIR || item instanceof BlockItem) return false;
+        Identifier id = BuiltInRegistries.ITEM.getKey(item);
+        PatinaRules rules = PatinaRules.INSTANCE;
+        return rules.namespaceAllowed(id.getNamespace()) && (rules.excludedItems == null || !rules.excludedItems.contains(id.toString()));
     }
 
     @Nullable
@@ -921,9 +981,11 @@ public class DynamicVariantRegistry {
 
     @Nullable
     private static Item specialSourceItem(Identifier sourceId) {
-        if (!SPECIAL_SOURCE_IDS.contains(sourceId)) return null;
-        Item item = BuiltInRegistries.BLOCK.getValue(sourceId).asItem();
-        return item == Items.AIR ? null : item;
+        return SPECIAL_SOURCE_IDS.contains(sourceId) ? DELEGATED_ITEMS.get(sourceId) : null;
+    }
+
+    private static boolean isNativeBlockEntityVariant(Identifier sourceId, VariantForm form) {
+        return form == VariantForm.FULL && NATIVE_BLOCK_ENTITY_SOURCE_IDS.contains(sourceId);
     }
 
     @Nullable

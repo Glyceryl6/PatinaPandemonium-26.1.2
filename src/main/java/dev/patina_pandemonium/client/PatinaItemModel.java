@@ -1,5 +1,6 @@
 package dev.patina_pandemonium.client;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ItemVariantData;
@@ -8,6 +9,7 @@ import dev.patina_pandemonium.registry.VariantForm;
 import it.unimi.dsi.fastutil.ints.IntList;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.item.ItemModel;
 import net.minecraft.client.renderer.item.ItemModelResolver;
@@ -320,7 +322,7 @@ public class PatinaItemModel implements ItemModel {
         @Override
         public <T> void setupSpecialModel(SpecialModelRenderer<T> renderer, @Nullable T argument) {
             this.owner.specialModel = true;
-            this.output.setupSpecialModel(renderer, argument);
+            this.output.setupSpecialModel(new TintedSpecialModelRenderer<>(renderer, this.context.variantTint()), argument);
         }
 
         @Override
@@ -333,6 +335,31 @@ public class PatinaItemModel implements ItemModel {
             return this.output.tintLayers();
         }
     }
+
+    private record TintedSpecialModelRenderer<T>(SpecialModelRenderer<T> renderer, int tint) implements SpecialModelRenderer<T> {
+
+        @Override
+            public void submit(@Nullable T argument, PoseStack poseStack, SubmitNodeCollector submitNodeCollector,
+                               int lightCoords, int overlayCoords, boolean hasFoil, int outlineColor) {
+                PatinaClient.beginModelTint(this.tint);
+                try {
+                    this.renderer.submit(argument, poseStack, submitNodeCollector, lightCoords, overlayCoords, hasFoil, outlineColor);
+                } finally {
+                    PatinaClient.endModelTint();
+                }
+            }
+
+            @Override
+            public void getExtents(Consumer<Vector3fc> output) {
+                this.renderer.getExtents(output);
+            }
+
+            @Override
+            public @Nullable T extractArgument(ItemStack stack) {
+                return this.renderer.extractArgument(stack);
+            }
+
+        }
 
     private class TransformingQuadList extends AbstractList<BakedQuad> {
 

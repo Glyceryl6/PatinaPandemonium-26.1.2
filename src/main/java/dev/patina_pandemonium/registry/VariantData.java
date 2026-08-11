@@ -3,6 +3,9 @@ package dev.patina_pandemonium.registry;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.level.block.Block;
@@ -19,6 +22,7 @@ public record VariantData(Identifier sourceId, OxidationStage stage, boolean wax
             Codec.intRange(0, VariantForm.values().length - 1).fieldOf("form").forGetter(data -> data.form().ordinal()),
             Codec.intRange(NO_DYE, DyeColor.VALUES.size() - 1).fieldOf("dye").forGetter(VariantData::dyeId)
     ).apply(instance, VariantData::decode));
+    public static final StreamCodec<RegistryFriendlyByteBuf, VariantData> STREAM_CODEC = ByteBufCodecs.fromCodecWithRegistries(CODEC);
 
     public VariantData(Identifier sourceId, OxidationStage stage, boolean waxed, VariantForm form) {
         this(sourceId, stage, waxed, form, null);

@@ -9,8 +9,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.*;
-import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import net.neoforged.neoforge.registries.callback.AddCallback;
@@ -36,7 +34,6 @@ public class ModCreativeTab {
         CreativeModeTabs.INGREDIENTS,
         CreativeModeTabs.SPAWN_EGGS);
     private static final ResourceKey<CreativeModeTab> MAIN_TAB = tabKey("main");
-    private static final ResourceKey<CreativeModeTab> SPECIAL_BLOCKS_TAB = tabKey("special_blocks");
     private static final ResourceKey<CreativeModeTab> LAST_ITEM_CATEGORY_TAB = itemTabKey(ITEM_CATEGORY_TABS.getLast());
 
     public static final DeferredRegister<CreativeModeTab> TABS = DeferredRegister.create(
@@ -44,8 +41,7 @@ public class ModCreativeTab {
 
     static {
         TABS.register(MAIN_TAB.identifier().getPath(), ModCreativeTab::mainTab);
-        TABS.register(SPECIAL_BLOCKS_TAB.identifier().getPath(), ModCreativeTab::specialBlocksTab);
-        ResourceKey<CreativeModeTab> previousTab = SPECIAL_BLOCKS_TAB;
+        ResourceKey<CreativeModeTab> previousTab = MAIN_TAB;
         for (ResourceKey<CreativeModeTab> sourceTab : ITEM_CATEGORY_TABS) {
             ResourceKey<CreativeModeTab> mirrorTab = itemTabKey(sourceTab);
             ResourceKey<CreativeModeTab> predecessor = previousTab;
@@ -67,12 +63,6 @@ public class ModCreativeTab {
                     addFullBlocks(output, false, new int[2]);
                     output.accept(DynamicVariantRegistry.VARIANT_FABRICATOR_ITEM.get());
                 }).build();
-    }
-
-    private static CreativeModeTab specialBlocksTab() {
-        return CreativeModeTab.builder().title(Component.translatable("itemGroup.patina_pandemonium.special_blocks"))
-                .icon(Items.CANDLE::getDefaultInstance).withTabsBefore(MAIN_TAB)
-                .displayItems((_, output) -> addSpecialBlocks(output, false, new int[2])).build();
     }
 
     private static CreativeModeTab mirroredTab(ResourceKey<CreativeModeTab> sourceTabKey, CreativeModeTab knownSourceTab, boolean external, ResourceKey<CreativeModeTab> predecessor) {
@@ -145,16 +135,6 @@ public class ModCreativeTab {
 
     private static boolean isExistingPristineForm(Identifier sourceId, VariantForm form, OxidationStage stage, boolean waxed) {
         return form != VariantForm.FULL && stage == OxidationStage.FRESH && !waxed && DynamicVariantRegistry.hasExistingForm(sourceId, form);
-    }
-
-    private static void addSpecialBlocks(CreativeModeTab.Output output, boolean external, int[] counts) {
-        for (Identifier sourceId : DynamicVariantRegistry.specialSourceIds()) {
-            if (DynamicVariantRegistry.isExternal(sourceId) != external || !canAddSource(counts)) continue;
-            Block source = BuiltInRegistries.BLOCK.getValue(sourceId);
-            if (source == Blocks.AIR || source.asItem() == Items.AIR) continue;
-            if (!addStandaloneVariants(output, new ItemStack(source.asItem()), counts)) break;
-            counts[1]++;
-        }
     }
 
     private static void addCategoryVariants(CreativeModeTab.Output output, CreativeModeTab sourceTab, boolean includeVanillaItems, int[] counts) {

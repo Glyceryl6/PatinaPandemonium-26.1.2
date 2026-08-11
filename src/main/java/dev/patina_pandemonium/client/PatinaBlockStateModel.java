@@ -35,12 +35,22 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
     private final Map<BlockState, BlockStateModel> models;
     private final Block template;
     private final VariantForm form;
+    private final @Nullable Block nativeSource;
 
     public PatinaBlockStateModel(Map<BlockState, BlockStateModel> models, Block template, VariantForm form, BlockStateModel delegate) {
         super(delegate);
         this.models = models;
         this.template = template;
         this.form = form;
+        this.nativeSource = null;
+    }
+
+    public PatinaBlockStateModel(Map<BlockState, BlockStateModel> models, Block source, BlockStateModel delegate) {
+        super(delegate);
+        this.models = models;
+        this.template = source;
+        this.form = VariantForm.FULL;
+        this.nativeSource = source;
     }
 
     public static void clearCache() {
@@ -52,24 +62,35 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
     @Override
     @Deprecated
     public void collectParts(RandomSource random, List<BlockStateModelPart> parts) {
+        if (this.nativeSource != null) {
+            this.delegate.collectParts(random, parts);
+            return;
+        }
         this.collectParts(VariantData.defaultFor(this.form), Blocks.AIR.defaultBlockState(), null, null, random, parts);
     }
 
     @Override
     public void collectParts(BlockAndTintGetter level, BlockPos pos, BlockState state, RandomSource random, List<BlockStateModelPart> parts) {
         VariantData data = level.getModelData(pos).get(PatinaVariantBlockEntity.MODEL_DATA);
+        if (data == null && this.nativeSource != null) {
+            this.delegate.collectParts(level, pos, state, random, parts);
+            return;
+        }
         this.collectParts(data == null ? VariantData.defaultFor(this.form) : data.normalized(this.form), state, level, pos, random, parts);
     }
 
     @Override
     @Deprecated
     public Material.Baked particleMaterial() {
-        return this.context(VariantData.defaultFor(this.form), Blocks.AIR.defaultBlockState(), null, null).sourceMaterial();
+        return this.nativeSource == null
+            ? this.context(VariantData.defaultFor(this.form), Blocks.AIR.defaultBlockState(), null, null).sourceMaterial()
+            : this.delegate.particleMaterial();
     }
 
     @Override
     public Material.Baked particleMaterial(BlockAndTintGetter level, BlockPos pos, BlockState state) {
         VariantData data = level.getModelData(pos).get(PatinaVariantBlockEntity.MODEL_DATA);
+        if (data == null && this.nativeSource != null) return this.delegate.particleMaterial(level, pos, state);
         return this.context(data == null ? VariantData.defaultFor(this.form) : data.normalized(this.form), state, level, pos).sourceMaterial();
     }
 
