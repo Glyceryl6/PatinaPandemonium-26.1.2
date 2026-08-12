@@ -20,7 +20,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public class BlockEntityRenderDispatcherMixin {
 
     @Inject(method = "submit", at = @At("HEAD"))
-    private void patina$beginVariantTint(BlockEntityRenderState state, PoseStack poseStack, SubmitNodeCollector submitNodeCollector, CameraRenderState camera, CallbackInfo ci) {
+    private void patina$beginVariantTint(
+            BlockEntityRenderState state, PoseStack poseStack,
+            SubmitNodeCollector submitNodeCollector,
+            CameraRenderState camera, CallbackInfo ci) {
         ClientLevel level = Minecraft.getInstance().level;
         BlockEntity blockEntity = level == null ? null : level.getBlockEntity(state.blockPos);
         VariantData data = blockEntity == null ? null : DynamicVariantRegistry.blockEntityVariantData(blockEntity);
@@ -28,7 +31,10 @@ public class BlockEntityRenderDispatcherMixin {
     }
 
     @Inject(method = "submit", at = @At("RETURN"))
-    private void patina$endVariantTint(BlockEntityRenderState state, PoseStack poseStack, SubmitNodeCollector submitNodeCollector, CameraRenderState camera, CallbackInfo ci) {
+    private void patina$endVariantTint(
+            BlockEntityRenderState state, PoseStack poseStack,
+            SubmitNodeCollector submitNodeCollector,
+            CameraRenderState camera, CallbackInfo ci) {
         PatinaClient.endModelTint();
     }
 

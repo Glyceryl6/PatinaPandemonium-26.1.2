@@ -3,7 +3,6 @@ package dev.patina_pandemonium.client;
 import com.google.common.reflect.TypeToken;
 import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.block.PatinaOxidizable;
-import dev.patina_pandemonium.mixin.BlockModelRenderStateAccessor;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ItemVariantData;
 import dev.patina_pandemonium.registry.VariantForm;
@@ -124,9 +123,9 @@ public class PatinaClient {
 
     public static void applyBlockModelTint(BlockModelRenderState renderState, int tint) {
         if (tint == -1) return;
-        List<BlockStateModelPart> parts = ((BlockModelRenderStateAccessor) (Object) renderState).patina$getModelParts();
+        List<BlockStateModelPart> parts = renderState.modelParts;
         if (parts == null) return;
-        for (int index = 0; index < parts.size(); index++) parts.set(index, tintedPart(parts.get(index), tint));
+        parts.replaceAll(part -> tintedPart(part, tint));
     }
 
     private static BlockStateModelPart tintedPart(BlockStateModelPart part, int tint) {

@@ -56,8 +56,9 @@ public class DynamicVariantRegistry {
 
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final List<Class<? extends Block>> PROCESSED_BLOCK_TYPES = List.of(
-        SlabBlock.class, StairBlock.class, WallBlock.class, FenceBlock.class, FenceGateBlock.class, CarpetBlock.class,
-        ButtonBlock.class, PressurePlateBlock.class);
+            SlabBlock.class, StairBlock.class, WallBlock.class,
+            FenceBlock.class, FenceGateBlock.class, CarpetBlock.class,
+            ButtonBlock.class, PressurePlateBlock.class);
     private static final Map<VariantForm, Class<? extends Block>> FORM_TYPES = Map.of(
         VariantForm.SLAB, SlabBlock.class,
         VariantForm.STAIRS, StairBlock.class,
@@ -93,8 +94,7 @@ public class DynamicVariantRegistry {
         "entity_variant_data", () -> AttachmentType.builder(ItemVariantData::defaultData)
             .serialize(ItemVariantData.CODEC.fieldOf("variant")).sync(ItemVariantData.STREAM_CODEC).build());
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<ItemVariantData>> ENTITY_FIRE_VARIANT_DATA = ATTACHMENTS.register(
-        "entity_fire_variant_data", () -> AttachmentType.builder(ItemVariantData::defaultData)
-            .sync(ItemVariantData.STREAM_CODEC).build());
+        "entity_fire_variant_data", () -> AttachmentType.builder(ItemVariantData::defaultData).sync(ItemVariantData.STREAM_CODEC).build());
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<VariantData>> BLOCK_ENTITY_VARIANT_DATA = ATTACHMENTS.register(
         "block_entity_variant_data", () -> AttachmentType.builder(() -> VariantData.defaultFor(VariantForm.FULL))
             .serialize(VariantData.CODEC.fieldOf("variant")).sync(VariantData.STREAM_CODEC).build());
@@ -105,11 +105,9 @@ public class DynamicVariantRegistry {
             VariantWaxingRecipe.MAP_CODEC, VariantWaxingRecipe.STREAM_CODEC));
 
     public static final DeferredBlock<VariantFabricatorBlock> VARIANT_FABRICATOR = BLOCKS.register(
-        "variant_fabricator",
-        id -> new VariantFabricatorBlock(BlockBehaviour.Properties.of()
-            .strength(3.5F, 6.0F)
-            .sound(SoundType.COPPER)
-            .setId(ResourceKey.create(Registries.BLOCK, id))));
+        "variant_fabricator", id -> new VariantFabricatorBlock(BlockBehaviour.Properties.of()
+                    .strength(3.5F, 6.0F).sound(SoundType.COPPER)
+                    .setId(ResourceKey.create(Registries.BLOCK, id))));
     public static final DeferredItem<BlockItem> VARIANT_FABRICATOR_ITEM = ITEMS.registerItem(
         "variant_fabricator", properties -> new BlockItem(VARIANT_FABRICATOR.get(), properties.useBlockDescriptionPrefix()));
 
@@ -128,24 +126,20 @@ public class DynamicVariantRegistry {
     public static final DeferredBlock<Block> TRANSLUCENT_STAIRS = carrier("virtual_translucent_stairs", VariantForm.STAIRS, true);
     public static final DeferredBlock<Block> TRANSLUCENT_WALL = carrier("virtual_translucent_wall", VariantForm.WALL, true);
     public static final DeferredBlock<Block> TRANSLUCENT_FENCE = carrier("virtual_translucent_fence", VariantForm.FENCE, true);
-    public static final DeferredBlock<Block> TRANSLUCENT_FENCE_GATE = carrier(
-        "virtual_translucent_fence_gate", VariantForm.FENCE_GATE, true);
+    public static final DeferredBlock<Block> TRANSLUCENT_FENCE_GATE = carrier("virtual_translucent_fence_gate", VariantForm.FENCE_GATE, true);
     public static final DeferredBlock<Block> TRANSLUCENT_CARPET = carrier("virtual_translucent_carpet", VariantForm.CARPET, true);
     public static final DeferredBlock<Block> TRANSLUCENT_BUTTON = carrier("virtual_translucent_button", VariantForm.BUTTON, true);
-    public static final DeferredBlock<Block> TRANSLUCENT_PRESSURE_PLATE = carrier(
-        "virtual_translucent_pressure_plate", VariantForm.PRESSURE_PLATE, true);
+    public static final DeferredBlock<Block> TRANSLUCENT_PRESSURE_PLATE = carrier("virtual_translucent_pressure_plate", VariantForm.PRESSURE_PLATE, true);
 
     public static final DeferredItem<GeneratedBlockItem> FULL_ITEM = carrierItem("virtual_full", FULL, VariantForm.FULL);
     public static final DeferredItem<GeneratedBlockItem> SLAB_ITEM = carrierItem("virtual_slab", SLAB, VariantForm.SLAB);
     public static final DeferredItem<GeneratedBlockItem> STAIRS_ITEM = carrierItem("virtual_stairs", STAIRS, VariantForm.STAIRS);
     public static final DeferredItem<GeneratedBlockItem> WALL_ITEM = carrierItem("virtual_wall", WALL, VariantForm.WALL);
     public static final DeferredItem<GeneratedBlockItem> FENCE_ITEM = carrierItem("virtual_fence", FENCE, VariantForm.FENCE);
-    public static final DeferredItem<GeneratedBlockItem> FENCE_GATE_ITEM = carrierItem(
-        "virtual_fence_gate", FENCE_GATE, VariantForm.FENCE_GATE);
+    public static final DeferredItem<GeneratedBlockItem> FENCE_GATE_ITEM = carrierItem("virtual_fence_gate", FENCE_GATE, VariantForm.FENCE_GATE);
     public static final DeferredItem<GeneratedBlockItem> CARPET_ITEM = carrierItem("virtual_carpet", CARPET, VariantForm.CARPET);
     public static final DeferredItem<GeneratedBlockItem> BUTTON_ITEM = carrierItem("virtual_button", BUTTON, VariantForm.BUTTON);
-    public static final DeferredItem<GeneratedBlockItem> PRESSURE_PLATE_ITEM = carrierItem(
-        "virtual_pressure_plate", PRESSURE_PLATE, VariantForm.PRESSURE_PLATE);
+    public static final DeferredItem<GeneratedBlockItem> PRESSURE_PLATE_ITEM = carrierItem("virtual_pressure_plate", PRESSURE_PLATE, VariantForm.PRESSURE_PLATE);
 
     public static final DeferredItem<GeneratedBlockItem> TRANSLUCENT_FULL_ITEM = carrierItem(
         "virtual_translucent_full", TRANSLUCENT_FULL, VariantForm.FULL);

@@ -28,7 +28,7 @@ public class FluidRendererMixin {
         PatinaClient.endModelTint();
     }
 
-    @ModifyVariable(method = "addFace", at = @At("HEAD"), argsOnly = true, ordinal = 0)
+    @ModifyVariable(method = "addFace", at = @At("HEAD"), argsOnly = true, name = "color")
     private int patina$tintFluid(int color) {
         return PatinaClient.applyModelTint(color);
     }

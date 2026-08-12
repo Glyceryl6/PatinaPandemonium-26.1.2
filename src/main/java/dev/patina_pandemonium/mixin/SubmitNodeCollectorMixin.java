@@ -25,7 +25,7 @@ public class SubmitNodeCollectorMixin {
         return PatinaClient.applyModelTints(tintLayers);
     }
 
-    @ModifyVariable(method = "submitItem", at = @At("HEAD"), argsOnly = true, ordinal = 0)
+    @ModifyVariable(method = "submitItem", at = @At("HEAD"), argsOnly = true, name = "tintLayers")
     private int[] patina$tintItem(int[] tintLayers) {
         return PatinaClient.applyModelTints(tintLayers);
     }

@@ -50,7 +50,7 @@ public class VillagerMixin {
             boolean waxed = stage == OxidationStage.FRESH || random.nextDouble() < rules.villagerWaxChance;
             ItemStack transformed = DynamicVariantRegistry.transform(offer.getResult(), stage, waxed, null);
             if (transformed.isEmpty()) continue;
-            ((MerchantOfferAccessor) offer).patina$setResult(transformed);
+            offer.result = transformed;
             int discount = Math.max(1, (int) Math.floor(offer.getCostA().getCount() * rules.villagerVariantDiscount));
             offer.addToSpecialPriceDiff(-discount);
         }
@@ -65,9 +65,8 @@ public class VillagerMixin {
         for (int index = 0; index < Math.min(restoredOffers.size(), currentOffers.size()); index++) {
             MerchantOffer restored = restoredOffers.get(index);
             MerchantOffer current = currentOffers.get(index);
-            MerchantOfferAccessor accessor = (MerchantOfferAccessor) restored;
-            accessor.patina$setUses(current.getUses());
-            accessor.patina$setDemand(current.getDemand());
+            restored.uses = current.getUses();
+            restored.demand = current.getDemand();
         }
         villager.setOffers(restoredOffers);
         this.patina$baseOffers = null;

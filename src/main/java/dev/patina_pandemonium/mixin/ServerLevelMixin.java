@@ -33,9 +33,9 @@ public abstract class ServerLevelMixin {
     }
 
     @Redirect(method = "tickFluid", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/material/FluidState;tick(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)V"))
-    private void patina$redirectDelegatedFluidTick(FluidState fluidState, ServerLevel level, BlockPos pos, BlockState state) {
-        if (!(state.getBlock() instanceof PatinaDelegatingBlock carrier)) {
-            fluidState.tick(level, pos, state);
+    private void patina$redirectDelegatedFluidTick(FluidState fluidState, ServerLevel level, BlockPos pos, BlockState blockState) {
+        if (!(blockState.getBlock() instanceof PatinaDelegatingBlock carrier)) {
+            fluidState.tick(level, pos, blockState);
             return;
         }
 
@@ -43,7 +43,7 @@ public abstract class ServerLevelMixin {
         VariantData data = blockEntity == null ? null : DynamicVariantRegistry.blockEntityVariantData(blockEntity);
         PatinaGameplayEvents.beginVariantUse(data);
         try {
-            fluidState.tick(level, pos, carrier.sourceState(state));
+            fluidState.tick(level, pos, carrier.sourceState(blockState));
         } finally {
             PatinaGameplayEvents.endVariantUse();
         }
