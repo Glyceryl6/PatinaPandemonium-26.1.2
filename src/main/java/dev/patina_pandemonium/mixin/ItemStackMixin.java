@@ -1,5 +1,6 @@
 package dev.patina_pandemonium.mixin;
 
+import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.event.PatinaGameplayEvents;
 import dev.patina_pandemonium.registry.CraftingChemistry;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
@@ -25,7 +26,7 @@ public class ItemStackMixin {
     private void patina$applyVariantName(CallbackInfoReturnable<Component> callback) {
         ItemStack stack = (ItemStack) (Object) this;
         CraftingChemistry.Data chemistry = stack.get(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get());
-        if (chemistry != null) {
+        if (chemistry != null && PatinaRules.INSTANCE.showChemicalNames) {
             callback.setReturnValue(CraftingChemistry.name(stack, chemistry));
             return;
         }

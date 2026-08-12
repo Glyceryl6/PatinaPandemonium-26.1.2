@@ -22,8 +22,8 @@ import org.jspecify.annotations.Nullable;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 
 /** Runtime-only virtual chemistry for crafting results. The values are deterministic game mechanics, not claims about real-world substances. */
 public class CraftingChemistry {
@@ -39,7 +39,6 @@ public class CraftingChemistry {
     private static final int ELEMENT_SI = 5;
     private static final int ELEMENT_COUNT = 6;
     private static final long[] ATOMIC_MASS_MILLI = {12_011L, 1_008L, 14_007L, 15_999L, 63_546L, 28_085L};
-    private static final String[] ELEMENT_SYMBOLS = {"C", "H", "N", "O", "Cu", "Si"};
 
     public static final Codec<Data> CODEC = RecordCodecBuilder.create(instance -> instance.group(
         Codec.intRange(NO_COLOR, 0xFFFFFF).fieldOf("color").forGetter(Data::color),
@@ -75,6 +74,7 @@ public class CraftingChemistry {
         long signature = mix64((long) width << 32 ^ height);
         ArrayList<Integer> groups = new ArrayList<>();
         boolean[] variantSlots = new boolean[input.size()];
+
         for (int index = 0; index < input.size(); index++) {
             ItemStack ingredient = input.getItem(index);
             if (ingredient.isEmpty()) continue;
@@ -87,6 +87,7 @@ public class CraftingChemistry {
             Identifier sourceId = sourceId(ingredient, variant);
             long sourceHash = mix64(sourceId.toString().hashCode() * 0x9E3779B97F4A7C15L);
             BigInteger factor = BigInteger.valueOf(slotFactor);
+
             if (prior == null) addPseudoElements(elements, sourceHash, variant, factor);
             else {
                 addElements(elements, prior.elementValues(), factor);
@@ -106,6 +107,7 @@ public class CraftingChemistry {
             oxidationTotal += variant.stage().ordinal() * equivalent;
             oxidationWeight += equivalent;
             if (variant.waxed()) waxWeight += equivalent;
+
             Integer postColor = postColor(variant, prior);
             if (postColor != null) {
                 double chromaWeight = equivalent * (variant.waxed() ? 0.72D : 1.0D);
@@ -118,6 +120,7 @@ public class CraftingChemistry {
                 sharedDye = variant.dyeColor();
                 dyeInitialized = true;
             } else if (sharedDye != variant.dyeColor()) sharedDyeValid = false;
+
             if (groups.size() < PatinaRules.INSTANCE.maximumChemicalNameGroups) {
                 groups.add(packGroup(locant, variant, postColor, sourceHash, prior != null));
             }
@@ -154,19 +157,14 @@ public class CraftingChemistry {
         Component color = data.color() == NO_COLOR
             ? Component.translatable("item.patina_pandemonium.chemistry.color.none") : colorName(data.color());
         boolean polymer = data.generation() > 1 || data.groups().size() > 1 || data.polymerDegreeValue().compareTo(BigInteger.ONE) > 0;
-        String polymerMode = polymer ? Long.toString(data.signature() >>> 2 & 7L) : "mono";
-        Component structure = Component.translatable("item.patina_pandemonium.chemistry.structure",
-            Component.translatable("item.patina_pandemonium.chemistry.topology." + data.topology()),
-            Component.translatable("item.patina_pandemonium.chemistry.stereo." + (data.signature() & 3L)),
-            Component.translatable("item.patina_pandemonium.chemistry.polymer_mode." + polymerMode));
-        Component formula = Component.translatable("item.patina_pandemonium.chemistry.formula",
-            Component.literal(formulaDisplay(data.elementValues())), data.oxidationPermille(), data.waxPermille());
-        Component degree = Component.literal(compact(data.polymerDegreeValue()));
-        Component mass = Component.literal(compactMass(data.molarMassValue()));
-        Component signature = Component.literal(Long.toUnsignedString(data.signature(), 36).toUpperCase(Locale.ROOT));
+        Component stereo = Component.translatable("item.patina_pandemonium.chemistry.stereo.prefix",
+            Component.translatable("item.patina_pandemonium.chemistry.stereo." + (data.signature() & 3L)));
+        Component topology = Component.translatable("item.patina_pandemonium.chemistry.topology." + data.topology());
+        Component polymerMode = Component.translatable("item.patina_pandemonium.chemistry.polymer_mode."
+            + (polymer ? Long.toString(data.signature() >>> 2 & 7L) : "mono"));
         return Component.translatable(polymer
                 ? "item.patina_pandemonium.chemistry.name.polymer" : "item.patina_pandemonium.chemistry.name.monomer",
-            structure, groupList, sourceName, color, formula, degree, mass, signature, data.generation());
+            stereo, groupList, polymerMode, topology, sourceName, color);
     }
 
     private static Component sourceName(ItemStack stack) {
@@ -178,11 +176,17 @@ public class CraftingChemistry {
         } else {
             VariantData blockData = stack.get(DynamicVariantRegistry.VARIANT_DATA.get());
             if (blockData != null) {
-                Block sourceBlock = BuiltInRegistries.BLOCK.getValue(blockData.sourceId());
-                if (sourceBlock != Blocks.AIR && sourceBlock.asItem() != Items.AIR) sourceItem = sourceBlock.asItem();
+                Block sourceBlock = DynamicVariantRegistry.existingForm(blockData.sourceId(), blockData.form());
+                if (sourceBlock == null || sourceBlock == Blocks.AIR) sourceBlock = BuiltInRegistries.BLOCK.getValue(blockData.sourceId());
+                if (sourceBlock != Blocks.AIR && sourceBlock.asItem() != Items.AIR) {
+                    sourceItem = sourceBlock.asItem();
+                    if (blockData.form() != VariantForm.FULL && DynamicVariantRegistry.existingForm(blockData.sourceId(), blockData.form()) == null) {
+                        Component baseName = sourceItem.getName(sourceItem.getDefaultInstance());
+                        return baseName.copy().append(Component.translatable(blockData.formKey()));
+                    }
+                }
             }
         }
-
         ItemStack sourceStack = sourceItem.getDefaultInstance();
         Component configured = sourceStack.get(DataComponents.ITEM_NAME);
         return configured == null ? Component.translatable(sourceItem.getDescriptionId()) : configured;
@@ -203,10 +207,12 @@ public class CraftingChemistry {
                 Component.translatable("item.patina_pandemonium.chemistry.value." + value),
                 Component.translatable("item.patina_pandemonium.chemistry.saturation." + saturation),
                 Component.translatable("item.patina_pandemonium.chemistry.hue." + hue));
-        return Component.translatable("item.patina_pandemonium.chemistry.group", locant,
+        return Component.translatable("item.patina_pandemonium.chemistry.group",
+            locant,
             Component.translatable("item.patina_pandemonium.chemistry.chain." + chain),
             Component.translatable("item.patina_pandemonium.chemistry.oxidation." + stage),
-            Component.translatable("item.patina_pandemonium.chemistry.wax." + (waxed ? "waxed" : "bare")), color,
+            Component.translatable("item.patina_pandemonium.chemistry.wax." + (waxed ? "waxed" : "bare")),
+            color,
             Component.translatable("item.patina_pandemonium.chemistry.branch." + (branch ? "poly" : "mono")));
     }
 
@@ -215,8 +221,7 @@ public class CraftingChemistry {
         return Component.translatable("item.patina_pandemonium.chemistry.color",
             Component.translatable("item.patina_pandemonium.chemistry.value." + colorClass.value()),
             Component.translatable("item.patina_pandemonium.chemistry.saturation." + colorClass.saturation()),
-            Component.translatable("item.patina_pandemonium.chemistry.hue." + colorClass.hue()),
-            Component.literal(String.format(Locale.ROOT, "#%06X", color)));
+            Component.translatable("item.patina_pandemonium.chemistry.hue." + colorClass.hue()));
     }
 
     private static int packGroup(int locant, ItemVariantData variant, @Nullable Integer postColor, long sourceHash, boolean branch) {
@@ -284,8 +289,7 @@ public class CraftingChemistry {
 
     private static Identifier sourceId(ItemStack ingredient, @Nullable ItemVariantData variant) {
         if (variant != null) return variant.sourceId();
-        Identifier id = BuiltInRegistries.ITEM.getKey(ingredient.getItem());
-        return id == null ? BuiltInRegistries.ITEM.getKey(Items.AIR) : id;
+        return BuiltInRegistries.ITEM.getKey(ingredient.getItem());
     }
 
     private static void addPseudoElements(BigInteger[] result, long hash, @Nullable ItemVariantData variant, BigInteger factor) {
@@ -312,7 +316,6 @@ public class CraftingChemistry {
                 counts[ELEMENT_SI] += (color & 0xFF) / 32L;
             }
         }
-
         for (int element = 0; element < ELEMENT_COUNT; element++) {
             result[element] = bounded(result[element].add(BigInteger.valueOf(counts[element]).multiply(factor)));
         }
@@ -356,7 +359,6 @@ public class CraftingChemistry {
             edges += degree;
             if (degree >= 3) branchVertices++;
         }
-
         edges /= 2;
         if (vertices <= 1 && !priorChemistry) return 0;
         if (vertices >= 4 && edges >= vertices && branchVertices == 0) return 4;
@@ -379,7 +381,7 @@ public class CraftingChemistry {
 
     private static BigInteger[] zeroElements() {
         BigInteger[] result = new BigInteger[ELEMENT_COUNT];
-        for (int index = 0; index < result.length; index++) result[index] = BigInteger.ZERO;
+        Arrays.fill(result, BigInteger.ZERO);
         return result;
     }
 
@@ -387,32 +389,6 @@ public class CraftingChemistry {
         ArrayList<String> result = new ArrayList<>(ELEMENT_COUNT);
         for (BigInteger element : elements) result.add(element.toString());
         return List.copyOf(result);
-    }
-
-    private static String formulaDisplay(BigInteger[] elements) {
-        StringBuilder result = new StringBuilder();
-        for (int index = 0; index < ELEMENT_COUNT; index++) {
-            if (elements[index].signum() <= 0) continue;
-            result.append(ELEMENT_SYMBOLS[index]);
-            if (!BigInteger.ONE.equals(elements[index])) result.append(compact(elements[index]));
-        }
-        return result.isEmpty() ? "∅" : result.toString();
-    }
-
-    private static String compactMass(BigInteger milli) {
-        if (milli.signum() <= 0) return "0";
-        if (milli.toString().length() <= 10) {
-            BigInteger[] split = milli.divideAndRemainder(BigInteger.valueOf(1_000L));
-            return split[0] + "." + String.format(Locale.ROOT, "%03d", split[1].intValue());
-        }
-        return compact(milli) + "×10^-3";
-    }
-
-    private static String compact(BigInteger value) {
-        String decimal = value.abs().toString();
-        String sign = value.signum() < 0 ? "-" : "";
-        if (decimal.length() <= 18) return sign + decimal;
-        return sign + decimal.substring(0, 12) + "×10^" + (decimal.length() - 12);
     }
 
     private static long mix64(long value) {
@@ -423,7 +399,8 @@ public class CraftingChemistry {
         return value ^ value >>> 31;
     }
 
-    public record Synthesis(OxidationStage stage, boolean waxed, @Nullable DyeColor dyeColor, @Nullable Integer customColor, Data data) {}
+    public record Synthesis(OxidationStage stage, boolean waxed, @Nullable DyeColor dyeColor,
+                            @Nullable Integer customColor, Data data) {}
 
     public record Data(int color, int oxidationPermille, int waxPermille, List<String> elements,
                        String molarMassMilli, String polymerDegree, int generation, int topology,
@@ -443,7 +420,6 @@ public class CraftingChemistry {
                     result[index] = BigInteger.ZERO;
                 }
             }
-
             return result;
         }
 

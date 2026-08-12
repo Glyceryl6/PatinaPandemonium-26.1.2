@@ -13,6 +13,7 @@
     "LootTableMixin",
     "ServerGamePacketListenerImplMixin",
     "ServerLevelMixin",
+    "StonecutterMenuMixin",
     "VillagerMixin"
   ],
   "injectors": {

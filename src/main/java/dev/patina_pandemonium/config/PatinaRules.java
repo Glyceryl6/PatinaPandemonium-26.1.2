@@ -23,7 +23,7 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 14;
+    public int schemaVersion = 15;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
     public Set<String> excludedItems = new HashSet<>();
@@ -68,6 +68,7 @@ public class PatinaRules {
     public int maximumCachedItemQuads = 4_096;
     public int chemistryMaximumNumberBits = 4_096;
     public int maximumChemicalNameGroups = 32;
+    public boolean showChemicalNames = true;
     public JsonObject textureOverrides = new JsonObject();
     public JsonObject existingFormOverrides = new JsonObject();
 
@@ -100,7 +101,7 @@ public class PatinaRules {
                 }
             }
 
-            rules.schemaVersion = 14;
+            rules.schemaVersion = 15;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
             if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
             if (rules.excludedItems == null) rules.excludedItems = new HashSet<>();

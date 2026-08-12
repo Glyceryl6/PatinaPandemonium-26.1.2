@@ -364,6 +364,90 @@ public class DynamicVariantRegistry {
         return output;
     }
 
+    public static ItemStack stonecutterRecipeInput(ItemStack input) {
+        if (input.isEmpty()) return input;
+        VariantData blockData = input.get(VARIANT_DATA.get());
+        if (blockData != null) {
+            VariantData normalized = blockData.normalized(blockData.form());
+            Block source = existingForm(normalized.sourceId(), normalized.form());
+            if (source == null || source == Blocks.AIR || source.asItem() == Items.AIR) return input;
+            return new ItemStack(source.asItem(), input.getCount());
+        }
+
+        if (input.getItem() instanceof GeneratedBlockItem generated) {
+            Identifier sourceId = ITEM_SOURCES.get(input.getItem());
+            Block source = sourceId == null ? null : existingForm(sourceId, generated.form());
+            if (source != null && source != Blocks.AIR && source.asItem() != Items.AIR) {
+                return new ItemStack(source.asItem(), input.getCount());
+            }
+        }
+
+        Identifier delegatedSource = DELEGATED_ITEM_SOURCES.get(input.getItem());
+        if (delegatedSource != null) {
+            Block source = BuiltInRegistries.BLOCK.getValue(delegatedSource);
+            if (source != Blocks.AIR && source.asItem() != Items.AIR) return new ItemStack(source.asItem(), input.getCount());
+        }
+
+        ItemVariantData itemData = peekItemData(input);
+        if (itemData == null) return input;
+        Item source = BuiltInRegistries.ITEM.getValue(itemData.sourceId());
+        return source == Items.AIR ? input : new ItemStack(source, input.getCount());
+    }
+
+    public static ItemStack inheritStonecutterVariant(ItemStack input, ItemStack output) {
+        if (input.isEmpty() || output.isEmpty()) return output;
+        VariantState state = variantState(input);
+        CraftingChemistry.Data chemistry = input.get(CRAFTING_CHEMISTRY.get());
+        if ((state == null || !state.transformed()) && chemistry == null) return output;
+        OxidationStage stage = state == null ? OxidationStage.FRESH : state.stage();
+        boolean waxed = state != null && state.waxed();
+        DyeColor dye = state == null ? null : state.dyeColor();
+        Integer customColor = state == null ? null : state.customColor();
+        if (customColor == null && chemistry != null && chemistry.color() >= 0) customColor = chemistry.color();
+
+        VariantData explicitBlockData = output.get(VARIANT_DATA.get());
+        if (explicitBlockData != null) {
+            VariantData data = new VariantData(explicitBlockData.sourceId(), stage, waxed, explicitBlockData.form(), dye, customColor);
+            return withCraftingChemistry(mergeCraftingOutput(output, displayStack(data, output.getCount())), chemistry);
+        }
+
+        ItemVariantData explicitItemData = output.get(ITEM_VARIANT_DATA.get());
+        if (explicitItemData != null) {
+            ItemStack result = output.copy();
+            result.set(ITEM_VARIANT_DATA.get(), new ItemVariantData(explicitItemData.sourceId(), stage, waxed, dye, explicitItemData.modelId(), customColor));
+            result.set(DataComponents.ITEM_MODEL, VARIANT_ITEM_MODEL);
+            return withCraftingChemistry(result, chemistry);
+        }
+
+        ExistingFormBinding existing = EXISTING_FORM_OUTPUTS.get(output.getItem());
+        if (existing != null) {
+            VariantData data = new VariantData(existing.sourceId(), stage, waxed, existing.form(), dye, customColor);
+            return withCraftingChemistry(mergeCraftingOutput(output, displayStack(data, output.getCount())), chemistry);
+        }
+
+        Identifier fullSource = fullSourceId(output);
+        if (fullSource != null) {
+            VariantData data = new VariantData(fullSource, stage, waxed, VariantForm.FULL, dye, customColor);
+            return withCraftingChemistry(mergeCraftingOutput(output, displayStack(data, output.getCount())), chemistry);
+        }
+
+        Identifier specialSource = specialSourceId(output);
+        if (specialSource != null) {
+            VariantData data = new VariantData(specialSource, stage, waxed, VariantForm.FULL, dye, customColor);
+            ItemStack target = NATIVE_BLOCK_ENTITY_SOURCE_IDS.contains(specialSource)
+                ? variantItemStack(output.copyWithCount(output.getCount()), stage, waxed, dye, customColor)
+                : delegatedStack(output, data, output.getCount());
+            return withCraftingChemistry(mergeCraftingOutput(output, target), chemistry);
+        }
+
+        if (isStandaloneVariantItem(output.getItem())) {
+            ItemStack target = variantItemStack(output.copyWithCount(output.getCount()), stage, waxed, dye, customColor);
+            return withCraftingChemistry(target, chemistry);
+        }
+        return output;
+    }
+
+
     public static ItemStack stack(VariantData data) {
         return stack(data, 1);
     }
@@ -914,8 +998,8 @@ public class DynamicVariantRegistry {
         return null;
     }
 
-    private static ItemStack withCraftingChemistry(ItemStack stack, CraftingChemistry.Data data) {
-        if (!stack.isEmpty()) stack.set(CRAFTING_CHEMISTRY.get(), data);
+    private static ItemStack withCraftingChemistry(ItemStack stack, CraftingChemistry.@Nullable Data data) {
+        if (!stack.isEmpty() && data != null) stack.set(CRAFTING_CHEMISTRY.get(), data);
         return stack;
     }
 
