@@ -18,7 +18,7 @@ public class ServerGamePacketListenerImplMixin {
         ItemVariantData data = entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
         ItemStack picked = entity.getPickResult();
         if (picked == null || picked.isEmpty() || data == null) return picked;
-        ItemStack transformed = DynamicVariantRegistry.transform(picked, data.stage(), data.waxed(), data.dyeColor());
+        ItemStack transformed = DynamicVariantRegistry.transform(picked, data.stage(), data.waxed(), data.dyeColor(), data.customColor());
         return transformed.isEmpty() ? picked : transformed;
     }
 

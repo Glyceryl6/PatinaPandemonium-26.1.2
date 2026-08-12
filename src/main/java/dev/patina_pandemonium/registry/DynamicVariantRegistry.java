@@ -88,6 +88,9 @@ public class DynamicVariantRegistry {
         COMPONENTS.registerComponentType("variant_data", builder -> builder.persistent(VariantData.CODEC));
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<ItemVariantData>> ITEM_VARIANT_DATA =
         COMPONENTS.registerComponentType("item_variant_data", builder -> builder.persistent(ItemVariantData.CODEC));
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<CraftingChemistry.Data>> CRAFTING_CHEMISTRY =
+        COMPONENTS.registerComponentType("crafting_chemistry", builder -> builder.persistent(CraftingChemistry.CODEC)
+            .networkSynchronized(CraftingChemistry.STREAM_CODEC));
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> ORIGINAL_MAX_DAMAGE =
         COMPONENTS.registerComponentType("original_max_damage", builder -> builder.persistent(Codec.INT));
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<ItemVariantData>> ENTITY_VARIANT_DATA = ATTACHMENTS.register(
@@ -306,54 +309,56 @@ public class DynamicVariantRegistry {
         Item sourceItem = BuiltInRegistries.BLOCK.getValue(normalized.sourceId()).asItem();
         Identifier itemId = sourceItem == Items.AIR ? BuiltInRegistries.ITEM.getKey(stack.getItem()) : BuiltInRegistries.ITEM.getKey(sourceItem);
         Identifier modelId = stack.get(DataComponents.ITEM_MODEL);
-        return new ItemVariantData(itemId, normalized.stage(), normalized.waxed(), normalized.dyeColor(), modelId == null ? itemId : modelId);
+        return new ItemVariantData(itemId, normalized.stage(), normalized.waxed(), normalized.dyeColor(), modelId == null ? itemId : modelId, normalized.customColor());
     }
 
     public static ItemStack inheritCraftingVariant(CraftingInput input, ItemStack output) {
-        if (output.isEmpty() || output.has(VARIANT_DATA.get()) || output.has(ITEM_VARIANT_DATA.get())) return output;
-        OxidationStage stage = null;
-        boolean waxed = true;
-        boolean hasVariant = false;
-        DyeColor dye = null;
-        boolean dyeInitialized = false;
-        for (ItemStack ingredient : input.items()) {
-            VariantState state = variantState(ingredient);
-            if (state == null) continue;
-            hasVariant |= state.transformed();
-            if (stage == null || state.stage().ordinal() > stage.ordinal()) stage = state.stage();
-            waxed &= state.waxed();
-            if (!dyeInitialized) {
-                dye = state.dyeColor();
-                dyeInitialized = true;
-            } else if (dye != state.dyeColor()) {
-                dye = null;
-            }
+        if (output.isEmpty()) return output;
+        CraftingChemistry.Synthesis synthesis = CraftingChemistry.synthesize(input);
+        if (synthesis == null) return output;
+
+        VariantData explicitBlockData = output.get(VARIANT_DATA.get());
+        if (explicitBlockData != null) {
+            VariantData data = explicitBlockData.normalized(explicitBlockData.form()).withCustomColor(synthesis.customColor());
+            return withCraftingChemistry(mergeCraftingOutput(output, displayStack(data, output.getCount())), synthesis.data());
         }
 
-        if (!hasVariant || stage == null) return output;
+        ItemVariantData explicitItemData = output.get(ITEM_VARIANT_DATA.get());
+        if (explicitItemData != null) {
+            ItemStack result = output.copy();
+            result.set(ITEM_VARIANT_DATA.get(), explicitItemData.normalized(output.getItem()).withCustomColor(synthesis.customColor()));
+            result.set(DataComponents.ITEM_MODEL, VARIANT_ITEM_MODEL);
+            return withCraftingChemistry(result, synthesis.data());
+        }
+
+        OxidationStage stage = synthesis.stage();
+        boolean waxed = synthesis.waxed();
+        DyeColor dye = synthesis.dyeColor();
+        Integer customColor = synthesis.customColor();
         ExistingFormBinding existing = EXISTING_FORM_OUTPUTS.get(output.getItem());
         if (existing != null) {
-            VariantData data = new VariantData(existing.sourceId(), stage, waxed, existing.form(), dye);
-            return mergeCraftingOutput(output, displayStack(data, output.getCount()));
+            VariantData data = new VariantData(existing.sourceId(), stage, waxed, existing.form(), dye, customColor);
+            return withCraftingChemistry(mergeCraftingOutput(output, displayStack(data, output.getCount())), synthesis.data());
         }
 
         Identifier fullSource = fullSourceId(output);
         if (fullSource != null) {
-            VariantData data = new VariantData(fullSource, stage, waxed, VariantForm.FULL, dye);
-            return mergeCraftingOutput(output, displayStack(data, output.getCount()));
+            VariantData data = new VariantData(fullSource, stage, waxed, VariantForm.FULL, dye, customColor);
+            return withCraftingChemistry(mergeCraftingOutput(output, displayStack(data, output.getCount())), synthesis.data());
         }
 
         Identifier specialSource = specialSourceId(output);
         if (specialSource != null) {
-            VariantData data = new VariantData(specialSource, stage, waxed, VariantForm.FULL, dye);
+            VariantData data = new VariantData(specialSource, stage, waxed, VariantForm.FULL, dye, customColor);
             ItemStack target = NATIVE_BLOCK_ENTITY_SOURCE_IDS.contains(specialSource)
-                ? variantItemStack(output.copyWithCount(output.getCount()), stage, waxed, dye)
+                ? variantItemStack(output.copyWithCount(output.getCount()), stage, waxed, dye, customColor)
                 : delegatedStack(output, data, output.getCount());
-            return mergeCraftingOutput(output, target);
+            return withCraftingChemistry(mergeCraftingOutput(output, target), synthesis.data());
         }
 
         if (isStandaloneVariantItem(output.getItem())) {
-            return variantItemStack(output.copyWithCount(output.getCount()), stage, waxed, dye);
+            ItemStack target = variantItemStack(output.copyWithCount(output.getCount()), stage, waxed, dye, customColor);
+            return withCraftingChemistry(target, synthesis.data());
         }
 
         return output;
@@ -369,7 +374,7 @@ public class DynamicVariantRegistry {
 
     public static ItemStack displayStack(VariantData data, int count) {
         VariantData normalized = data.normalized(data.form());
-        boolean flag = normalized.stage() == OxidationStage.FRESH && !normalized.waxed() && normalized.dyeColor() == null;
+        boolean flag = normalized.stage() == OxidationStage.FRESH && !normalized.waxed() && normalized.dyeColor() == null && normalized.customColor() == null;
         if (isNativeBlockEntityVariant(normalized.sourceId(), normalized.form())) {
             Block source = BuiltInRegistries.BLOCK.getValue(normalized.sourceId());
             if (source.asItem() == Items.AIR) return ItemStack.EMPTY;
@@ -378,7 +383,8 @@ public class DynamicVariantRegistry {
                     source, Math.max(1, count)),
                     normalized.stage(),
                     normalized.waxed(),
-                    normalized.dyeColor());
+                    normalized.dyeColor(),
+                    normalized.customColor());
         }
 
         Item specialItem = normalized.form() == VariantForm.FULL ? specialSourceItem(normalized.sourceId()) : null;
@@ -400,7 +406,7 @@ public class DynamicVariantRegistry {
         if (isNativeBlockEntityVariant(normalized.sourceId(), normalized.form())) {
             Block source = BuiltInRegistries.BLOCK.getValue(normalized.sourceId());
             return source.asItem() == Items.AIR ? ItemStack.EMPTY : variantItemStack(new ItemStack(
-                    source, Math.max(1, count)), normalized.stage(), normalized.waxed(), normalized.dyeColor());
+                    source, Math.max(1, count)), normalized.stage(), normalized.waxed(), normalized.dyeColor(), normalized.customColor());
         }
 
         Item specialItem = normalized.form() == VariantForm.FULL ? specialSourceItem(normalized.sourceId()) : null;
@@ -430,18 +436,29 @@ public class DynamicVariantRegistry {
     }
 
     public static ItemStack transform(ItemStack input, OxidationStage stage, boolean waxed, @Nullable DyeColor dye) {
+        VariantState state = variantState(input);
+        return transform(input, stage, waxed, dye, state == null ? null : state.customColor());
+    }
+
+    public static ItemStack transform(ItemStack input, OxidationStage stage, boolean waxed, @Nullable DyeColor dye, @Nullable Integer customColor) {
         if (input.isEmpty() || !supportsFabrication(input)) return ItemStack.EMPTY;
         VariantData current = input.get(VARIANT_DATA.get());
         ItemStack target;
         if (current != null) {
-            target = displayStack(new VariantData(current.sourceId(), stage, waxed, current.form(), dye), input.getCount());
+            target = displayStack(new VariantData(current.sourceId(), stage, waxed, current.form(), dye, customColor), input.getCount());
         } else {
             ExistingFormBinding existing = EXISTING_FORM_OUTPUTS.get(input.getItem());
             target = existing == null
                 ? fabricate(input, VariantForm.FULL, stage, waxed, dye, input.getCount())
-                : displayStack(new VariantData(existing.sourceId(), stage, waxed, existing.form(), dye), input.getCount());
+                : displayStack(new VariantData(existing.sourceId(), stage, waxed, existing.form(), dye, customColor), input.getCount());
         }
 
+        if (!target.isEmpty() && customColor != null) {
+            VariantData blockData = target.get(VARIANT_DATA.get());
+            ItemVariantData itemData = target.get(ITEM_VARIANT_DATA.get());
+            if (blockData != null) target.set(VARIANT_DATA.get(), blockData.withCustomColor(customColor));
+            if (itemData != null) target.set(ITEM_VARIANT_DATA.get(), itemData.withCustomColor(customColor));
+        }
         return target.isEmpty() ? ItemStack.EMPTY : mergeCraftingOutput(input, target);
     }
 
@@ -592,7 +609,7 @@ public class DynamicVariantRegistry {
         int flags = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE | Block.UPDATE_SUPPRESS_DROPS;
         if (!level.setBlock(pos, targetState, flags)) return;
         if (level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity) {
-            blockEntity.setData(new VariantData(sourceId, data.stage(), data.waxed(), VariantForm.FULL, data.dyeColor()));
+            blockEntity.setData(new VariantData(sourceId, data.stage(), data.waxed(), VariantForm.FULL, data.dyeColor(), data.customColor()));
         }
 
         level.updateNeighborsAt(pos, carrier);
@@ -880,21 +897,26 @@ public class DynamicVariantRegistry {
         VariantData blockData = stack.get(VARIANT_DATA.get());
         if (blockData != null) {
             VariantData normalized = blockData.normalized(blockData.form());
-            return new VariantState(normalized.stage(), normalized.waxed(), normalized.dyeColor(), true);
+            return new VariantState(normalized.stage(), normalized.waxed(), normalized.dyeColor(), normalized.customColor(), true);
         }
 
         ItemVariantData itemData = peekItemData(stack);
-        if (itemData != null) return new VariantState(itemData.stage(), itemData.waxed(), itemData.dyeColor(), true);
+        if (itemData != null) return new VariantState(itemData.stage(), itemData.waxed(), itemData.dyeColor(), itemData.customColor(), true);
         if (ITEM_SOURCES.containsKey(stack.getItem()) || DELEGATED_ITEM_SOURCES.containsKey(stack.getItem())) {
-            return new VariantState(OxidationStage.FRESH, false, null, true);
+            return new VariantState(OxidationStage.FRESH, false, null, null, true);
         }
 
         if (EXISTING_FORM_OUTPUTS.containsKey(stack.getItem()) || fullSourceId(stack) != null
             || specialSourceId(stack) != null || STANDALONE_VARIANT_ITEMS.contains(stack.getItem())) {
-            return new VariantState(OxidationStage.FRESH, false, null, false);
+            return new VariantState(OxidationStage.FRESH, false, null, null, false);
         }
 
         return null;
+    }
+
+    private static ItemStack withCraftingChemistry(ItemStack stack, CraftingChemistry.Data data) {
+        if (!stack.isEmpty()) stack.set(CRAFTING_CHEMISTRY.get(), data);
+        return stack;
     }
 
     private static ItemStack mergeCraftingOutput(ItemStack output, ItemStack target) {
@@ -933,11 +955,15 @@ public class DynamicVariantRegistry {
     }
 
     private static ItemStack variantItemStack(ItemStack stack, OxidationStage stage, boolean waxed, @Nullable DyeColor dye) {
+        return variantItemStack(stack, stage, waxed, dye, null);
+    }
+
+    private static ItemStack variantItemStack(ItemStack stack, OxidationStage stage, boolean waxed, @Nullable DyeColor dye, @Nullable Integer customColor) {
         ItemVariantData existing = peekItemData(stack);
         Identifier sourceId = existing == null ? BuiltInRegistries.ITEM.getKey(stack.getItem()) : existing.sourceId();
         Identifier modelId = existing == null ? stack.get(DataComponents.ITEM_MODEL) : existing.modelId();
         if (modelId == null || VARIANT_ITEM_MODEL.equals(modelId)) modelId = sourceId;
-        ItemVariantData data = new ItemVariantData(sourceId, stage, waxed, dye, modelId);
+        ItemVariantData data = new ItemVariantData(sourceId, stage, waxed, dye, modelId, customColor);
         stack.set(ITEM_VARIANT_DATA.get(), data);
         stack.set(DataComponents.ITEM_MODEL, VARIANT_ITEM_MODEL);
         stack.remove(DataComponents.ITEM_NAME);
@@ -1128,7 +1154,7 @@ public class DynamicVariantRegistry {
 
     private record ExistingFormBinding(Identifier sourceId, VariantForm form) {}
 
-    private record VariantState(OxidationStage stage, boolean waxed, @Nullable DyeColor dyeColor, boolean transformed) {}
+    private record VariantState(OxidationStage stage, boolean waxed, @Nullable DyeColor dyeColor, @Nullable Integer customColor, boolean transformed) {}
 
     public record CarrierBinding(Identifier sourceId, VariantForm form, Block block, @Nullable Item item) {}
 

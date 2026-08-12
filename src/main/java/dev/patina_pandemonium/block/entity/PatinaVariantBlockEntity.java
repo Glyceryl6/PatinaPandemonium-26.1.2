@@ -29,6 +29,7 @@ public class PatinaVariantBlockEntity extends BlockEntity {
     private static final String STAGE_KEY = "stage";
     private static final String WAXED_KEY = "waxed";
     private static final String DYE_KEY = "dye";
+    private static final String COLOR_KEY = "custom_color";
     private VariantData data;
     private ModelData modelData;
 
@@ -63,12 +64,14 @@ public class PatinaVariantBlockEntity extends BlockEntity {
         super.loadAdditional(input);
         Identifier fallback = defaultData(this.getBlockState()).sourceId();
         Identifier source = Identifier.tryParse(input.getStringOr(SOURCE_KEY, fallback.toString()));
-        this.data = VariantData.decode(
+        int customColor = input.getIntOr(COLOR_KEY, -1);
+        this.data = new VariantData(
             source == null ? fallback : source,
-            input.getIntOr(STAGE_KEY, 0),
+            OxidationStage.byOrdinal(input.getIntOr(STAGE_KEY, 0)),
             input.getBooleanOr(WAXED_KEY, false),
-            form(this.getBlockState()).ordinal(),
-            input.getIntOr(DYE_KEY, -1));
+            form(this.getBlockState()),
+            VariantData.dyeById(input.getIntOr(DYE_KEY, -1)),
+            customColor < 0 ? null : customColor);
         this.refreshModelData();
     }
 
@@ -79,6 +82,8 @@ public class PatinaVariantBlockEntity extends BlockEntity {
         output.putInt(STAGE_KEY, this.data.stage().ordinal());
         output.putBoolean(WAXED_KEY, this.data.waxed());
         output.putInt(DYE_KEY, this.data.dyeId());
+        if (this.data.customColor() == null) output.discard(COLOR_KEY);
+        else output.putInt(COLOR_KEY, this.data.customColor());
     }
 
     @Override

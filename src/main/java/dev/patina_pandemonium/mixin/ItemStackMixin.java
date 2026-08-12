@@ -1,6 +1,7 @@
 package dev.patina_pandemonium.mixin;
 
 import dev.patina_pandemonium.event.PatinaGameplayEvents;
+import dev.patina_pandemonium.registry.CraftingChemistry;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ItemVariantData;
 import net.minecraft.network.chat.Component;
@@ -23,6 +24,11 @@ public class ItemStackMixin {
     @Inject(method = "getHoverName", at = @At("RETURN"), cancellable = true)
     private void patina$applyVariantName(CallbackInfoReturnable<Component> callback) {
         ItemStack stack = (ItemStack) (Object) this;
+        CraftingChemistry.Data chemistry = stack.get(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get());
+        if (chemistry != null) {
+            callback.setReturnValue(CraftingChemistry.name(stack, chemistry));
+            return;
+        }
         ItemVariantData data = DynamicVariantRegistry.itemData(stack);
         if (data != null) callback.setReturnValue(DynamicVariantRegistry.variantItemName(stack, data));
     }

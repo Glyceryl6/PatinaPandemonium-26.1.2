@@ -222,7 +222,7 @@ public class PatinaGameplayEvents {
         event.setFinalState(target);
         if (event.isSimulated() || !(event.getContext().getLevel() instanceof ServerLevel level)) return;
         VariantData targetData = new VariantData(BuiltInRegistries.BLOCK.getKey(modified.getBlock()), data.stage(), data.waxed(),
-            VariantForm.FULL, data.dyeColor());
+            VariantForm.FULL, data.dyeColor(), data.customColor());
         PENDING_TOOL_TRANSFORMATIONS.computeIfAbsent(level, _ -> new LinkedHashMap<>())
             .put(event.getPos().immutable(), new PendingToolTransformation(target.getBlock(), targetData));
     }
@@ -280,7 +280,7 @@ public class PatinaGameplayEvents {
         if (data == null) data = currentVariantUse();
         if (data == null) return;
         if (entity instanceof ItemEntity itemEntity) {
-            ItemStack transformed = DynamicVariantRegistry.transform(itemEntity.getItem(), data.stage(), data.waxed(), data.dyeColor());
+            ItemStack transformed = DynamicVariantRegistry.transform(itemEntity.getItem(), data.stage(), data.waxed(), data.dyeColor(), data.customColor());
             if (!transformed.isEmpty()) itemEntity.setItem(transformed);
             return;
         }
@@ -367,7 +367,7 @@ public class PatinaGameplayEvents {
         if (data == null) return;
         for (ItemEntity drop : event.getDrops()) {
             ItemStack transformed = DynamicVariantRegistry.transform(
-                drop.getItem(), data.stage(), data.waxed(), data.dyeColor());
+                drop.getItem(), data.stage(), data.waxed(), data.dyeColor(), data.customColor());
             if (!transformed.isEmpty()) drop.setItem(transformed);
         }
     }
@@ -456,7 +456,7 @@ public class PatinaGameplayEvents {
             for (ItemEntity drop : event.getDrops()) {
                 ItemStack stack = drop.getItem();
                 if (stack.getItem() != sourceItem) continue;
-                ItemStack transformed = DynamicVariantRegistry.transform(stack, data.stage(), data.waxed(), data.dyeColor());
+                ItemStack transformed = DynamicVariantRegistry.transform(stack, data.stage(), data.waxed(), data.dyeColor(), data.customColor());
                 if (!transformed.isEmpty()) drop.setItem(transformed);
             }
             return;
@@ -469,7 +469,7 @@ public class PatinaGameplayEvents {
                 sourceState, event.getLevel(), event.getPos(), null, event.getBreaker(), event.getTool());
             event.getDrops().clear();
             for (ItemStack stack : sourceDrops) {
-                ItemStack transformed = DynamicVariantRegistry.transform(stack, data.stage(), data.waxed(), data.dyeColor());
+                ItemStack transformed = DynamicVariantRegistry.transform(stack, data.stage(), data.waxed(), data.dyeColor(), data.customColor());
                 if (transformed.isEmpty()) transformed = stack;
                 event.getDrops().add(new ItemEntity(event.getLevel(), event.getPos().getX() + 0.5D,
                     event.getPos().getY() + 0.5D, event.getPos().getZ() + 0.5D, transformed));
@@ -703,7 +703,7 @@ public class PatinaGameplayEvents {
     private static ItemVariantData itemVariantData(VariantData data) {
         Item sourceItem = BuiltInRegistries.BLOCK.getValue(data.sourceId()).asItem();
         Identifier sourceId = sourceItem == Items.AIR ? data.sourceId() : BuiltInRegistries.ITEM.getKey(sourceItem);
-        return new ItemVariantData(sourceId, data.stage(), data.waxed(), data.dyeColor(), sourceId);
+        return new ItemVariantData(sourceId, data.stage(), data.waxed(), data.dyeColor(), sourceId, data.customColor());
     }
 
     @Nullable

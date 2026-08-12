@@ -12,7 +12,10 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import org.jspecify.annotations.Nullable;
 
-public record VariantData(Identifier sourceId, OxidationStage stage, boolean waxed, VariantForm form, @Nullable DyeColor dyeColor) {
+import java.util.Optional;
+
+public record VariantData(Identifier sourceId, OxidationStage stage, boolean waxed, VariantForm form,
+                          @Nullable DyeColor dyeColor, @Nullable Integer customColor) {
 
     private static final int NO_DYE = -1;
     public static final Codec<VariantData> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -20,16 +23,21 @@ public record VariantData(Identifier sourceId, OxidationStage stage, boolean wax
             Codec.intRange(0, OxidationStage.values().length - 1).fieldOf("stage").forGetter(data -> data.stage().ordinal()),
             Codec.BOOL.fieldOf("waxed").forGetter(VariantData::waxed),
             Codec.intRange(0, VariantForm.values().length - 1).fieldOf("form").forGetter(data -> data.form().ordinal()),
-            Codec.intRange(NO_DYE, DyeColor.VALUES.size() - 1).fieldOf("dye").forGetter(VariantData::dyeId)
+            Codec.intRange(NO_DYE, DyeColor.VALUES.size() - 1).fieldOf("dye").forGetter(VariantData::dyeId),
+            Codec.intRange(0, 0xFFFFFF).optionalFieldOf("custom_color").forGetter(data -> Optional.ofNullable(data.customColor()))
     ).apply(instance, VariantData::decode));
     public static final StreamCodec<RegistryFriendlyByteBuf, VariantData> STREAM_CODEC = ByteBufCodecs.fromCodecWithRegistries(CODEC);
 
+    public VariantData(Identifier sourceId, OxidationStage stage, boolean waxed, VariantForm form, @Nullable DyeColor dyeColor) {
+        this(sourceId, stage, waxed, form, dyeColor, null);
+    }
+
     public VariantData(Identifier sourceId, OxidationStage stage, boolean waxed, VariantForm form) {
-        this(sourceId, stage, waxed, form, null);
+        this(sourceId, stage, waxed, form, null, null);
     }
 
     public static VariantData defaultFor(VariantForm form) {
-        return new VariantData(BuiltInRegistries.BLOCK.getKey(Blocks.STONE), OxidationStage.FRESH, false, form, null);
+        return new VariantData(BuiltInRegistries.BLOCK.getKey(Blocks.STONE), OxidationStage.FRESH, false, form, null, null);
     }
 
     public VariantData normalized(VariantForm form) {
@@ -37,27 +45,31 @@ public record VariantData(Identifier sourceId, OxidationStage stage, boolean wax
         Identifier sourceId = source == Blocks.AIR
                 ? BuiltInRegistries.BLOCK.getKey(Blocks.STONE)
                 : BuiltInRegistries.BLOCK.getKey(source);
-        return new VariantData(sourceId, this.stage, this.waxed, form, this.dyeColor);
+        return new VariantData(sourceId, this.stage, this.waxed, form, this.dyeColor, this.customColor);
     }
 
     public VariantData withSourceId(Identifier sourceId) {
-        return new VariantData(sourceId, this.stage, this.waxed, this.form, this.dyeColor);
+        return new VariantData(sourceId, this.stage, this.waxed, this.form, this.dyeColor, this.customColor);
     }
 
     public VariantData withStage(OxidationStage stage) {
-        return new VariantData(this.sourceId, stage, this.waxed, this.form, this.dyeColor);
+        return new VariantData(this.sourceId, stage, this.waxed, this.form, this.dyeColor, this.customColor);
     }
 
     public VariantData withWaxed(boolean waxed) {
-        return new VariantData(this.sourceId, this.stage, waxed, this.form, this.dyeColor);
+        return new VariantData(this.sourceId, this.stage, waxed, this.form, this.dyeColor, this.customColor);
     }
 
     public VariantData withForm(VariantForm form) {
-        return new VariantData(this.sourceId, this.stage, this.waxed, form, this.dyeColor);
+        return new VariantData(this.sourceId, this.stage, this.waxed, form, this.dyeColor, this.customColor);
     }
 
     public VariantData withDye(@Nullable DyeColor dyeColor) {
-        return new VariantData(this.sourceId, this.stage, this.waxed, this.form, dyeColor);
+        return new VariantData(this.sourceId, this.stage, this.waxed, this.form, dyeColor, null);
+    }
+
+    public VariantData withCustomColor(@Nullable Integer customColor) {
+        return new VariantData(this.sourceId, this.stage, this.waxed, this.form, this.dyeColor, customColor);
     }
 
     public String stageKey() {
@@ -78,7 +90,10 @@ public record VariantData(Identifier sourceId, OxidationStage stage, boolean wax
 
     public int tint() {
         int oxidation = 0xFF000000 | this.stage.fallbackColor();
-        return this.dyeColor == null ? oxidation : multiply(oxidation, this.dyeColor.getTextureDiffuseColor());
+        int overlay = this.customColor == null
+            ? this.dyeColor == null ? 0xFFFFFFFF : 0xFF000000 | this.dyeColor.getTextureDiffuseColor()
+            : 0xFF000000 | this.customColor;
+        return multiply(oxidation, overlay);
     }
 
     public int dyeId() {
@@ -86,7 +101,11 @@ public record VariantData(Identifier sourceId, OxidationStage stage, boolean wax
     }
 
     public static VariantData decode(Identifier sourceId, int stage, boolean waxed, int form, int dye) {
-        return new VariantData(sourceId, OxidationStage.byOrdinal(stage), waxed, VariantForm.byOrdinal(form), dyeById(dye));
+        return new VariantData(sourceId, OxidationStage.byOrdinal(stage), waxed, VariantForm.byOrdinal(form), dyeById(dye), null);
+    }
+
+    private static VariantData decode(Identifier sourceId, int stage, boolean waxed, int form, int dye, Optional<Integer> customColor) {
+        return new VariantData(sourceId, OxidationStage.byOrdinal(stage), waxed, VariantForm.byOrdinal(form), dyeById(dye), customColor.orElse(null));
     }
 
     @Nullable
