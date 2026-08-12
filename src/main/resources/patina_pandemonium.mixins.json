@@ -8,6 +8,7 @@
     "CraftingMenuMixin",
     "DispenserBlockMixin",
     "DropperBlockMixin",
+    "IngredientMixin",
     "ItemStackMixin",
     "LevelMixin",
     "LootTableMixin",

@@ -120,10 +120,13 @@ public class CraftingChemistry {
                 sharedDye = variant.dyeColor();
                 dyeInitialized = true;
             } else if (sharedDye != variant.dyeColor()) sharedDyeValid = false;
-
-            if (groups.size() < PatinaRules.INSTANCE.maximumChemicalNameGroups) {
-                groups.add(packGroup(locant, variant, postColor, sourceHash, prior != null));
+            if (prior != null) {
+                for (int group : prior.groups()) {
+                    if (groups.size() >= PatinaRules.INSTANCE.maximumChemicalNameGroups) break;
+                    groups.add(group);
+                }
             }
+
             signature = mix64(signature ^ ((long) variant.stage().ordinal() << 48)
                 ^ (variant.waxed() ? 0x5A5A5A5A5A5A5A5AL : 0L) ^ (postColor == null ? 0L : postColor));
         }
@@ -187,6 +190,7 @@ public class CraftingChemistry {
                 }
             }
         }
+
         ItemStack sourceStack = sourceItem.getDefaultInstance();
         Component configured = sourceStack.get(DataComponents.ITEM_NAME);
         return configured == null ? Component.translatable(sourceItem.getDescriptionId()) : configured;

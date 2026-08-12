@@ -15,6 +15,7 @@ import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.effect.TetanusMobEffect;
 import dev.patina_pandemonium.item.GeneratedBlockItem;
 import dev.patina_pandemonium.menu.VariantFabricatorMenu;
+import dev.patina_pandemonium.recipe.VariantFormRecipe;
 import dev.patina_pandemonium.recipe.VariantWaxingRecipe;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Registry;
@@ -106,6 +107,9 @@ public class DynamicVariantRegistry {
     public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<VariantWaxingRecipe>> VARIANT_WAXING_RECIPE =
         RECIPE_SERIALIZERS.register("variant_waxing", () -> new RecipeSerializer<>(
             VariantWaxingRecipe.MAP_CODEC, VariantWaxingRecipe.STREAM_CODEC));
+    public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<VariantFormRecipe>> VARIANT_FORM_RECIPE =
+            RECIPE_SERIALIZERS.register("variant_form", () -> new RecipeSerializer<>(
+                    VariantFormRecipe.MAP_CODEC, VariantFormRecipe.STREAM_CODEC));
 
     public static final DeferredBlock<VariantFabricatorBlock> VARIANT_FABRICATOR = BLOCKS.register(
         "variant_fabricator", id -> new VariantFabricatorBlock(BlockBehaviour.Properties.of()
@@ -505,18 +509,28 @@ public class DynamicVariantRegistry {
 
     public static ItemStack fabricate(ItemStack input, VariantForm form, OxidationStage stage, boolean waxed, @Nullable DyeColor dye, int count) {
         if (input.isEmpty() || !supportsForm(input, form)) return ItemStack.EMPTY;
+        ItemStack output;
         Identifier fullSource = fullSourceId(input);
-        if (fullSource != null) return displayStack(new VariantData(fullSource, stage, waxed, form, dye), count);
-        Identifier specialSource = specialSourceId(input);
-        if (specialSource != null) {
-            if (NATIVE_BLOCK_ENTITY_SOURCE_IDS.contains(specialSource)) {
-                return variantItemStack(input.copyWithCount(Math.max(1, count)), stage, waxed, dye);
+        if (fullSource != null) {
+            output = displayStack(new VariantData(fullSource, stage, waxed, form, dye), count);
+        } else {
+            Identifier specialSource = specialSourceId(input);
+            if (specialSource != null) {
+                VariantData data = new VariantData(specialSource, stage, waxed, VariantForm.FULL, dye);
+                if (NATIVE_BLOCK_ENTITY_SOURCE_IDS.contains(specialSource)) {
+                    output = variantItemStack(input.copyWithCount(Math.max(1, count)), stage, waxed, dye);
+                } else {
+                    output = delegatedStack(input, data, count);
+                }
+            } else {
+                output = variantItemStack(input.copyWithCount(Math.max(1, count)), stage, waxed, dye);
             }
-
-            return delegatedStack(input, new VariantData(specialSource, stage, waxed, VariantForm.FULL, dye), count);
         }
 
-        return variantItemStack(input.copyWithCount(Math.max(1, count)), stage, waxed, dye);
+        if (output.isEmpty() || output.get(CRAFTING_CHEMISTRY.get()) != null) return output;
+        CraftingChemistry.Synthesis synthesis = CraftingChemistry.synthesize(CraftingInput.of(1, 1, List.of(output)));
+        if (synthesis != null) output.set(CRAFTING_CHEMISTRY.get(), synthesis.data());
+        return output;
     }
 
     public static ItemStack transform(ItemStack input, OxidationStage stage, boolean waxed, @Nullable DyeColor dye) {
@@ -607,7 +621,7 @@ public class DynamicVariantRegistry {
 
     public static boolean supportsForm(ItemStack stack, VariantForm form) {
         VariantData blockData = stack.get(VARIANT_DATA.get());
-        if (blockData != null) return blockData.form() == form;
+        if (blockData != null) return blockData.form() == VariantForm.FULL || blockData.form() == form;
         ExistingFormBinding existing = EXISTING_FORM_OUTPUTS.get(stack.getItem());
         if (existing != null) return existing.form() == form;
         return supportsFabrication(stack) && (fullSourceId(stack) != null || form == VariantForm.FULL);

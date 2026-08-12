@@ -23,7 +23,7 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 15;
+    public int schemaVersion = 16;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
     public Set<String> excludedItems = new HashSet<>();
@@ -67,7 +67,7 @@ public class PatinaRules {
     public int maximumCachedModelParts = 2_048;
     public int maximumCachedItemQuads = 4_096;
     public int chemistryMaximumNumberBits = 4_096;
-    public int maximumChemicalNameGroups = 32;
+    public int maximumChemicalNameGroups = 4_096;
     public boolean showChemicalNames = true;
     public JsonObject textureOverrides = new JsonObject();
     public JsonObject existingFormOverrides = new JsonObject();
@@ -101,7 +101,8 @@ public class PatinaRules {
                 }
             }
 
-            rules.schemaVersion = 15;
+            if (previousSchema < 16) rules.maximumChemicalNameGroups = 4_096;
+            rules.schemaVersion = 16;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
             if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
             if (rules.excludedItems == null) rules.excludedItems = new HashSet<>();
@@ -112,7 +113,7 @@ public class PatinaRules {
             rules.maximumCachedModelParts = Math.max(0, rules.maximumCachedModelParts);
             rules.maximumCachedItemQuads = Math.max(0, rules.maximumCachedItemQuads);
             rules.chemistryMaximumNumberBits = Math.clamp(rules.chemistryMaximumNumberBits, 128, 65_536);
-            rules.maximumChemicalNameGroups = Math.clamp(rules.maximumChemicalNameGroups, 1, 256);
+            rules.maximumChemicalNameGroups = Math.clamp(rules.maximumChemicalNameGroups, 1, 65_536);
             rules.treeScanHorizontalRadius = Math.clamp(rules.treeScanHorizontalRadius, 4, 32);
             rules.treeScanBelow = Math.clamp(rules.treeScanBelow, 0, 8);
             rules.treeScanHeight = Math.clamp(rules.treeScanHeight, 8, 96);
