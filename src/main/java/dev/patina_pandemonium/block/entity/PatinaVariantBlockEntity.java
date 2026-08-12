@@ -51,7 +51,7 @@ public class PatinaVariantBlockEntity extends BlockEntity {
         Level level = this.getLevel();
         if (level == null) return;
         if (level.isClientSide()) {
-            this.requestModelDataUpdate();
+            this.refreshClientModel();
         } else {
             BlockState state = this.getBlockState();
             level.sendBlockUpdated(this.getBlockPos(), state, state, Block.UPDATE_ALL);
@@ -94,13 +94,13 @@ public class PatinaVariantBlockEntity extends BlockEntity {
     @Override
     public void handleUpdateTag(ValueInput input) {
         super.handleUpdateTag(input);
-        this.requestModelDataUpdate();
+        this.refreshClientModel();
     }
 
     @Override
     public void onDataPacket(Connection connection, ValueInput input) {
         super.onDataPacket(connection, input);
-        this.requestModelDataUpdate();
+        this.refreshClientModel();
     }
 
     @Override
@@ -110,6 +110,14 @@ public class PatinaVariantBlockEntity extends BlockEntity {
 
     private void refreshModelData() {
         this.modelData = ModelData.of(MODEL_DATA, this.data);
+    }
+
+    private void refreshClientModel() {
+        this.requestModelDataUpdate();
+        Level level = this.getLevel();
+        if (level == null || !level.isClientSide()) return;
+        BlockState state = this.getBlockState();
+        level.sendBlockUpdated(this.getBlockPos(), state, state, Block.UPDATE_IMMEDIATE);
     }
 
     private static VariantData defaultData(BlockState state) {

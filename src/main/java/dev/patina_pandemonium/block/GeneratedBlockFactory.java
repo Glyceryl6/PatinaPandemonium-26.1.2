@@ -1,6 +1,5 @@
 package dev.patina_pandemonium.block;
 
-import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.registry.VariantForm;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.Registries;
@@ -70,9 +69,7 @@ public class GeneratedBlockFactory {
         if (nonOccluding || NO_OCCLUSION_FORMS.contains(form)) properties.noOcclusion();
         if (form == VariantForm.FULL) {
             int stateCount = source.getStateDefinition().getPossibleStates().size();
-            if (!(source instanceof EntityBlock) && stateCount > 1 && stateCount <= PatinaRules.INSTANCE.maximumDelegatedBlockStates) {
-                return PatinaDelegatingBlock.create(source, properties);
-            }
+            if (!(source instanceof EntityBlock) && stateCount > 1) return PatinaDelegatingBlock.create(source, properties);
             return PatinaBlock.create(source, properties);
         }
         return form == VariantForm.STAIRS

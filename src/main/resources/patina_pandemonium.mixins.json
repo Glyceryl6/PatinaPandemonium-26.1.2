@@ -7,13 +7,15 @@
     "CrafterBlockMixin",
     "CraftingMenuMixin",
     "DispenserBlockMixin",
-    "ItemStackUseMixin",
+    "DropperBlockMixin",
     "ItemStackNameMixin",
+    "ItemStackUseMixin",
+    "LevelMixin",
     "LootTableMixin",
     "MerchantOfferAccessor",
-    "VillagerMixin",
-    "LevelMixin",
-    "ServerLevelMixin"
+    "ServerGamePacketListenerImplMixin",
+    "ServerLevelMixin",
+    "VillagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1
@@ -24,13 +26,16 @@
   "client": [
     "AbstractBoatRendererMixin",
     "AbstractMinecartRendererMixin",
+    "BlockEntityRenderDispatcherMixin",
     "BlockModelRenderStateAccessor",
     "FallingBlockRendererMixin",
     "LivingEntityRendererMixin",
-    "TntRendererMixin",
-    "TntMinecartRendererMixin",
-    "BlockEntityRenderDispatcherMixin",
+    "ModelDataManagerMixin",
     "SubmitNodeCollectorMixin",
-    "ModelDataManagerMixin"
+    "TntMinecartRendererMixin",
+    "TntRendererMixin",
+    "FlameFeatureRendererMixin",
+    "FluidRendererMixin",
+    "EntityRenderDispatcherMixin"
   ]
 }

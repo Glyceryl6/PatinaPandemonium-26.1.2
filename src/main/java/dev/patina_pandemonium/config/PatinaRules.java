@@ -23,16 +23,18 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 12;
+    public int schemaVersion = 13;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
     public Set<String> excludedItems = new HashSet<>();
     public boolean generateExternalVariants = true;
-    public int maximumDelegatedBlockStates = 256;
     public int maximumCreativeTabItems = 0;
     public int maximumCreativePreviewSources = 0;
     public double oxidationAttemptChance = 0.05688889D;
     public double naturalVariantSpawnChance = 0.015D;
+    public int entityOxidationInterval = 64;
+    public double entityOxidationAttemptChance = 0.05688889D;
+    public double entityOxidationRainMultiplier = 4.0D;
     public double waxTetanusMultiplier = 0.65D;
     public double waxFoodRiskMultiplier = 0.5D;
     public double[] naturalVariantStageWeights = {0.0D, 0.50D, 0.32D, 0.18D};
@@ -96,7 +98,7 @@ public class PatinaRules {
                 }
             }
 
-            rules.schemaVersion = 12;
+            rules.schemaVersion = 13;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
             if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
             if (rules.excludedItems == null) rules.excludedItems = new HashSet<>();
@@ -104,15 +106,17 @@ public class PatinaRules {
             if (rules.existingFormOverrides == null) rules.existingFormOverrides = new JsonObject();
             rules.maximumCreativeTabItems = Math.max(0, rules.maximumCreativeTabItems);
             rules.maximumCreativePreviewSources = Math.max(0, rules.maximumCreativePreviewSources);
-            rules.maximumDelegatedBlockStates = Math.max(1, rules.maximumDelegatedBlockStates);
             rules.maximumCachedModelParts = Math.max(0, rules.maximumCachedModelParts);
             rules.maximumCachedItemQuads = Math.max(0, rules.maximumCachedItemQuads);
             rules.treeScanHorizontalRadius = Math.clamp(rules.treeScanHorizontalRadius, 4, 32);
             rules.treeScanBelow = Math.clamp(rules.treeScanBelow, 0, 8);
             rules.treeScanHeight = Math.clamp(rules.treeScanHeight, 8, 96);
             rules.inventoryOxidationInterval = Math.max(1, rules.inventoryOxidationInterval);
+            rules.entityOxidationInterval = Math.max(1, rules.entityOxidationInterval);
             rules.oxidationAttemptChance = chance(rules.oxidationAttemptChance);
             rules.naturalVariantSpawnChance = chance(rules.naturalVariantSpawnChance);
+            rules.entityOxidationAttemptChance = chance(rules.entityOxidationAttemptChance);
+            rules.entityOxidationRainMultiplier = Math.max(1.0D, rules.entityOxidationRainMultiplier);
             rules.waxTetanusMultiplier = chance(rules.waxTetanusMultiplier);
             rules.waxFoodRiskMultiplier = chance(rules.waxFoodRiskMultiplier);
             rules.treeLogVariantCoverage = chance(rules.treeLogVariantCoverage);

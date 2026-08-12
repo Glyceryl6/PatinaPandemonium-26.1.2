@@ -2,6 +2,8 @@ package dev.patina_pandemonium.client;
 
 import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
 import dev.patina_pandemonium.config.PatinaRules;
+import dev.patina_pandemonium.registry.DynamicVariantRegistry;
+import dev.patina_pandemonium.registry.OxidationStage;
 import dev.patina_pandemonium.registry.VariantData;
 import dev.patina_pandemonium.registry.VariantForm;
 import net.minecraft.client.Minecraft;
@@ -15,6 +17,7 @@ import net.minecraft.client.resources.model.sprite.Material;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -76,7 +79,7 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
             this.delegate.collectParts(level, pos, state, random, parts);
             return;
         }
-        this.collectParts(data == null ? VariantData.defaultFor(this.form) : data.normalized(this.form), state, level, pos, random, parts);
+        this.collectParts(data == null ? this.fallbackData(state) : data.normalized(this.form), state, level, pos, random, parts);
     }
 
     @Override
@@ -91,7 +94,13 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
     public Material.Baked particleMaterial(BlockAndTintGetter level, BlockPos pos, BlockState state) {
         VariantData data = level.getModelData(pos).get(PatinaVariantBlockEntity.MODEL_DATA);
         if (data == null && this.nativeSource != null) return this.delegate.particleMaterial(level, pos, state);
-        return this.context(data == null ? VariantData.defaultFor(this.form) : data.normalized(this.form), state, level, pos).sourceMaterial();
+        return this.context(data == null ? this.fallbackData(state) : data.normalized(this.form), state, level, pos).sourceMaterial();
+    }
+
+    private VariantData fallbackData(BlockState state) {
+        Identifier sourceId = DynamicVariantRegistry.sourceId(state.getBlock());
+        return sourceId == null ? VariantData.defaultFor(this.form)
+            : new VariantData(sourceId, OxidationStage.FRESH, false, this.form, null);
     }
 
     private void collectParts(VariantData data, BlockState carrierState,

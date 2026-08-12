@@ -24,6 +24,7 @@ import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.ScheduledTickAccess;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
@@ -31,6 +32,7 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.level.block.state.properties.DoubleBlockHalf;
 import net.minecraft.world.level.block.state.properties.Property;
 import net.minecraft.world.level.gameevent.GameEvent;
+import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.minecraft.world.level.redstone.Orientation;
 import net.minecraft.world.phys.BlockHitResult;
@@ -76,6 +78,14 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
         Integer depth = SOURCE_VIEW_DEPTH.get();
         return depth != null && depth > 0 && state.getBlock() instanceof PatinaDelegatingBlock delegated
             ? delegated.sourceState(state) : state;
+    }
+
+    public static BlockState preserveSourceWrite(Level level, BlockPos pos, BlockState state) {
+        Integer depth = SOURCE_VIEW_DEPTH.get();
+        if (depth == null || depth <= 0) return state;
+        BlockState current = level.getChunkAt(pos).getBlockState(pos);
+        if (!(current.getBlock() instanceof PatinaDelegatingBlock delegated) || !state.is(delegated.source)) return state;
+        return delegated.carrierState(state);
     }
 
     private static void beginSourceView() {
@@ -142,6 +152,22 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
             && state.getValue(BlockStateProperties.DOUBLE_BLOCK_HALF) == DoubleBlockHalf.UPPER
             && level.getBlockState(pos.below()).is(this)) return true;
         return this.sourceState(state).canSurvive(level, pos);
+    }
+
+    @Override
+    protected FluidState getFluidState(BlockState state) {
+        return this.sourceState(state).getFluidState();
+    }
+
+    @Override
+    protected RenderShape getRenderShape(BlockState state) {
+        return this.sourceState(state).getRenderShape();
+    }
+
+    @Override
+    protected boolean skipRendering(BlockState state, BlockState neighborState, Direction direction) {
+        BlockState sourceNeighbor = neighborState.is(this) ? this.sourceState(neighborState) : neighborState;
+        return this.sourceState(state).skipRendering(sourceNeighbor, direction);
     }
 
     @Override
@@ -287,7 +313,17 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
 
     @Override
     protected void entityInside(BlockState state, Level level, BlockPos pos, Entity entity, InsideBlockEffectApplier effects, boolean moving) {
-        this.sourceState(state).entityInside(level, pos, entity, effects, moving);
+        VariantData data = this.data(level, pos);
+        PatinaGameplayEvents.beginVariantUse(data);
+        beginSourceView();
+        try {
+            this.sourceState(state).entityInside(level, pos, entity, effects, moving);
+        } finally {
+            endSourceView();
+            PatinaGameplayEvents.endVariantUse();
+        }
+
+        if (data != null && entity.isOnFire()) PatinaGameplayEvents.applyVariantFire(entity, data);
     }
 
     @Override

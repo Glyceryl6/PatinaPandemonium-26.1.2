@@ -42,6 +42,14 @@ public record ItemVariantData(Identifier sourceId, OxidationStage stage, boolean
         return new VariantData(sourceId, this.stage, this.waxed, VariantForm.FULL, this.dyeColor);
     }
 
+    public ItemVariantData withStage(OxidationStage stage) {
+        return new ItemVariantData(this.sourceId, stage, this.waxed, this.dyeColor, this.modelId);
+    }
+
+    public ItemVariantData withWaxed(boolean waxed) {
+        return new ItemVariantData(this.sourceId, this.stage, waxed, this.dyeColor, this.modelId);
+    }
+
     public String stageKey() {
         return "patina_pandemonium.stage." + (this.waxed ? "waxed_" : "") + this.stage.id();
     }
