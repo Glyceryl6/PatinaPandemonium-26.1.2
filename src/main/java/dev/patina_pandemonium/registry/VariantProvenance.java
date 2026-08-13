@@ -109,11 +109,6 @@ public class VariantProvenance {
         return builder.build(root);
     }
 
-    public static ItemStack attachSourceIfMissing(ItemStack stack) {
-        if (!stack.isEmpty() && get(stack) == null) stack.set(DynamicVariantRegistry.PROVENANCE.get(), ensure(stack));
-        return stack;
-    }
-
     /** Records grid size, absolute occupied slots and every input's prior provenance. */
     public static ItemStack craft(CraftingInput input, ItemStack output, String operation) {
         if (output.isEmpty() || input.isEmpty()) return output;
@@ -179,8 +174,8 @@ public class VariantProvenance {
         return output;
     }
 
-    public static ItemStack singleItemProcess(ItemStack input, ItemStack output, NodeType type, String operation, List<String> extraAttributes) {
-        return process(input, output, type, operation, List.of(), extraAttributes);
+    public static void singleItemProcess(ItemStack input, ItemStack output, NodeType type, String operation, List<String> extraAttributes) {
+        process(input, output, type, operation, List.of(), extraAttributes);
     }
 
     public static Data process(Data input, NodeType type, String operation, List<ItemStack> catalysts, List<String> extraAttributes) {
@@ -223,16 +218,15 @@ public class VariantProvenance {
         return builder.build(root);
     }
 
-    public static ItemStack toolProcess(ItemStack input, ItemStack output, ItemStack tool, String operation, String target) {
-        return process(input, output, NodeType.TOOL, operation, tool.isEmpty() ? List.of() : List.of(tool), attributes(
-            "target", target,
-            "tool", tool.isEmpty() ? "none" : itemId(tool),
-            "tool_damage", tool.getOrDefault(DataComponents.DAMAGE, 0),
-            "tool_enchantments", enchantmentSignature(tool)));
+    public static void toolProcess(ItemStack input, ItemStack output, ItemStack tool, String operation, String target) {
+        process(input, output, NodeType.TOOL, operation, tool.isEmpty() ? List.of() : List.of(tool), attributes(
+                "target", target, "tool", tool.isEmpty() ? "none" : itemId(tool),
+                "tool_damage", tool.getOrDefault(DataComponents.DAMAGE, 0),
+                "tool_enchantments", enchantmentSignature(tool)));
     }
 
-    public static ItemStack anvil(ItemStack left, ItemStack right, ItemStack output, int xpCost, int materialCost, @Nullable String name) {
-        if (left.isEmpty() || output.isEmpty()) return output;
+    public static void anvil(ItemStack left, ItemStack right, ItemStack output, int xpCost, int materialCost, @Nullable String name) {
+        if (left.isEmpty() || output.isEmpty()) return;
         Builder builder = new Builder();
         ArrayList<Integer> roots = new ArrayList<>();
         roots.add(builder.stackRoot(left, 0));
@@ -243,15 +237,14 @@ public class VariantProvenance {
             "renamed", name != null,
             "result_enchantments", enchantmentSignature(output)));
         output.set(DynamicVariantRegistry.PROVENANCE.get(), builder.build(root));
-        return output;
     }
 
-    public static ItemStack enchantingTable(ItemStack stack, List<?> appliedEnchantments) {
-        if (stack.isEmpty()) return stack;
+    public static void enchantingTable(ItemStack stack, List<?> appliedEnchantments) {
+        if (stack.isEmpty()) return;
         ItemStack pedigree = stack.copy();
-        return process(pedigree, stack, NodeType.ENCHANT, "enchanting_table", List.of(), attributes(
-            "applied_enchantments", appliedEnchantments,
-            "result_enchantments", enchantmentSignature(stack)));
+        process(pedigree, stack, NodeType.ENCHANT, "enchanting_table", List.of(), attributes(
+                "applied_enchantments", appliedEnchantments,
+                "result_enchantments", enchantmentSignature(stack)));
     }
 
     public static ItemStack equipment(ItemStack input, ItemStack output, String equipment, @Nullable ItemStack equipmentStack,
@@ -263,22 +256,14 @@ public class VariantProvenance {
         return process(input, output, NodeType.EQUIPMENT, equipment, catalysts, allAttributes);
     }
 
-    public static ItemStack equipmentInstance(ItemStack output, Data equipmentProvenance, String equipment) {
-        if (output.isEmpty()) return output;
+    public static void equipmentInstance(ItemStack output, Data equipmentProvenance, String equipment) {
+        if (output.isEmpty()) return;
         Builder builder = new Builder();
         int outputRoot = builder.stackRoot(output, 0);
         int equipmentRoot = builder.importData(equipmentProvenance);
-        int root = builder.node(NodeType.EQUIPMENT, equipment + "_instance", List.of(outputRoot, equipmentRoot), List.of(0, 1), 0, 0, attributes(
-            "equipment", equipment,
-            "physical_instance", Long.toUnsignedString(equipmentProvenance.rootFingerprint(), 16)));
+        int root = builder.node(NodeType.EQUIPMENT, equipment + "_instance", List.of(outputRoot, equipmentRoot), List.of(0, 1), 0, 0,
+                attributes("equipment", equipment, "physical_instance", Long.toUnsignedString(equipmentProvenance.rootFingerprint(), 16)));
         output.set(DynamicVariantRegistry.PROVENANCE.get(), builder.build(root));
-        return output;
-    }
-
-    public static ItemStack splitMerge(ItemStack input, ItemStack output, String operation, int outputIndex, int outputCount) {
-        return process(input, output, NodeType.SPLIT_MERGE, operation, List.of(), attributes(
-            "output_index", outputIndex,
-            "output_count", outputCount));
     }
 
     public static List<String> attributes(Object... values) {
@@ -406,7 +391,7 @@ public class VariantProvenance {
         Object enchantments = stack.get(DataComponents.ENCHANTMENTS);
         Object stored = stack.get(DataComponents.STORED_ENCHANTMENTS);
         if (enchantments == null && stored == null) return "none";
-        return sanitize(String.valueOf(enchantments) + "/" + String.valueOf(stored));
+        return sanitize(enchantments + "/" + stored);
     }
 
     private static String sanitize(String value) {
@@ -445,8 +430,8 @@ public class VariantProvenance {
         SUMMARY
     }
 
-    public record Node(NodeType type, String operation, List<Integer> inputs, List<Integer> slots, int width, int height,
-                       List<String> attributes, long fingerprint, int depth) {
+    public record Node(NodeType type, String operation, List<Integer> inputs, List<Integer> slots,
+                       int width, int height, List<String> attributes, long fingerprint, int depth) {
         public Node {
             operation = sanitize(operation);
             inputs = List.copyOf(inputs);
@@ -455,8 +440,8 @@ public class VariantProvenance {
         }
     }
 
-    public record Data(int schemaVersion, int root, long rootFingerprint, List<Node> nodes, int generation, int sourceCount,
-                       int processCount, int maximumDepth, boolean truncated) {
+    public record Data(int schemaVersion, int root, long rootFingerprint, List<Node> nodes, int generation,
+                       int sourceCount, int processCount, int maximumDepth, boolean truncated) {
         public Data {
             nodes = List.copyOf(nodes);
             if (nodes.isEmpty()) throw new IllegalArgumentException("Provenance requires at least one node");
@@ -483,7 +468,6 @@ public class VariantProvenance {
                 "color", colorSignature(stack),
                 "enchantments", enchantmentSignature(stack),
                 "damage", stack.getOrDefault(DataComponents.DAMAGE, 0))) : this.importData(existing);
-
             if (!PatinaRules.INSTANCE.trackContainerProvenance || containerDepth >= PatinaRules.INSTANCE.maximumProvenanceContainerDepth) return root;
             ItemContainerContents contents = stack.get(DataComponents.CONTAINER);
             if (contents == null) return root;
@@ -504,9 +488,9 @@ public class VariantProvenance {
                 slots.add(slot);
                 entries++;
             }
-            return inputs.size() <= 1 ? root : this.node(NodeType.CONTAINER, "container_contents_snapshot", inputs, slots, 0, 0, attributes(
-                "entries", inputs.size() - 1,
-                "container_depth", containerDepth));
+
+            return inputs.size() <= 1 ? root : this.node(NodeType.CONTAINER, "container_contents_snapshot", inputs, slots, 0, 0,
+                    attributes("entries", inputs.size() - 1, "container_depth", containerDepth));
         }
 
         int importData(Data data) {
@@ -525,6 +509,7 @@ public class VariantProvenance {
                 remap[oldIndex] = summary;
                 return summary;
             }
+
             ArrayList<Integer> inputs = new ArrayList<>(old.inputs().size());
             for (int child : old.inputs()) inputs.add(this.importNode(data, child, remap, recursionDepth + 1));
             int imported = this.node(old.type(), old.operation(), inputs, old.slots(), old.width(), old.height(), old.attributes());
@@ -545,6 +530,7 @@ public class VariantProvenance {
                 inputFingerprints.add(child.fingerprint());
                 depth = Math.max(depth, child.depth() + 1);
             }
+
             if (depth > PatinaRules.INSTANCE.maximumProvenanceDepth || this.nodes.size() >= this.maximumNodes - 1) {
                 this.truncated = true;
                 return this.summaryNode(inputFingerprints.isEmpty() ? 0L : inputFingerprints.getFirst(), operation, this.nodes.size());
@@ -562,10 +548,8 @@ public class VariantProvenance {
         }
 
         int summaryNode(long fingerprint, String reason, int originalNodes) {
-            NodeKey key = new NodeKey(NodeType.SUMMARY, "summary", List.of(fingerprint), List.of(), 0, 0, attributes(
-                "reason", reason,
-                "original_nodes", originalNodes,
-                "root", Long.toUnsignedString(fingerprint, 16)));
+            NodeKey key = new NodeKey(NodeType.SUMMARY, "summary", List.of(fingerprint), List.of(), 0, 0,
+                    attributes("reason", reason, "original_nodes", originalNodes, "root", Long.toUnsignedString(fingerprint, 16)));
             Integer existing = this.interned.get(key);
             if (existing != null) return existing;
             if (this.nodes.size() >= this.maximumNodes) return Math.max(0, this.nodes.size() - 1);
@@ -595,7 +579,10 @@ public class VariantProvenance {
                 return 1L;
             }
             long total = 0L;
-            for (int child : node.inputs()) total = saturatedAdd(total, this.sourceOccurrences(child, counts, depth + 1));
+            for (int child : node.inputs()) {
+                total = saturatedAdd(total, this.sourceOccurrences(child, counts, depth + 1));
+            }
+
             counts.put(index, total);
             return total;
         }
@@ -606,6 +593,7 @@ public class VariantProvenance {
             if (node.type() == NodeType.SOURCE || node.type() == NodeType.SUMMARY || node.inputs().isEmpty()) {
                 return mix64(path ^ node.fingerprint() ^ selected);
             }
+
             for (int inputIndex = 0; inputIndex < node.inputs().size(); inputIndex++) {
                 int child = node.inputs().get(inputIndex);
                 long childCount = counts.getOrDefault(child, 0L);
@@ -630,7 +618,10 @@ public class VariantProvenance {
         }
 
         Data build(int root) {
-            if (this.nodes.isEmpty()) root = this.node(NodeType.SOURCE, "empty_source", List.of(), List.of(), 0, 0, List.of());
+            if (this.nodes.isEmpty()) {
+                root = this.node(NodeType.SOURCE, "empty_source", List.of(), List.of(), 0, 0, List.of());
+            }
+
             root = Math.clamp(root, 0, this.nodes.size() - 1);
             int sourceCount = 0;
             int processCount = 0;
@@ -640,13 +631,13 @@ public class VariantProvenance {
                 if (node.type() != NodeType.SOURCE && node.type() != NodeType.SUMMARY) processCount++;
                 maximumDepth = Math.max(maximumDepth, node.depth());
             }
+
             return new Data(SCHEMA_VERSION, root, this.nodes.get(root).fingerprint(), List.copyOf(this.nodes),
                 maximumDepth, sourceCount, processCount, maximumDepth, this.truncated);
         }
     }
 
-    private record NodeKey(NodeType type, String operation, List<Long> inputFingerprints, List<Integer> slots, int width, int height,
-                           List<String> attributes) {
+    private record NodeKey(NodeType type, String operation, List<Long> inputFingerprints, List<Integer> slots, int width, int height, List<String> attributes) {
         long fingerprint() {
             long result = mixString(0x243F6A8885A308D3L, this.type.name());
             result = mixString(result, this.operation);
@@ -657,4 +648,5 @@ public class VariantProvenance {
             return result;
         }
     }
+
 }

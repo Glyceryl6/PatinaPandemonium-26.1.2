@@ -99,7 +99,7 @@ public class VariantGenetics {
         int generation = Math.max(alpha.generation(), beta.generation()) + 1;
         List<Long> ancestors = mergeAncestors(alpha, beta);
         int inbreeding = inbreeding(alpha, beta);
-        int imprintStage = Math.clamp((stage(alphaVariant) + stage(betaVariant)) * 500, 0, 3_000);
+        int imprintStage = Math.clamp((stage(alphaVariant) + stage(betaVariant)) * 500L, 0, 3_000);
         int imprintColor = averageColor(variantColor(alphaVariant), variantColor(betaVariant));
         int imprintWax = ((alphaVariant != null && alphaVariant.waxed() ? 1 : 0) + (betaVariant != null && betaVariant.waxed() ? 1 : 0)) * 500;
         int imprintStrength = Math.clamp((int) Math.round(PatinaRules.INSTANCE.geneticPhenotypeImprintWeight * 1_000.0D), 0, 1_000);
@@ -231,7 +231,7 @@ public class VariantGenetics {
         int common = 0;
         for (long ancestor : alphaAncestors) if (ancestor != 0L && betaAncestors.contains(ancestor)) common++;
         int denominator = Math.max(1, Math.min(alphaAncestors.size(), betaAncestors.size()));
-        return Math.clamp(common * 1_000 / denominator, 0, 1_000);
+        return Math.clamp(common * 1_000L / denominator, 0, 1_000);
     }
 
     private static int heterozygosity(List<Integer> alpha, List<Integer> beta) {
