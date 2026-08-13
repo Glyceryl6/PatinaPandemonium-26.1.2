@@ -23,7 +23,7 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 16;
+    public int schemaVersion = 17;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
     public Set<String> excludedItems = new HashSet<>();
@@ -68,7 +68,16 @@ public class PatinaRules {
     public int maximumCachedItemQuads = 4_096;
     public int chemistryMaximumNumberBits = 65_536;
     public int maximumChemicalNameGroups = 65_536;
+    public int maximumProvenanceNodes = 1_024;
+    public int maximumProvenanceDepth = 64;
+    public int maximumProvenanceContainerDepth = 4;
+    public int maximumProvenanceContainerEntries = 128;
+    public int maximumProvenanceTooltipNodes = 12;
     public boolean showChemicalNames = true;
+    public boolean showProvenanceTooltip = true;
+    public boolean trackContainerProvenance = true;
+    public boolean trackToolProvenance = true;
+    public boolean automaticPolymerLineage = true;
     public JsonObject textureOverrides = new JsonObject();
     public JsonObject existingFormOverrides = new JsonObject();
 
@@ -102,7 +111,18 @@ public class PatinaRules {
             }
 
             if (previousSchema < 16) rules.maximumChemicalNameGroups = 4_096;
-            rules.schemaVersion = 16;
+            if (previousSchema < 17) {
+                rules.maximumProvenanceNodes = 1_024;
+                rules.maximumProvenanceDepth = 64;
+                rules.maximumProvenanceContainerDepth = 4;
+                rules.maximumProvenanceContainerEntries = 128;
+                rules.maximumProvenanceTooltipNodes = 12;
+                rules.showProvenanceTooltip = true;
+                rules.trackContainerProvenance = true;
+                rules.trackToolProvenance = true;
+                rules.automaticPolymerLineage = true;
+            }
+            rules.schemaVersion = 17;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
             if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
             if (rules.excludedItems == null) rules.excludedItems = new HashSet<>();
@@ -114,6 +134,11 @@ public class PatinaRules {
             rules.maximumCachedItemQuads = Math.max(0, rules.maximumCachedItemQuads);
             rules.chemistryMaximumNumberBits = Math.clamp(rules.chemistryMaximumNumberBits, 128, 65_536);
             rules.maximumChemicalNameGroups = Math.clamp(rules.maximumChemicalNameGroups, 1, 65_536);
+            rules.maximumProvenanceNodes = Math.clamp(rules.maximumProvenanceNodes, 32, 65_536);
+            rules.maximumProvenanceDepth = Math.clamp(rules.maximumProvenanceDepth, 8, 512);
+            rules.maximumProvenanceContainerDepth = Math.clamp(rules.maximumProvenanceContainerDepth, 0, 16);
+            rules.maximumProvenanceContainerEntries = Math.clamp(rules.maximumProvenanceContainerEntries, 0, 4_096);
+            rules.maximumProvenanceTooltipNodes = Math.clamp(rules.maximumProvenanceTooltipNodes, 0, 128);
             rules.treeScanHorizontalRadius = Math.clamp(rules.treeScanHorizontalRadius, 4, 32);
             rules.treeScanBelow = Math.clamp(rules.treeScanBelow, 0, 8);
             rules.treeScanHeight = Math.clamp(rules.treeScanHeight, 8, 96);

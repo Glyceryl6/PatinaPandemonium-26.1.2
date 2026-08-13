@@ -134,5 +134,9 @@
   "item.patina_pandemonium.chemistry.polymer_mode.7": "梳形共聚",
   "item.patina_pandemonium.chemistry.stereo.prefix": "(%1$s)-",
   "item.patina_pandemonium.chemistry.generation": "第%1$s代-",
-  "item.patina_pandemonium.chemistry.group.aggregate": "%1$s%2$s%3$s母核"
+  "item.patina_pandemonium.chemistry.group.aggregate": "%1$s%2$s%3$s母核",
+  "tooltip.patina_pandemonium.provenance.summary": "制造谱系：第%s代 · %s个节点 · 深度%s",
+  "tooltip.patina_pandemonium.provenance.fingerprint": "谱系根指纹：%s",
+  "tooltip.patina_pandemonium.provenance.truncated": "部分祖先谱系已因性能预算压缩为摘要，但其身份指纹仍被保留",
+  "tooltip.patina_pandemonium.provenance.operation": "[%s] %s：%s"
 }

@@ -4,6 +4,7 @@ import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.OxidationStage;
 import dev.patina_pandemonium.registry.VariantData;
 import dev.patina_pandemonium.registry.VariantForm;
+import dev.patina_pandemonium.registry.VariantProvenance;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
@@ -15,6 +16,7 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class VariantFabricatorMenu extends AbstractContainerMenu {
 
@@ -118,7 +120,12 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
     }
 
     public ItemStack preview(VariantForm form, OxidationStage stage, boolean waxed, @Nullable DyeColor dye) {
-        return DynamicVariantRegistry.fabricate(this.inputSlot.getItem(), form, stage, waxed, dye, 1);
+        ItemStack result = DynamicVariantRegistry.fabricate(this.inputSlot.getItem(), form, stage, waxed, dye, 1);
+        return VariantProvenance.equipment(this.inputSlot.getItem(), result, "variant_fabricator", null, VariantProvenance.attributes(
+            "form", form.id(),
+            "oxidation", stage.name().toLowerCase(Locale.ROOT),
+            "waxed", waxed,
+            "dye", dye == null ? "none" : dye.getSerializedName()));
     }
 
     public void registerUpdateListener(Runnable listener) {
@@ -214,6 +221,15 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
         if (prototype.isEmpty() || !this.isCurrentResult(this.resultSlot.getItem())) {
             this.clearResult();
             return ItemStack.EMPTY;
+        }
+
+        if (!player.level().isClientSide()) {
+            VariantProvenance.Data[] equipment = new VariantProvenance.Data[1];
+            this.access.execute((level, pos) -> {
+                var blockEntity = level.getBlockEntity(pos);
+                if (blockEntity != null) equipment[0] = DynamicVariantRegistry.blockEntityProvenance(blockEntity);
+            });
+            if (equipment[0] != null) VariantProvenance.equipmentInstance(prototype, equipment[0], "variant_fabricator");
         }
 
         int available = this.inputSlot.getItem().getCount();

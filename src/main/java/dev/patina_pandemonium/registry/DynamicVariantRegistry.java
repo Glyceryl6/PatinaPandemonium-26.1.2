@@ -92,6 +92,9 @@ public class DynamicVariantRegistry {
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<CraftingChemistry.Data>> CRAFTING_CHEMISTRY =
         COMPONENTS.registerComponentType("crafting_chemistry", builder -> builder.persistent(CraftingChemistry.CODEC)
             .networkSynchronized(CraftingChemistry.STREAM_CODEC));
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<VariantProvenance.Data>> PROVENANCE =
+        COMPONENTS.registerComponentType("variant_provenance", builder -> builder.persistent(VariantProvenance.CODEC)
+            .networkSynchronized(VariantProvenance.STREAM_CODEC));
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> ORIGINAL_MAX_DAMAGE =
         COMPONENTS.registerComponentType("original_max_damage", builder -> builder.persistent(Codec.INT));
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<ItemVariantData>> ENTITY_VARIANT_DATA = ATTACHMENTS.register(
@@ -102,6 +105,9 @@ public class DynamicVariantRegistry {
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<VariantData>> BLOCK_ENTITY_VARIANT_DATA = ATTACHMENTS.register(
         "block_entity_variant_data", () -> AttachmentType.builder(() -> VariantData.defaultFor(VariantForm.FULL))
             .serialize(VariantData.CODEC.fieldOf("variant")).sync(VariantData.STREAM_CODEC).build());
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<VariantProvenance.Data>> BLOCK_ENTITY_PROVENANCE = ATTACHMENTS.register(
+        "block_entity_provenance", () -> AttachmentType.builder(VariantProvenance::defaultData)
+            .serialize(VariantProvenance.CODEC.fieldOf("provenance")).sync(VariantProvenance.STREAM_CODEC).build());
     public static final DeferredHolder<MobEffect, TetanusMobEffect> TETANUS = MOB_EFFECTS.register(
         "tetanus", () -> new TetanusMobEffect(0x6F7F61));
     public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<VariantWaxingRecipe>> VARIANT_WAXING_RECIPE =
@@ -317,6 +323,15 @@ public class DynamicVariantRegistry {
     }
 
     public static ItemStack inheritCraftingVariant(CraftingInput input, ItemStack output) {
+        return inheritCraftingVariant(input, output, "crafting");
+    }
+
+    public static ItemStack inheritCraftingVariant(CraftingInput input, ItemStack output, String operation) {
+        ItemStack result = inheritCraftingVariantVisual(input, output);
+        return VariantProvenance.craft(input, result, operation);
+    }
+
+    private static ItemStack inheritCraftingVariantVisual(CraftingInput input, ItemStack output) {
         if (output.isEmpty()) return output;
         CraftingChemistry.Synthesis synthesis = CraftingChemistry.synthesize(input);
         if (synthesis == null) return output;
@@ -540,6 +555,7 @@ public class DynamicVariantRegistry {
 
     public static ItemStack transform(ItemStack input, OxidationStage stage, boolean waxed, @Nullable DyeColor dye, @Nullable Integer customColor) {
         if (input.isEmpty() || !supportsFabrication(input)) return ItemStack.EMPTY;
+        VariantState state = variantState(input);
         VariantData current = input.get(VARIANT_DATA.get());
         ItemStack target;
         if (current != null) {
@@ -557,7 +573,10 @@ public class DynamicVariantRegistry {
             if (blockData != null) target.set(VARIANT_DATA.get(), blockData.withCustomColor(customColor));
             if (itemData != null) target.set(ITEM_VARIANT_DATA.get(), itemData.withCustomColor(customColor));
         }
-        return target.isEmpty() ? ItemStack.EMPTY : mergeCraftingOutput(input, target);
+        if (target.isEmpty()) return ItemStack.EMPTY;
+        ItemStack result = mergeCraftingOutput(input, target);
+        OxidationStage fromStage = state == null ? null : state.stage();
+        return VariantProvenance.localStateEdit(input, result, variantOperation(state, stage, waxed, dye, customColor), fromStage, stage, waxed);
     }
 
     public static ItemStack waxedCopy(ItemStack input) {
@@ -595,14 +614,16 @@ public class DynamicVariantRegistry {
             if (sourceName != null) cleaned.set(DataComponents.ITEM_NAME, sourceName);
             else cleaned.remove(DataComponents.ITEM_NAME);
             restoreDurability(cleaned, input);
-            return cleaned;
+            return VariantProvenance.localStateEdit(input, cleaned, "lightning_clean", itemData.stage(), OxidationStage.FRESH, false);
         }
 
         VariantData blockData = input.get(VARIANT_DATA.get());
         if (blockData == null || blockData.stage() == OxidationStage.FRESH || blockData.waxed()) return ItemStack.EMPTY;
         VariantData cleanedData = new VariantData(blockData.sourceId(), OxidationStage.FRESH, false, blockData.form(), null);
         ItemStack target = displayStack(cleanedData, input.getCount());
-        return target.isEmpty() ? ItemStack.EMPTY : mergeCraftingOutput(input, target);
+        if (target.isEmpty()) return ItemStack.EMPTY;
+        ItemStack cleaned = mergeCraftingOutput(input, target);
+        return VariantProvenance.localStateEdit(input, cleaned, "lightning_clean", blockData.stage(), OxidationStage.FRESH, false);
     }
 
     public static double durabilityMultiplier(OxidationStage stage, boolean waxed) {
@@ -741,6 +762,24 @@ public class DynamicVariantRegistry {
 
         blockEntity.setData(BLOCK_ENTITY_VARIANT_DATA.get(), data.normalized(VariantForm.FULL));
         blockEntity.setChanged();
+    }
+
+    public static VariantProvenance.@Nullable Data blockEntityProvenance(BlockEntity blockEntity) {
+        return blockEntity.getExistingDataOrNull(BLOCK_ENTITY_PROVENANCE.get());
+    }
+
+    public static void setBlockEntityProvenance(BlockEntity blockEntity, VariantProvenance.Data data) {
+        blockEntity.setData(BLOCK_ENTITY_PROVENANCE.get(), data);
+        blockEntity.setChanged();
+    }
+
+    private static String variantOperation(@Nullable VariantState previous, OxidationStage stage, boolean waxed, @Nullable DyeColor dye,
+                                           @Nullable Integer customColor) {
+        if (previous == null) return "variant_transform";
+        if (previous.waxed() != waxed) return waxed ? "wax" : "unwax";
+        if (previous.stage() != stage) return stage.ordinal() > previous.stage().ordinal() ? "oxidize" : "clean_oxidation";
+        if (!Objects.equals(previous.dyeColor(), dye) || !Objects.equals(previous.customColor(), customColor)) return "recolor";
+        return "variant_transform";
     }
 
     private static void onRegister(RegisterEvent event) {

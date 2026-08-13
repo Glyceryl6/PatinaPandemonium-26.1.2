@@ -134,5 +134,9 @@
   "item.patina_pandemonium.chemistry.polymer_mode.7": "comb",
   "item.patina_pandemonium.chemistry.stereo.prefix": "(%1$s)-",
   "item.patina_pandemonium.chemistry.generation": "gen-%1$s-",
-  "item.patina_pandemonium.chemistry.group.aggregate": "%1$s-%2$s-%3$s-parent-"
+  "item.patina_pandemonium.chemistry.group.aggregate": "%1$s-%2$s-%3$s-parent-",
+  "tooltip.patina_pandemonium.provenance.summary": "Manufacturing provenance: gen %s · %s nodes · depth %s",
+  "tooltip.patina_pandemonium.provenance.fingerprint": "Provenance root fingerprint: %s",
+  "tooltip.patina_pandemonium.provenance.truncated": "Some ancestor provenance was compacted by the performance budget while retaining its identity fingerprint",
+  "tooltip.patina_pandemonium.provenance.operation": "[%s] %s: %s"
 }

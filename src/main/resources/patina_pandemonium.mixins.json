@@ -14,7 +14,8 @@
     "ServerGamePacketListenerImplMixin",
     "ServerLevelMixin",
     "StonecutterMenuMixin",
-    "VillagerMixin"
+    "VillagerMixin",
+    "SingleItemRecipeMixin"
   ],
   "injectors": {
     "defaultRequire": 1
