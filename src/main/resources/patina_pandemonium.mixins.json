@@ -7,7 +7,6 @@
     "CrafterBlockMixin",
     "CraftingMenuMixin",
     "DispenserBlockMixin",
-    "DropperBlockMixin",
     "IngredientMixin",
     "ItemStackMixin",
     "LevelMixin",
@@ -24,11 +23,8 @@
     "requireAnnotations": true
   },
   "client": [
-    "AbstractBoatRendererMixin",
-    "AbstractMinecartRendererMixin",
     "BlockEntityRenderDispatcherMixin",
     "FallingBlockRendererMixin",
-    "LivingEntityRendererMixin",
     "ModelDataManagerMixin",
     "SubmitNodeCollectorMixin",
     "TntMinecartRendererMixin",

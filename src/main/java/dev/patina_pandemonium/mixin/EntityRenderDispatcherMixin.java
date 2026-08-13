@@ -17,8 +17,8 @@ public class EntityRenderDispatcherMixin {
 
     @SuppressWarnings("rawtypes")
     @Redirect(method = "submit", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/entity/EntityRenderer;submit(Lnet/minecraft/client/renderer/entity/state/EntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V"))
-    private <S extends EntityRenderState> void patina$submitVariantProjectile(EntityRenderer instance, S state, PoseStack poseStack, SubmitNodeCollector submitNodeCollector, CameraRenderState camera, @Local(name = "renderer") EntityRenderer<?, ? super S> renderer) {
-        int tint = PatinaClient.projectileTint(state);
+    private <S extends EntityRenderState> void patina$submitVariantEntity(EntityRenderer instance, S state, PoseStack poseStack, SubmitNodeCollector submitNodeCollector, CameraRenderState camera, @Local(name = "renderer") EntityRenderer<?, ? super S> renderer) {
+        int tint = PatinaClient.entityTint(state);
         if (tint == -1) {
             renderer.submit(state, poseStack, submitNodeCollector, camera);
             return;

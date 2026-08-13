@@ -21,7 +21,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.context.ContextKey;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
@@ -48,7 +47,6 @@ public class PatinaClient {
 
     private static final ContextKey<Integer> ENTITY_TINT = new ContextKey<>(PatinaPandemonium.id("entity_tint"));
     private static final ContextKey<Integer> FIRE_TINT = new ContextKey<>(PatinaPandemonium.id("fire_tint"));
-    private static final ContextKey<Integer> PROJECTILE_TINT = new ContextKey<>(PatinaPandemonium.id("projectile_tint"));
     private static final ThreadLocal<ArrayDeque<Integer>> MODEL_TINTS = new ThreadLocal<>();
     private static final Map<VariantForm, Block> TEMPLATES = Map.of(
         VariantForm.FULL, Blocks.STONE,
@@ -73,7 +71,6 @@ public class PatinaClient {
             AttachmentType<ItemVariantData> fireType = DynamicVariantRegistry.ENTITY_FIRE_VARIANT_DATA.get();
             state.setRenderData(ENTITY_TINT, entity.hasData(entityType) ? entity.getData(entityType).tint() : null);
             state.setRenderData(FIRE_TINT, entity.hasData(fireType) ? entity.getData(fireType).tint() : null);
-            state.setRenderData(PROJECTILE_TINT, entity instanceof Projectile && entity.hasData(entityType) ? entity.getData(entityType).tint() : null);
         });
     }
 
@@ -84,11 +81,6 @@ public class PatinaClient {
 
     public static int fireTint(EntityRenderState state) {
         Integer tint = state.getRenderData(FIRE_TINT);
-        return tint == null ? -1 : tint;
-    }
-
-    public static int projectileTint(EntityRenderState state) {
-        Integer tint = state.getRenderData(PROJECTILE_TINT);
         return tint == null ? -1 : tint;
     }
 
