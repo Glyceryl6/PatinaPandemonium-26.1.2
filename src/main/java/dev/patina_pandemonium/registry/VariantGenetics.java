@@ -2,7 +2,9 @@ package dev.patina_pandemonium.registry;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.config.PatinaRules;
+import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -11,6 +13,10 @@ import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.ai.attributes.Attribute;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
@@ -22,18 +28,24 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * Compact diploid genome for breedable variants. Four linkage groups are used instead of independent random traits,
+ * Compact diploid genome for breedable variants. Six linkage groups are used instead of independent random traits,
  * so offspring receive one recombined gamete from each parent. The current oxidized/color phenotype is recorded only
  * as a weak parental imprint; it does not rewrite the inherited chromosome pair of an existing animal.
  */
 public class VariantGenetics {
 
-    public static final int SCHEMA_VERSION = 1;
-    public static final int LOCUS_COUNT = 12;
-    private static final int[] CHROMOSOME_STARTS = {0, 3, 6, 9, 12};
-    private static final int[] MAX_ALLELES = {3, 10_000, 1, 255, 255, 255, 255, 255, 255, 10_000, 10_000, 10_000};
-    private static final String[] LOCUS_NAMES = {"Ox", "Or", "Wx", "R1", "G1", "B1", "R2", "G2", "B2", "Rec", "Mut", "Lin"};
-    private static final List<Integer> DEFAULT_HAPLOTYPE = List.of(0, 5_000, 0, 255, 255, 255, 255, 255, 255, 5_000, 5_000, 5_000);
+    public static final int SCHEMA_VERSION = 2;
+    public static final int LOCUS_COUNT = 18;
+    private static final int[] CHROMOSOME_STARTS = {0, 3, 6, 9, 12, 15, 18};
+    private static final int[] MAX_ALLELES = {3, 10_000, 1, 255, 255, 255, 255, 255, 255, 10_000, 10_000, 10_000, 1, 1, 1, 1, 1, 1};
+    private static final String[] LOCUS_NAMES = {"Ox", "Or", "Wx", "R1", "G1", "B1", "R2", "G2", "B2", "Rec", "Mut", "Lin",
+        "Dh", "Dm", "Da", "Vh", "Vm", "Va"};
+    private static final List<Integer> DEFAULT_HAPLOTYPE = List.of(0, 5_000, 0, 255, 255, 255, 255, 255, 255, 5_000, 5_000, 5_000,
+        0, 0, 0, 0, 0, 0);
+    private static final Identifier HEALTH_MODIFIER = PatinaPandemonium.id("genetics.health");
+    private static final Identifier MOVEMENT_MODIFIER = PatinaPandemonium.id("genetics.movement");
+    private static final Identifier ATTACK_MODIFIER = PatinaPandemonium.id("genetics.attack");
+    private static final Identifier ARMOR_MODIFIER = PatinaPandemonium.id("genetics.armor");
 
     public static final Codec<Data> CODEC = RecordCodecBuilder.create(instance -> instance.group(
         Codec.intRange(1, Integer.MAX_VALUE).fieldOf("schema_version").forGetter(Data::schemaVersion),
@@ -57,17 +69,23 @@ public class VariantGenetics {
     public static final StreamCodec<RegistryFriendlyByteBuf, Data> STREAM_CODEC = ByteBufCodecs.fromCodecWithRegistries(CODEC);
 
     public static Data defaultData() {
-        return normalized(new Data(SCHEMA_VERSION, 1, 1L, 0L, 0L, DEFAULT_HAPLOTYPE, DEFAULT_HAPLOTYPE, List.of(), 0, 0, 0, 0, 0, 0xFFFFFF, 0, 0));
+        return normalized(new Data(SCHEMA_VERSION, 1, 1L, 0L, 0L, DEFAULT_HAPLOTYPE, DEFAULT_HAPLOTYPE, List.of(), 0, 0, 0, 0,
+            0, 0xFFFFFF, 0, 0));
     }
 
     @Nullable
     public static Data get(ItemStack stack) {
-        return stack.get(DynamicVariantRegistry.GENETICS.get());
+        Data data = stack.get(DynamicVariantRegistry.GENETICS.get());
+        return data == null ? null : normalized(data);
     }
 
     public static Data initialize(Entity entity) {
         Data existing = entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_GENETICS.get());
-        if (existing != null) return existing;
+        if (existing != null) {
+            Data normalized = normalized(existing);
+            if (!normalized.equals(existing)) entity.setData(DynamicVariantRegistry.ENTITY_GENETICS.get(), normalized);
+            return normalized;
+        }
         ItemVariantData variant = entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
         CraftingChemistry.Data chemistry = entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_CHEMISTRY.get());
         VariantProvenance.Data provenance = entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_PROVENANCE.get());
@@ -99,7 +117,7 @@ public class VariantGenetics {
         int generation = Math.max(alpha.generation(), beta.generation()) + 1;
         List<Long> ancestors = mergeAncestors(alpha, beta);
         int inbreeding = inbreeding(alpha, beta);
-        int imprintStage = Math.clamp((stage(alphaVariant) + stage(betaVariant)) * 500L, 0, 3_000);
+        int imprintStage = Math.clamp((stage(alphaVariant) + stage(betaVariant)) * 500, 0, 3_000);
         int imprintColor = averageColor(variantColor(alphaVariant), variantColor(betaVariant));
         int imprintWax = ((alphaVariant != null && alphaVariant.waxed() ? 1 : 0) + (betaVariant != null && betaVariant.waxed() ? 1 : 0)) * 500;
         int imprintStrength = Math.clamp((int) Math.round(PatinaRules.INSTANCE.geneticPhenotypeImprintWeight * 1_000.0D), 0, 1_000);
@@ -130,10 +148,12 @@ public class VariantGenetics {
     }
 
     public static Component systematicName(ItemStack stack, Data data) {
+        TraitSummary traits = traitSummary(data);
         return Component.translatable("item.patina_pandemonium.genetics.name",
             data.generation(), shortSignature(data.parentAlpha()), shortSignature(data.parentBeta()), chromosomeNotation(data, 0),
-            chromosomeNotation(data, 1), chromosomeNotation(data, 2), chromosomeNotation(data, 3),
-            data.heterozygosityPermille(), data.inbreedingPermille(), CraftingChemistry.sourceName(stack));
+            chromosomeNotation(data, 1), chromosomeNotation(data, 2), chromosomeNotation(data, 3), chromosomeNotation(data, 4),
+            chromosomeNotation(data, 5), data.heterozygosityPermille(), data.inbreedingPermille(), traits.recessiveHomozygotes(),
+            traits.recessiveCarriers(), traits.heterosisPermille(), CraftingChemistry.sourceName(stack));
     }
 
     public static Component compactPedigree(Data data) {
@@ -175,7 +195,7 @@ public class VariantGenetics {
     }
 
     private static int mutate(int locus, int value, RandomSource random) {
-        if (locus == 2) return value == 0 ? 1 : 0;
+        if (locus == 2 || locus >= 12) return value == 0 ? 1 : 0;
         int range = switch (locus) {
             case 0 -> 1;
             case 3, 4, 5, 6, 7, 8 -> 24;
@@ -191,10 +211,17 @@ public class VariantGenetics {
         int red = color >>> 16 & 0xFF;
         int green = color >>> 8 & 0xFF;
         int blue = color & 0xFF;
-        int[] bases = {stage, 5_000, wax, red, green, blue, red, green, blue, 5_000, 5_000, 5_000};
+        int[] bases = {stage, 5_000, wax, red, green, blue, red, green, blue, 5_000, 5_000, 5_000, 0, 0, 0, 0, 0, 0};
         long state = secondary ? mix64(seed ^ 0x9E3779B97F4A7C15L) : seed;
         for (int locus = 0; locus < LOCUS_COUNT; locus++) {
             state = mix64(state ^ (long) locus * 0x632BE59BD9B4E019L);
+            if (locus >= 12) {
+                double frequency = locus <= 14 ? PatinaRules.INSTANCE.geneticDeleteriousAlleleFrequency
+                    : PatinaRules.INSTANCE.geneticVigorAlleleFrequency;
+                int threshold = Math.clamp((int) Math.round(frequency * 10_000.0D), 0, 10_000);
+                result.add((int) Long.remainderUnsigned(state, 10_000L) < threshold ? 1 : 0);
+                continue;
+            }
             int spread = switch (locus) {
                 case 0 -> 1;
                 case 2 -> 0;
@@ -245,6 +272,91 @@ public class VariantGenetics {
         int green = (allele(data, 4, false) + allele(data, 4, true) + allele(data, 7, false) + allele(data, 7, true)) / 4;
         int blue = (allele(data, 5, false) + allele(data, 5, true) + allele(data, 8, false) + allele(data, 8, true)) / 4;
         return red << 16 | green << 8 | blue;
+    }
+
+    public static TraitSummary traitSummary(Data data) {
+        int recessiveHomozygotes = 0;
+        int recessiveCarriers = 0;
+        for (int locus = 12; locus <= 14; locus++) {
+            int alpha = allele(data, locus, false);
+            int beta = allele(data, locus, true);
+            if (alpha == 1 && beta == 1) recessiveHomozygotes++;
+            else if (alpha != beta) recessiveCarriers++;
+        }
+        int overdominantHeterozygotes = 0;
+        for (int locus = 15; locus <= 17; locus++) if (allele(data, locus, false) != allele(data, locus, true)) overdominantHeterozygotes++;
+        int heterosis = Math.clamp(Math.max(0, data.heterozygosityPermille() - 300) / 2 + overdominantHeterozygotes * 55
+            - data.inbreedingPermille() / 4, 0, 350);
+        int depression = Math.clamp(data.inbreedingPermille() * 3 / 10 + recessiveHomozygotes * 140, 0, 750);
+        return new TraitSummary(recessiveHomozygotes, recessiveCarriers, overdominantHeterozygotes, heterosis, depression,
+            homozygous(data, 12, 1), homozygous(data, 13, 1), homozygous(data, 14, 1), heterozygous(data, 15),
+            heterozygous(data, 16), heterozygous(data, 17));
+    }
+
+    public static FitnessEffects fitnessEffects(Data data) {
+        TraitSummary traits = traitSummary(data);
+        PatinaRules rules = PatinaRules.INSTANCE;
+        double inbreeding = data.inbreedingPermille() / 1_000.0D;
+        double heterosis = traits.heterosisPermille() / 1_000.0D;
+        double health = heterosis * rules.geneticHeterosisBonus - inbreeding * rules.geneticInbreedingPenalty
+            - (traits.healthRiskExposed() ? rules.geneticRecessivePenalty : 0.0D)
+            + (traits.healthOverdominant() ? rules.geneticOverdominanceBonus : 0.0D);
+        double movement = heterosis * rules.geneticHeterosisBonus * 0.63D - inbreeding * rules.geneticInbreedingPenalty * 0.56D
+            - (traits.movementRiskExposed() ? rules.geneticRecessivePenalty * 0.83D : 0.0D)
+            + (traits.movementOverdominant() ? rules.geneticOverdominanceBonus * 0.80D : 0.0D);
+        double attack = heterosis * rules.geneticHeterosisBonus * 0.80D - inbreeding * rules.geneticInbreedingPenalty * 0.67D
+            - (traits.attackRiskExposed() ? rules.geneticRecessivePenalty * 0.83D : 0.0D)
+            + (traits.attackOverdominant() ? rules.geneticOverdominanceBonus : 0.0D);
+        double armor = heterosis * rules.geneticHeterosisBonus * 0.46D - inbreeding * rules.geneticInbreedingPenalty * 0.44D
+            - (traits.attackRiskExposed() ? rules.geneticRecessivePenalty * 0.33D : 0.0D);
+        return new FitnessEffects(Math.clamp(health, -0.60D, 0.30D), Math.clamp(movement, -0.45D, 0.22D),
+            Math.clamp(attack, -0.45D, 0.25D), Math.clamp(armor * 4.0D, -3.0D, 2.0D));
+    }
+
+    public static void applyGeneticEffects(LivingEntity entity) {
+        Data data = entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_GENETICS.get());
+        if (data == null || !PatinaRules.INSTANCE.applyGeneticFitnessEffects) {
+            clearGeneticEffects(entity);
+            return;
+        }
+        FitnessEffects effects = fitnessEffects(data);
+        applyMultiplier(entity, Attributes.MAX_HEALTH, HEALTH_MODIFIER, effects.healthMultiplier());
+        applyMultiplier(entity, Attributes.MOVEMENT_SPEED, MOVEMENT_MODIFIER, effects.movementMultiplier());
+        applyMultiplier(entity, Attributes.ATTACK_DAMAGE, ATTACK_MODIFIER, effects.attackMultiplier());
+        applyValue(entity, Attributes.ARMOR, ARMOR_MODIFIER, effects.armorDelta());
+        entity.setHealth(Math.min(entity.getHealth(), entity.getMaxHealth()));
+    }
+
+    public static void clearGeneticEffects(LivingEntity entity) {
+        removeModifier(entity, Attributes.MAX_HEALTH, HEALTH_MODIFIER);
+        removeModifier(entity, Attributes.MOVEMENT_SPEED, MOVEMENT_MODIFIER);
+        removeModifier(entity, Attributes.ATTACK_DAMAGE, ATTACK_MODIFIER);
+        removeModifier(entity, Attributes.ARMOR, ARMOR_MODIFIER);
+    }
+
+    private static void applyMultiplier(LivingEntity entity, Holder<Attribute> attribute, Identifier id, double amount) {
+        var instance = entity.getAttribute(attribute);
+        if (instance == null) return;
+        instance.addOrReplacePermanentModifier(new AttributeModifier(id, amount, AttributeModifier.Operation.ADD_MULTIPLIED_BASE));
+    }
+
+    private static void applyValue(LivingEntity entity, Holder<Attribute> attribute, Identifier id, double amount) {
+        var instance = entity.getAttribute(attribute);
+        if (instance == null) return;
+        instance.addOrReplacePermanentModifier(new AttributeModifier(id, amount, AttributeModifier.Operation.ADD_VALUE));
+    }
+
+    private static void removeModifier(LivingEntity entity, Holder<Attribute> attribute, Identifier id) {
+        var instance = entity.getAttribute(attribute);
+        if (instance != null) instance.removeModifier(id);
+    }
+
+    private static boolean homozygous(Data data, int locus, int allele) {
+        return allele(data, locus, false) == allele && allele(data, locus, true) == allele;
+    }
+
+    private static boolean heterozygous(Data data, int locus) {
+        return allele(data, locus, false) != allele(data, locus, true);
     }
 
     private static int weighted(int genotype, int imprint, int strengthPermille) {
@@ -311,7 +423,7 @@ public class VariantGenetics {
     private static Data normalized(Data data) {
         List<Integer> alpha = normalizeHaplotype(data.homologAlpha());
         List<Integer> beta = normalizeHaplotype(data.homologBeta());
-        return new Data(Math.max(1, data.schemaVersion()), Math.max(1, data.generation()), data.lineageSignature(), data.parentAlpha(),
+        return new Data(Math.max(SCHEMA_VERSION, data.schemaVersion()), Math.max(1, data.generation()), data.lineageSignature(), data.parentAlpha(),
             data.parentBeta(), alpha, beta, List.copyOf(data.ancestors()), Math.max(0, data.recombinations()), Math.max(0, data.mutations()),
             Math.clamp(data.heterozygosityPermille(), 0, 1_000), Math.clamp(data.inbreedingPermille(), 0, 1_000),
             Math.clamp(data.imprintOxidationPermille(), 0, 3_000), data.imprintColor() & 0xFFFFFF,
@@ -348,5 +460,13 @@ public class VariantGenetics {
         }
     }
 
+    public record TraitSummary(int recessiveHomozygotes, int recessiveCarriers, int overdominantHeterozygotes, int heterosisPermille,
+                               int inbreedingDepressionPermille, boolean healthRiskExposed, boolean movementRiskExposed,
+                               boolean attackRiskExposed, boolean healthOverdominant, boolean movementOverdominant,
+                               boolean attackOverdominant) {}
+
+    public record FitnessEffects(double healthMultiplier, double movementMultiplier, double attackMultiplier, double armorDelta) {}
+
     private record Gamete(List<Integer> alleles, int recombinations, int mutations) {}
+
 }

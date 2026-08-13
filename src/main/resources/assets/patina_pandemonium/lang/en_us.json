@@ -149,9 +149,12 @@
   "tooltip.patina_pandemonium.provenance.fingerprint": "Provenance root fingerprint: %s",
   "tooltip.patina_pandemonium.provenance.truncated": "Some ancestor provenance was compacted by the performance budget while retaining its identity fingerprint",
   "tooltip.patina_pandemonium.provenance.operation": "[%s] %s: %s",
-  "item.patina_pandemonium.genetics.name": "F%1$s-%2$s×%3$s-line-[ChrI:%4$s|ChrII:%5$s|ChrIII:%6$s|ChrIV:%7$s]-HET%8$s‰-F%9$s‰-%10$s",
+  "item.patina_pandemonium.genetics.name": "F%1$s-%2$s×%3$s-line-[ChrI:%4$s|ChrII:%5$s|ChrIII:%6$s|ChrIV:%7$s|ChrV:%8$s|ChrVI:%9$s]-HET%10$s‰-F%11$s‰-REC-HOM%12$s-CAR%13$s-HETERO%14$s‰-%15$s",
   "item.patina_pandemonium.genetics.pedigree": "F%1$s[%2$s×%3$s→%4$s]",
   "tooltip.patina_pandemonium.genetics.systematic": "Genetic systematic name: %1$s",
   "tooltip.patina_pandemonium.genetics.pedigree": "Pedigree: %1$s",
-  "tooltip.patina_pandemonium.genetics.meiosis": "Meiotic recombination: %1$s crossovers, %2$s mutations; heterozygosity %3$s‰; estimated inbreeding %4$s‰"
+  "tooltip.patina_pandemonium.genetics.meiosis": "Meiotic recombination: %1$s crossovers, %2$s mutations; heterozygosity %3$s‰; estimated inbreeding %4$s‰",
+  "tooltip.patina_pandemonium.genetics.fitness": "Genetic fitness: %1$s exposed recessive load · %2$s carrier loci · heterosis %3$s‰ · inbreeding depression %4$s‰",
+  "tooltip.patina_pandemonium.genetics.overdominance": "Overdominant heterozygous loci: %1$s/3",
+  "tooltip.patina_pandemonium.genetics.attributes": "Genetic attributes: health %1$s, speed %2$s, attack %3$s, armor %4$s"
 }

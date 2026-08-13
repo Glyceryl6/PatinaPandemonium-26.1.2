@@ -23,7 +23,7 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 19;
+    public int schemaVersion = 20;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
     public Set<String> excludedItems = new HashSet<>();
@@ -83,6 +83,13 @@ public class PatinaRules {
     public double geneticPhenotypeImprintWeight = 0.25D;
     public int maximumGeneticAncestors = 24;
     public boolean showGeneticNames = true;
+    public boolean applyGeneticFitnessEffects = true;
+    public double geneticDeleteriousAlleleFrequency = 0.08D;
+    public double geneticVigorAlleleFrequency = 0.50D;
+    public double geneticInbreedingPenalty = 0.18D;
+    public double geneticRecessivePenalty = 0.24D;
+    public double geneticHeterosisBonus = 0.35D;
+    public double geneticOverdominanceBonus = 0.05D;
     public JsonObject textureOverrides = new JsonObject();
     public JsonObject existingFormOverrides = new JsonObject();
 
@@ -142,7 +149,16 @@ public class PatinaRules {
                 rules.maximumGeneticAncestors = 24;
                 rules.showGeneticNames = true;
             }
-            rules.schemaVersion = 19;
+            if (previousSchema < 20) {
+                rules.applyGeneticFitnessEffects = true;
+                rules.geneticDeleteriousAlleleFrequency = 0.08D;
+                rules.geneticVigorAlleleFrequency = 0.50D;
+                rules.geneticInbreedingPenalty = 0.18D;
+                rules.geneticRecessivePenalty = 0.24D;
+                rules.geneticHeterosisBonus = 0.35D;
+                rules.geneticOverdominanceBonus = 0.05D;
+            }
+            rules.schemaVersion = 20;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
             if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
             if (rules.excludedItems == null) rules.excludedItems = new HashSet<>();
@@ -162,6 +178,12 @@ public class PatinaRules {
             rules.geneticCrossoverChance = chance(rules.geneticCrossoverChance);
             rules.geneticMutationChance = chance(rules.geneticMutationChance);
             rules.geneticPhenotypeImprintWeight = chance(rules.geneticPhenotypeImprintWeight);
+            rules.geneticDeleteriousAlleleFrequency = chance(rules.geneticDeleteriousAlleleFrequency);
+            rules.geneticVigorAlleleFrequency = chance(rules.geneticVigorAlleleFrequency);
+            rules.geneticInbreedingPenalty = Math.clamp(rules.geneticInbreedingPenalty, 0.0D, 0.75D);
+            rules.geneticRecessivePenalty = Math.clamp(rules.geneticRecessivePenalty, 0.0D, 0.75D);
+            rules.geneticHeterosisBonus = Math.clamp(rules.geneticHeterosisBonus, 0.0D, 0.75D);
+            rules.geneticOverdominanceBonus = Math.clamp(rules.geneticOverdominanceBonus, 0.0D, 0.25D);
             rules.maximumGeneticAncestors = Math.clamp(rules.maximumGeneticAncestors, 4, 256);
             rules.treeScanHorizontalRadius = Math.clamp(rules.treeScanHorizontalRadius, 4, 32);
             rules.treeScanBelow = Math.clamp(rules.treeScanBelow, 0, 8);

@@ -1,88 +1,47 @@
 package dev.patina_pandemonium.event;
 
-import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.block.PatinaBlock;
 import dev.patina_pandemonium.block.PatinaDelegatingBlock;
 import dev.patina_pandemonium.block.PatinaOxidizable;
 import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
 import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.registry.*;
-import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.dispenser.BlockSource;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvent;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Container;
-import net.minecraft.world.InteractionResult;
-import net.minecraft.world.damagesource.DamageTypes;
-import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.*;
-import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.entity.projectile.ItemSupplier;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.item.*;
 import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.RedStoneWireBlock;
-import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.block.state.properties.SlabType;
 import net.minecraft.world.level.storage.loot.LootParams;
-import net.neoforged.bus.api.EventPriority;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.common.ItemAbilities;
-import net.neoforged.neoforge.event.AnvilUpdateEvent;
-import net.neoforged.neoforge.common.util.BlockSnapshot;
-import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
-import net.neoforged.neoforge.event.entity.EntityStruckByLightningEvent;
-import net.neoforged.neoforge.event.entity.living.BabyEntitySpawnEvent;
-import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
-import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
-import net.neoforged.neoforge.event.entity.living.LivingDropsEvent;
-import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
-import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
-import net.neoforged.neoforge.event.entity.player.BonemealEvent;
-import net.neoforged.neoforge.event.entity.player.ItemTooltipEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerEnchantItemEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
-import net.neoforged.neoforge.event.level.BlockDropsEvent;
-import net.neoforged.neoforge.event.level.BlockEvent;
-import net.neoforged.neoforge.event.level.BlockGrowFeatureEvent;
-import net.neoforged.neoforge.event.tick.EntityTickEvent;
-import net.neoforged.neoforge.event.tick.LevelTickEvent;
-import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 import org.jspecify.annotations.Nullable;
 
 import java.util.*;
 
-/** Supplies server behavior that cannot be represented by generated resources. */
-@EventBusSubscriber(modid = PatinaPandemonium.MOD_ID)
+/** Shared runtime context and helpers used by the responsibility-specific gameplay event subscribers. */
 public class PatinaGameplayEvents {
 
-    private static final Set<Item> IGNITERS = Set.of(Items.FLINT_AND_STEEL, Items.FIRE_CHARGE);
-    private static final Map<Player, PendingVariantUse> PENDING_USES = new WeakHashMap<>();
-    private static final Map<ServerLevel, LinkedHashMap<BlockPos, PendingBlockReplacement>> PENDING_REPLACEMENTS = new WeakHashMap<>();
-    private static final Map<ServerLevel, List<PendingLightningStrike>> PENDING_LIGHTNING_STRIKES = new WeakHashMap<>();
-    private static final Map<ServerLevel, List<PendingTreeGrowth>> PENDING_TREE_GROWTHS = new WeakHashMap<>();
-    private static final Map<ServerLevel, LinkedHashMap<BlockPos, PendingToolTransformation>> PENDING_TOOL_TRANSFORMATIONS = new WeakHashMap<>();
-    private static final Map<Player, Integer> INVENTORY_OXIDATION_CURSORS = new WeakHashMap<>();
-    private static final Map<LivingEntity, Long> LIGHTNING_CLEAN_PROTECTION = new WeakHashMap<>();
-    private static final ThreadLocal<ArrayDeque<VariantUseFrame>> VARIANT_USE_CONTEXT = new ThreadLocal<>();
+    static final Set<Item> IGNITERS = Set.of(Items.FLINT_AND_STEEL, Items.FIRE_CHARGE);
+    static final Map<Player, PendingVariantUse> PENDING_USES = new WeakHashMap<>();
+    static final Map<ServerLevel, LinkedHashMap<BlockPos, PendingBlockReplacement>> PENDING_REPLACEMENTS = new WeakHashMap<>();
+    static final Map<ServerLevel, List<PendingLightningStrike>> PENDING_LIGHTNING_STRIKES = new WeakHashMap<>();
+    static final Map<ServerLevel, List<PendingTreeGrowth>> PENDING_TREE_GROWTHS = new WeakHashMap<>();
+    static final Map<ServerLevel, LinkedHashMap<BlockPos, PendingToolTransformation>> PENDING_TOOL_TRANSFORMATIONS = new WeakHashMap<>();
+    static final Map<Player, Integer> INVENTORY_OXIDATION_CURSORS = new WeakHashMap<>();
+    static final Map<LivingEntity, Long> LIGHTNING_CLEAN_PROTECTION = new WeakHashMap<>();
+    static final ThreadLocal<ArrayDeque<VariantUseFrame>> VARIANT_USE_CONTEXT = new ThreadLocal<>();
 
     public static void beginVariantUse(ItemStack stack) {
         pushVariantUse(DynamicVariantRegistry.variantUseData(stack), VariantProvenance.get(stack),
@@ -116,7 +75,7 @@ public class PatinaGameplayEvents {
             ? null : data.forBlock(BuiltInRegistries.BLOCK.getKey(source));
     }
 
-    private static void pushVariantUse(@Nullable ItemVariantData data, VariantProvenance.@Nullable Data provenance,
+    static void pushVariantUse(@Nullable ItemVariantData data, VariantProvenance.@Nullable Data provenance,
                                        CraftingChemistry.@Nullable Data chemistry, VariantGenetics.@Nullable Data genetics) {
         ArrayDeque<VariantUseFrame> contexts = VARIANT_USE_CONTEXT.get();
         if (contexts == null) {
@@ -132,525 +91,6 @@ public class PatinaGameplayEvents {
         if (contexts == null) return;
         if (!contexts.isEmpty()) contexts.pop();
         if (contexts.isEmpty()) VARIANT_USE_CONTEXT.remove();
-    }
-
-    @SubscribeEvent(priority = EventPriority.HIGH)
-    public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
-        Player player = event.getEntity();
-        Level level = player.level();
-        if (level.isClientSide()) return;
-        ItemStack held = player.getItemInHand(event.getHand());
-        ItemVariantData heldData = DynamicVariantRegistry.itemData(held);
-        VariantProvenance.Data heldProvenance = VariantProvenance.get(held);
-        if (heldData == null && heldProvenance == null) PENDING_USES.remove(player);
-        else PENDING_USES.put(player, new PendingVariantUse(level.getGameTime(), held.getItem(), heldData, heldProvenance));
-        BlockPos pos = event.getPos();
-        if (heldData != null && IGNITERS.contains(held.getItem()) && level instanceof ServerLevel serverLevel) {
-            queueFireReplacement(serverLevel, pos, heldData);
-            if (event.getFace() != null) {
-                queueFireReplacement(serverLevel, pos.relative(event.getFace()), heldData);
-            }
-        }
-
-        BlockEntity blockEntity = level.getBlockEntity(pos);
-        if (blockEntity == null) return;
-        VariantData current = DynamicVariantRegistry.blockEntityVariantData(blockEntity);
-        if (current == null) return;
-        Optional<VariantData> target = Optional.empty();
-        SoundEvent sound = null;
-        int levelEvent = -1;
-        if (held.getItem() instanceof DyeItem dyeItem) {
-            DyeColor dyeColor = dyeItem.components().get(DataComponents.DYE);
-            if (dyeColor != null && current.dyeColor() != dyeColor) {
-                target = Optional.of(current.withDye(dyeColor));
-            }
-
-            sound = SoundEvents.DYE_USE;
-        } else if (held.is(Items.HONEYCOMB)) {
-            target = VariantRuntime.waxed(current);
-            sound = SoundEvents.HONEYCOMB_WAX_ON;
-        } else if (current.waxed() && held.canPerformAction(ItemAbilities.AXE_WAX_OFF)) {
-            target = VariantRuntime.unwaxed(current);
-            sound = SoundEvents.AXE_WAX_OFF;
-            levelEvent = 3004;
-        } else if (held.canPerformAction(ItemAbilities.AXE_SCRAPE)) {
-            target = VariantRuntime.previous(current);
-            sound = SoundEvents.AXE_SCRAPE;
-            levelEvent = 3005;
-        }
-
-        if (target.isEmpty()) return;
-        setVariantData(level, pos, target.get());
-        if (level instanceof ServerLevel serverLevel) appendBlockCatalystHistory(serverLevel, pos, held);
-        level.playSound(null, pos, sound, SoundSource.BLOCKS, 1.0F, 1.0F);
-        if (levelEvent >= 0) level.levelEvent(player, levelEvent, pos, 0);
-        if (!player.getAbilities().instabuild) {
-            if (held.is(Items.HONEYCOMB) || held.getItem() instanceof DyeItem) held.shrink(1);
-            else held.hurtAndBreak(1, player, event.getHand());
-        }
-        event.setCancellationResult(InteractionResult.SUCCESS_SERVER);
-        event.setCanceled(true);
-    }
-
-    @SubscribeEvent(priority = EventPriority.HIGH)
-    public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
-        Player player = event.getEntity();
-        if (!(player.level() instanceof ServerLevel level) || !(event.getTarget() instanceof LivingEntity target)) return;
-        ItemStack held = player.getItemInHand(event.getHand());
-        ItemVariantData current = target.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
-        ItemVariantData changed = null;
-        SoundEvent sound = null;
-        if (held.is(Items.HONEYCOMB) && (current == null || !current.waxed())) {
-            changed = (current == null ? ItemVariantData.defaultData() : current).withWaxed(true);
-            sound = SoundEvents.HONEYCOMB_WAX_ON;
-            if (!player.getAbilities().instabuild) held.shrink(1);
-        } else if (current != null && current.waxed() && held.canPerformAction(ItemAbilities.AXE_WAX_OFF)) {
-            changed = current.withWaxed(false);
-            sound = SoundEvents.AXE_WAX_OFF;
-        } else if (current != null && held.canPerformAction(ItemAbilities.AXE_SCRAPE) && current.stage().previous() != null) {
-            changed = current.withStage(current.stage().previous());
-            sound = SoundEvents.AXE_SCRAPE;
-        }
-
-        if (changed == null) return;
-        setEntityVariant(target, changed);
-        level.playSound(null, target.blockPosition(), sound, SoundSource.PLAYERS, 1.0F, 1.0F);
-        if (!player.getAbilities().instabuild && !held.is(Items.HONEYCOMB)) held.hurtAndBreak(1, player, event.getHand());
-        event.setCancellationResult(InteractionResult.SUCCESS_SERVER);
-        event.setCanceled(true);
-    }
-
-    @SubscribeEvent(priority = EventPriority.LOW)
-    public static void onBlockToolModification(BlockEvent.BlockToolModificationEvent event) {
-        if (event.getItemAbility() == ItemAbilities.AXE_SCRAPE || event.getItemAbility() == ItemAbilities.AXE_WAX_OFF) return;
-        BlockState state = event.getState();
-        if (event.getFinalState() != state) return;
-        BlockState sourceState;
-        if (state.getBlock() instanceof PatinaDelegatingBlock delegated) sourceState = delegated.sourceState(state);
-        else if (state.getBlock() instanceof PatinaBlock patina) sourceState = patina.source().defaultBlockState();
-        else return;
-        VariantData data = variantData(event.getContext().getLevel(), event.getPos());
-        if (data == null) return;
-        BlockState modified = sourceState.getBlock().getToolModifiedState(
-            sourceState, event.getContext(), event.getItemAbility(), event.isSimulated());
-        if (modified == null || modified.equals(sourceState)) return;
-        Block targetBlock = DynamicVariantRegistry.isNativeBlockEntitySource(modified.getBlock())
-            ? modified.getBlock() : DynamicVariantRegistry.fullCarrier(modified.getBlock());
-        if (targetBlock == null) return;
-        BlockState target = targetBlock == modified.getBlock() ? modified
-            : targetBlock instanceof PatinaDelegatingBlock ? targetBlock.withPropertiesOf(modified) : targetBlock.defaultBlockState();
-        event.setFinalState(target);
-        if (event.isSimulated() || !(event.getContext().getLevel() instanceof ServerLevel level)) return;
-        VariantData targetData = new VariantData(BuiltInRegistries.BLOCK.getKey(modified.getBlock()), data.stage(), data.waxed(),
-            VariantForm.FULL, data.dyeColor(), data.customColor());
-        PENDING_TOOL_TRANSFORMATIONS.computeIfAbsent(level, _ -> new LinkedHashMap<>())
-            .put(event.getPos().immutable(), new PendingToolTransformation(target.getBlock(), targetData, event.getContext().getItemInHand().copy()));
-    }
-
-    @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public static void onBonemeal(BonemealEvent event) {
-        if (!(event.getLevel() instanceof ServerLevel level) || !event.isValidBonemealTarget()) return;
-        ItemVariantData data = DynamicVariantRegistry.variantUseData(event.getStack());
-        if (data == null || data.stage() == OxidationStage.FRESH
-            || BuiltInRegistries.ITEM.getValue(data.sourceId()) != Items.BONE_MEAL) return;
-        if (level.getRandom().nextDouble() < PatinaRules.INSTANCE.bonemealSuccessChances[data.stage().ordinal()]) return;
-        Player player = event.getPlayer();
-        if (player == null || !player.getAbilities().instabuild) event.getStack().shrink(1);
-        event.setSuccessful(true);
-    }
-
-    @SubscribeEvent
-    public static void onBlockGrowFeature(BlockGrowFeatureEvent event) {
-        if (!(event.getLevel() instanceof ServerLevel level)) return;
-        SaplingGroup group = saplingGroup(level, event.getPos());
-        if (group == null || group.variants().stream().allMatch(Objects::isNull)) return;
-        PatinaRules rules = PatinaRules.INSTANCE;
-        BlockPos center = group.positions().getFirst();
-        BlockPos min = center.offset(-rules.treeScanHorizontalRadius, -rules.treeScanBelow, -rules.treeScanHorizontalRadius);
-        BlockPos max = center.offset(rules.treeScanHorizontalRadius, rules.treeScanHeight, rules.treeScanHorizontalRadius);
-        Set<Long> existingWood = new HashSet<>();
-        for (BlockPos candidate : BlockPos.betweenClosed(min, max)) {
-            BlockState state = level.getBlockState(candidate);
-            if (state.is(BlockTags.LOGS) || state.is(BlockTags.LEAVES)) {
-                existingWood.add(candidate.asLong());
-            }
-        }
-
-        long seed = event.getRandom().nextLong() ^ center.asLong() ^ Long.rotateLeft(level.getGameTime(), 17);
-        PENDING_TREE_GROWTHS.computeIfAbsent(level, _ -> new ArrayList<>())
-            .add(new PendingTreeGrowth(level.getGameTime() + 1L, min, max, existingWood,
-                    group.source(), group.positions(), group.variants(), seed));
-    }
-
-    @SubscribeEvent
-    public static void onEntityJoinLevel(EntityJoinLevelEvent event) {
-        if (!(event.getLevel() instanceof ServerLevel level) || event.loadedFromDisk()) return;
-        Entity entity = event.getEntity();
-        if (entity instanceof LightningBolt lightning) {
-            BlockPos strikePos = BlockPos.containing(lightning.getX(), lightning.getY() - 1.0E-6D, lightning.getZ());
-            PENDING_LIGHTNING_STRIKES.computeIfAbsent(level, _ -> new ArrayList<>())
-                .add(new PendingLightningStrike(level.getGameTime() + 1L, strikePos));
-            return;
-        }
-
-        if (entity instanceof Player || entity instanceof ExperienceOrb) return;
-        ItemStack sourceStack = entity instanceof AbstractArrow arrow ? arrow.getPickupItemStackOrigin()
-            : entity instanceof ItemSupplier supplier ? supplier.getItem() : ItemStack.EMPTY;
-        ItemVariantData data = DynamicVariantRegistry.variantUseData(sourceStack);
-        CraftingChemistry.Data chemistry = sourceStack.get(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get());
-        VariantProvenance.Data provenance = VariantProvenance.get(sourceStack);
-        VariantGenetics.Data genetics = VariantGenetics.get(sourceStack);
-        if (data == null) data = currentVariantUse();
-        if (chemistry == null) chemistry = currentChemistryUse();
-        if (provenance == null) provenance = currentProvenance();
-        if (genetics == null) genetics = currentGeneticsUse();
-        if (data == null && chemistry == null && provenance == null && genetics == null) return;
-        if (entity instanceof ItemEntity itemEntity) {
-            if (data == null) return;
-            ItemStack transformed = DynamicVariantRegistry.transform(itemEntity.getItem(), data.stage(), data.waxed(), data.dyeColor(), data.customColor());
-            if (!transformed.isEmpty()) itemEntity.setItem(transformed);
-            return;
-        }
-        if (data != null && entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get()) == null) setEntityVariant(entity, data);
-        if (chemistry != null && entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_CHEMISTRY.get()) == null) {
-            CraftingChemistry.Data attached = data == null ? chemistry
-                : CraftingChemistry.retarget(chemistry, data.stage(), data.waxed(), data.dyeColor(), data.customColor());
-            entity.setData(DynamicVariantRegistry.ENTITY_CHEMISTRY.get(), attached);
-        }
-        if (provenance != null && entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_PROVENANCE.get()) == null) {
-            entity.setData(DynamicVariantRegistry.ENTITY_PROVENANCE.get(), provenance);
-        }
-        if (genetics != null && entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_GENETICS.get()) == null) {
-            entity.setData(DynamicVariantRegistry.ENTITY_GENETICS.get(), genetics);
-        }
-    }
-
-    @SubscribeEvent
-    public static void onBabyEntitySpawn(BabyEntitySpawnEvent event) {
-        AgeableMob child = event.getChild();
-        if (child == null || !(child.level() instanceof ServerLevel)) return;
-        Mob parentAlpha = event.getParentA();
-        Mob parentBeta = event.getParentB();
-        if (!hasHeritableVariant(parentAlpha) && !hasHeritableVariant(parentBeta)) return;
-        VariantGenetics.initialize(parentAlpha);
-        VariantGenetics.initialize(parentBeta);
-        VariantProvenance.Data alphaProvenance = parentAlpha.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_PROVENANCE.get());
-        VariantProvenance.Data betaProvenance = parentBeta.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_PROVENANCE.get());
-        if (alphaProvenance == null) {
-            alphaProvenance = VariantProvenance.entitySource(parentAlpha);
-            parentAlpha.setData(DynamicVariantRegistry.ENTITY_PROVENANCE.get(), alphaProvenance);
-        }
-
-        if (betaProvenance == null) {
-            betaProvenance = VariantProvenance.entitySource(parentBeta);
-            parentBeta.setData(DynamicVariantRegistry.ENTITY_PROVENANCE.get(), betaProvenance);
-        }
-
-        VariantGenetics.Data genetics = VariantGenetics.breed(parentAlpha, parentBeta, child, child.getRandom());
-        ItemVariantData alphaVariant = parentAlpha.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
-        ItemVariantData betaVariant = parentBeta.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
-        ItemStack childPick = child.getPickResult();
-        Identifier fallbackSource = childPick == null || childPick.isEmpty()
-            ? ItemVariantData.defaultData().sourceId() : BuiltInRegistries.ITEM.getKey(childPick.getItem());
-        ItemVariantData phenotype = VariantGenetics.phenotype(genetics, alphaVariant, betaVariant, fallbackSource, fallbackSource);
-        child.setData(DynamicVariantRegistry.ENTITY_GENETICS.get(), genetics);
-        setEntityVariant(child, phenotype);
-        CraftingChemistry.Data chemistry = breedChemistry(parentAlpha, parentBeta, childPick, phenotype);
-        if (chemistry != null) child.setData(DynamicVariantRegistry.ENTITY_CHEMISTRY.get(), chemistry);
-        child.setData(DynamicVariantRegistry.ENTITY_PROVENANCE.get(), VariantProvenance.breed(alphaProvenance, betaProvenance, child, genetics));
-    }
-
-    @SubscribeEvent
-    public static void onMobPositionCheck(MobSpawnEvent.PositionCheck event) {
-        EntitySpawnReason reason = event.getSpawnType();
-        if (reason != EntitySpawnReason.NATURAL && reason != EntitySpawnReason.CHUNK_GENERATION) return;
-        Entity entity = event.getEntity();
-        if (!(entity.level() instanceof ServerLevel level) || entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get()) != null
-            || !level.isRainingAt(entity.blockPosition()) || level.getRandom().nextDouble() >= PatinaRules.INSTANCE.naturalVariantSpawnChance) return;
-        ItemVariantData base = ItemVariantData.defaultData();
-        entity.setData(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get(), new ItemVariantData(
-            base.sourceId(), randomNaturalStage(level), false, null, base.modelId()));
-    }
-
-    @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public static void onEntityStruckByLightning(EntityStruckByLightningEvent event) {
-        Entity entity = event.getEntity();
-        if (!(entity.level() instanceof ServerLevel)) return;
-        if (entity instanceof Player player) {
-            boolean inventoryChanged = false;
-            for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
-                ItemStack cleaned = DynamicVariantRegistry.cleanOxidationCopy(player.getInventory().getItem(slot));
-                if (cleaned.isEmpty()) continue;
-                player.getInventory().setItem(slot, cleaned);
-                inventoryChanged = true;
-            }
-
-            if (inventoryChanged) player.getInventory().setChanged();
-        }
-
-        ItemVariantData entityData = entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
-        if (entityData == null || entityData.waxed() || entityData.stage() == OxidationStage.FRESH) return;
-        setEntityVariant(entity, entityData.withStage(OxidationStage.FRESH));
-        if (entity instanceof LivingEntity living) {
-            living.clearFire();
-            LIGHTNING_CLEAN_PROTECTION.put(living, living.level().getGameTime() + 2L);
-        }
-        event.setCanceled(true);
-    }
-
-    @SubscribeEvent(priority = EventPriority.HIGHEST)
-    public static void onLivingIncomingDamage(LivingIncomingDamageEvent event) {
-        LivingEntity entity = event.getEntity();
-        Long protectedUntil = LIGHTNING_CLEAN_PROTECTION.get(entity);
-        if (protectedUntil == null) return;
-        if (entity.level().getGameTime() > protectedUntil) {
-            LIGHTNING_CLEAN_PROTECTION.remove(entity);
-            return;
-        }
-
-        if (event.getSource().is(DamageTypes.LIGHTNING_BOLT)) event.setCanceled(true);
-    }
-
-    @SubscribeEvent
-    public static void onLivingDamage(LivingDamageEvent.Post event) {
-        if (!(event.getEntity().level() instanceof ServerLevel) || event.getInflictedDamage() <= 0.0F) return;
-        LivingEntity attacker = event.getSource().getEntity() instanceof LivingEntity living ? living : null;
-        Entity directSource = event.getSource().getDirectEntity();
-        ItemStack weapon = attacker == null ? ItemStack.EMPTY : attacker.getMainHandItem();
-        boolean directAttack = attacker != null && (directSource == null || directSource == attacker);
-        ItemVariantData weaponData = directAttack && (weapon.has(DataComponents.WEAPON) || weapon.has(DataComponents.TOOL))
-            ? DynamicVariantRegistry.variantUseData(weapon) : null;
-        ItemVariantData data = strongestVariant(attacker == null ? null : attacker.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get()),
-            strongestVariant(directSource == null ? null : directSource.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get()), weaponData));
-        if (data == null || data.stage() == OxidationStage.FRESH) return;
-        int stage = data.stage().ordinal();
-        double chance = PatinaRules.INSTANCE.tetanusChances[stage]
-            * (data.waxed() ? PatinaRules.INSTANCE.waxTetanusMultiplier : 1.0D);
-        if (event.getEntity().getRandom().nextDouble() >= chance) return;
-        event.getEntity().addEffect(new MobEffectInstance(
-            DynamicVariantRegistry.TETANUS, PatinaRules.INSTANCE.tetanusDurations[stage], Math.max(0, stage - 2)));
-    }
-
-    @SubscribeEvent
-    public static void onLivingUseItemFinished(LivingEntityUseItemEvent.Finish event) {
-        if (!(event.getEntity().level() instanceof ServerLevel)) return;
-        ItemStack consumed = event.getItem();
-        ItemVariantData data = DynamicVariantRegistry.variantUseData(consumed);
-        if (data == null || data.stage() == OxidationStage.FRESH || !consumed.has(DataComponents.FOOD)) return;
-        int stage = data.stage().ordinal();
-        double chance = PatinaRules.INSTANCE.foodPoisonChances[stage]
-            * (data.waxed() ? PatinaRules.INSTANCE.waxFoodRiskMultiplier : 1.0D);
-        if (event.getEntity().getRandom().nextDouble() >= chance) return;
-        event.getEntity().addEffect(new MobEffectInstance(
-            MobEffects.POISON, PatinaRules.INSTANCE.foodPoisonDurations[stage], Math.max(0, stage - 2)));
-    }
-
-    @SubscribeEvent
-    public static void onLivingDrops(LivingDropsEvent event) {
-        if (!(event.getEntity().level() instanceof ServerLevel)) return;
-        ItemVariantData data = event.getEntity().getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
-        if (data == null) return;
-        for (ItemEntity drop : event.getDrops()) {
-            ItemStack transformed = DynamicVariantRegistry.transform(
-                drop.getItem(), data.stage(), data.waxed(), data.dyeColor(), data.customColor());
-            if (!transformed.isEmpty()) drop.setItem(transformed);
-        }
-    }
-
-    @SubscribeEvent(priority = EventPriority.LOWEST)
-    public static void onBlockPlaced(BlockEvent.EntityPlaceEvent event) {
-        if (!(event.getLevel() instanceof ServerLevel level)) return;
-        Player player = event.getEntity() instanceof Player placedByPlayer ? placedByPlayer : null;
-        PendingVariantUse pending = player == null ? null : PENDING_USES.remove(player);
-        if (pending != null && level.getGameTime() - pending.gameTime() > 1L) pending = null;
-        ItemVariantData context = currentVariantUse();
-        VariantProvenance.Data contextProvenance = currentProvenance();
-        if (event instanceof BlockEvent.EntityMultiPlaceEvent multi) {
-            for (BlockSnapshot snapshot : multi.getReplacedBlockSnapshots()) {
-                BlockState placedState = snapshot.getCurrentState();
-                ItemVariantData data = placementVariant(player, placedState.getBlock(), pending, context);
-                VariantProvenance.Data provenance = placementProvenance(player, placedState.getBlock(), pending, context, contextProvenance);
-                if (data != null) replacePlacedBlock(level, snapshot.getPos(), placedState, data, provenance);
-                else attachPlacedProvenance(level, snapshot.getPos(), provenance);
-            }
-            return;
-        }
-
-        BlockState placedState = event.getPlacedBlock();
-        ItemVariantData data = placementVariant(player, placedState.getBlock(), pending, context);
-        VariantProvenance.Data provenance = placementProvenance(player, placedState.getBlock(), pending, context, contextProvenance);
-        if (data != null) replacePlacedBlock(level, event.getPos(), placedState, data, provenance);
-        else attachPlacedProvenance(level, event.getPos(), provenance);
-    }
-
-    @SubscribeEvent
-    public static void onEntityTick(EntityTickEvent.Post event) {
-        Entity entity = event.getEntity();
-        if (!(entity.level() instanceof ServerLevel level)) return;
-        if (!entity.isOnFire() && entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_FIRE_VARIANT_DATA.get()) != null) {
-            entity.removeData(DynamicVariantRegistry.ENTITY_FIRE_VARIANT_DATA.get());
-        }
-
-        if (!(entity instanceof LivingEntity living)) return;
-        PatinaRules rules = PatinaRules.INSTANCE;
-        if (Math.floorMod(living.tickCount + living.getId(), rules.entityOxidationInterval) != 0) return;
-        ItemVariantData data = living.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
-        if (data != null && (data.waxed() || data.stage() == OxidationStage.OXIDIZED)) return;
-        ItemVariantData base = data == null ? ItemVariantData.defaultData() : data;
-        double chance = rules.entityOxidationAttemptChance;
-        VariantGenetics.Data genetics = living.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_GENETICS.get());
-        if (genetics != null) chance *= VariantGenetics.oxidationRateMultiplier(genetics);
-        if (base.stage() == OxidationStage.FRESH) chance *= 0.75D;
-        if (level.isRainingAt(living.blockPosition().above())) chance *= rules.entityOxidationRainMultiplier;
-        if (level.getRandom().nextDouble() >= Math.min(1.0D, chance)) return;
-        OxidationStage next = base.stage().next();
-        if (next != null) setEntityVariant(living, base.withStage(next));
-    }
-
-    @SubscribeEvent
-    public static void onPlayerTick(PlayerTickEvent.Post event) {
-        Player player = event.getEntity();
-        Level level = player.level();
-        PatinaRules rules = PatinaRules.INSTANCE;
-        if (!(player instanceof ServerPlayer serverPlayer) || !(level instanceof ServerLevel)
-            || player.tickCount % rules.inventoryOxidationInterval != 0
-            || (!rules.inventoryOxidationAffectsCreative && player.getAbilities().instabuild)) return;
-        BlockPos exposurePos = player.blockPosition().above();
-        if ((rules.inventoryOxidationRequiresSky && !level.canSeeSky(exposurePos))
-            || (rules.inventoryOxidationRequiresRain && !level.isRainingAt(exposurePos))) return;
-        int size = player.getInventory().getContainerSize();
-        if (size <= 0) return;
-        int cursor = Math.floorMod(INVENTORY_OXIDATION_CURSORS.getOrDefault(player, 0), size);
-        INVENTORY_OXIDATION_CURSORS.put(player, (cursor + 1) % size);
-        if (level.getRandom().nextDouble() >= rules.inventoryOxidationAttemptChance) return;
-        ItemStack oxidized = DynamicVariantRegistry.oxidizedCopy(player.getInventory().getItem(cursor));
-        if (oxidized.isEmpty()) return;
-        player.getInventory().setItem(cursor, oxidized);
-        player.getInventory().setChanged();
-        serverPlayer.containerMenu.broadcastChanges();
-    }
-
-    @SubscribeEvent(priority = EventPriority.LOWEST)
-    public static void onAnvilUpdate(AnvilUpdateEvent event) {
-        ItemStack output = event.getOutput();
-        if (output.isEmpty()) return;
-        VariantProvenance.anvil(event.getLeft(), event.getRight(), output, event.getXpCost(), event.getMaterialCost(), event.getName());
-        event.setOutput(output);
-    }
-
-    @SubscribeEvent
-    public static void onPlayerEnchantItem(PlayerEnchantItemEvent event) {
-        VariantProvenance.enchantingTable(event.getEnchantedItem(), event.getEnchantments());
-    }
-
-    @SubscribeEvent
-    public static void onItemTooltip(ItemTooltipEvent event) {
-        VariantGenetics.Data genetics = VariantGenetics.get(event.getItemStack());
-        if (genetics != null && PatinaRules.INSTANCE.showGeneticNames) {
-            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.genetics.systematic",
-                VariantGenetics.systematicName(event.getItemStack(), genetics)).withStyle(ChatFormatting.DARK_AQUA));
-            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.genetics.pedigree",
-                VariantGenetics.compactPedigree(genetics)).withStyle(ChatFormatting.DARK_GRAY));
-            if (event.getFlags().isAdvanced()) {
-                event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.genetics.meiosis", genetics.recombinations(),
-                    genetics.mutations(), genetics.heterozygosityPermille(), genetics.inbreedingPermille()).withStyle(ChatFormatting.DARK_GRAY));
-            }
-        }
-
-        if (!PatinaRules.INSTANCE.showProvenanceTooltip) return;
-        VariantProvenance.Data data = VariantProvenance.get(event.getItemStack());
-        if (data == null) return;
-        event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.summary",
-            data.generation(), data.nodes().size(), data.maximumDepth()).withStyle(ChatFormatting.DARK_GRAY));
-        event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.fingerprint",
-            VariantProvenance.shortFingerprint(data)).withStyle(ChatFormatting.DARK_GRAY));
-        if (data.truncated()) event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.truncated")
-            .withStyle(ChatFormatting.GOLD));
-        if (!event.getFlags().isAdvanced()) return;
-        int count = Math.min(PatinaRules.INSTANCE.maximumProvenanceTooltipNodes, data.nodes().size());
-        for (int index = data.nodes().size() - count; index < data.nodes().size(); index++) {
-            VariantProvenance.Node node = data.nodes().get(index);
-            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.operation",
-                    index, node.type().name().toLowerCase(Locale.ROOT), node.operation()).withStyle(ChatFormatting.DARK_GRAY));
-        }
-    }
-
-    @SubscribeEvent
-    public static void onLevelTick(LevelTickEvent.Post event) {
-        if (!(event.getLevel() instanceof ServerLevel level)) return;
-        processFireReplacements(level);
-        processLightningStrikes(level);
-        processTreeGrowths(level);
-        processToolTransformations(level);
-    }
-
-    @SubscribeEvent
-    public static void onBlockDrops(BlockDropsEvent event) {
-        BlockEntity blockEntity = event.getBlockEntity();
-        if (blockEntity == null) return;
-        VariantData data = DynamicVariantRegistry.blockEntityVariantData(blockEntity);
-        VariantProvenance.Data provenance = DynamicVariantRegistry.blockEntityProvenance(blockEntity);
-        if (data == null) {
-            if (provenance == null) return;
-            Item sourceItem = event.getState().getBlock().asItem();
-            if (sourceItem == Items.AIR) return;
-            for (ItemEntity drop : event.getDrops()) {
-                if (drop.getItem().getItem() == sourceItem) {
-                    drop.getItem().set(DynamicVariantRegistry.PROVENANCE.get(), provenance);
-                }
-            }
-
-            return;
-        }
-
-        if (!(event.getState().getBlock() instanceof PatinaOxidizable)) {
-            Item sourceItem = event.getState().getBlock().asItem();
-            if (sourceItem == Items.AIR) return;
-            for (ItemEntity drop : event.getDrops()) {
-                ItemStack stack = drop.getItem();
-                if (stack.getItem() != sourceItem) continue;
-                if (provenance != null) stack.set(DynamicVariantRegistry.PROVENANCE.get(), provenance);
-                ItemStack transformed = DynamicVariantRegistry.transform(stack, data.stage(), data.waxed(), data.dyeColor(), data.customColor());
-                if (!transformed.isEmpty()) drop.setItem(transformed);
-            }
-            return;
-        }
-
-        Block source = sourceBlock(event.getState().getBlock());
-        if (data.form() == VariantForm.FULL) {
-            BlockState sourceState = event.getState().getBlock() instanceof PatinaDelegatingBlock delegated
-                ? delegated.sourceState(event.getState()) : source.defaultBlockState();
-            List<ItemStack> sourceDrops = Block.getDrops(
-                sourceState, event.getLevel(), event.getPos(), null, event.getBreaker(), event.getTool());
-            event.getDrops().clear();
-            for (ItemStack stack : sourceDrops) {
-                if (provenance != null) stack.set(DynamicVariantRegistry.PROVENANCE.get(), provenance);
-                ItemStack transformed = DynamicVariantRegistry.transform(stack, data.stage(), data.waxed(), data.dyeColor(), data.customColor());
-                if (transformed.isEmpty()) transformed = stack;
-                event.getDrops().add(new ItemEntity(event.getLevel(), event.getPos().getX() + 0.5D,
-                    event.getPos().getY() + 0.5D, event.getPos().getZ() + 0.5D, transformed));
-            }
-            return;
-        }
-
-        event.getDrops().clear();
-        BlockPos pos = event.getPos();
-        int count = event.getState().getBlock() instanceof SlabBlock
-            && event.getState().getValue(SlabBlock.TYPE) == SlabType.DOUBLE ? 2 : 1;
-        ItemStack stack = DynamicVariantRegistry.stack(data, count);
-        if (provenance != null) stack.set(DynamicVariantRegistry.PROVENANCE.get(), provenance);
-        event.getDrops().add(new ItemEntity(event.getLevel(), pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D, stack));
-    }
-
-    @SubscribeEvent(priority = EventPriority.LOWEST)
-    public static void onBlockDropToolHistory(BlockDropsEvent event) {
-        if (!PatinaRules.INSTANCE.trackToolProvenance || event.getTool().isEmpty()) return;
-        String target = BuiltInRegistries.BLOCK.getKey(event.getState().getBlock()).toString();
-        for (ItemEntity drop : event.getDrops()) {
-            ItemStack stack = drop.getItem();
-            ItemStack snapshot = stack.copy();
-            VariantProvenance.toolProcess(snapshot, stack, event.getTool(), "block_drop_tool", target);
-        }
     }
 
     public static void transformGeneratedContainerLoot(Container container, LootParams params, long seed) {
@@ -671,7 +111,7 @@ public class PatinaGameplayEvents {
         if (changed) container.setChanged();
     }
 
-    private static void processTreeGrowths(ServerLevel level) {
+    static void processTreeGrowths(ServerLevel level) {
         List<PendingTreeGrowth> pending = PENDING_TREE_GROWTHS.get(level);
         if (pending == null) return;
         Iterator<PendingTreeGrowth> iterator = pending.iterator();
@@ -710,7 +150,7 @@ public class PatinaGameplayEvents {
     }
 
     @Nullable
-    private static SaplingGroup saplingGroup(ServerLevel level, BlockPos pos) {
+    static SaplingGroup saplingGroup(ServerLevel level, BlockPos pos) {
         Block source = sourceBlock(level.getBlockState(pos).getBlock());
         if (!source.defaultBlockState().is(BlockTags.SAPLINGS)) return null;
         for (int xOffset = -1; xOffset <= 0; xOffset++) {
@@ -727,12 +167,12 @@ public class PatinaGameplayEvents {
     }
 
     @Nullable
-    private static VariantData variantData(Level level, BlockPos pos) {
+    static VariantData variantData(Level level, BlockPos pos) {
         BlockEntity blockEntity = level.getBlockEntity(pos);
         return blockEntity == null ? null : DynamicVariantRegistry.blockEntityVariantData(blockEntity);
     }
 
-    private static void setVariantData(Level level, BlockPos pos, VariantData data) {
+    static void setVariantData(Level level, BlockPos pos, VariantData data) {
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (blockEntity == null) return;
         VariantData previous = DynamicVariantRegistry.blockEntityVariantData(blockEntity);
@@ -746,13 +186,11 @@ public class PatinaGameplayEvents {
         else if (!Objects.equals(previous.dyeColor(), data.dyeColor()) || !Objects.equals(previous.customColor(), data.customColor())) operation = "world_recolor";
         else operation = "world_variant_transform";
         BlockEntity current = level.getBlockEntity(pos);
-        if (current != null) {
-            DynamicVariantRegistry.setBlockEntityProvenance(current, VariantProvenance.localStateEdit(
-                    provenance, operation, previous.stage(), data.stage(), data.waxed()));
-        }
+        if (current != null) DynamicVariantRegistry.setBlockEntityProvenance(current, VariantProvenance.localStateEdit(
+            provenance, operation, previous.stage(), data.stage(), data.waxed()));
     }
 
-    private static void appendBlockCatalystHistory(ServerLevel level, BlockPos pos, ItemStack catalyst) {
+    static void appendBlockCatalystHistory(ServerLevel level, BlockPos pos, ItemStack catalyst) {
         if (catalyst.isEmpty()) return;
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (blockEntity == null) return;
@@ -768,7 +206,7 @@ public class PatinaGameplayEvents {
             List.of(catalyst.copy()), VariantProvenance.attributes("target", BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()))));
     }
 
-    private static void appendBlockToolHistory(ServerLevel level, BlockPos pos, ItemStack tool, String operation) {
+    static void appendBlockToolHistory(ServerLevel level, BlockPos pos, ItemStack tool, String operation) {
         if (!PatinaRules.INSTANCE.trackToolProvenance || tool.isEmpty()) return;
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (blockEntity == null) return;
@@ -778,7 +216,7 @@ public class PatinaGameplayEvents {
             operation, List.of(tool.copy()), VariantProvenance.attributes("target", BuiltInRegistries.BLOCK.getKey(level.getBlockState(pos).getBlock()))));
     }
 
-    private static void processToolTransformations(ServerLevel level) {
+    static void processToolTransformations(ServerLevel level) {
         LinkedHashMap<BlockPos, PendingToolTransformation> pending = PENDING_TOOL_TRANSFORMATIONS.remove(level);
         if (pending == null) return;
         pending.forEach((pos, transformation) -> {
@@ -788,13 +226,13 @@ public class PatinaGameplayEvents {
         });
     }
 
-    private static Block sourceBlock(Block block) {
+    static Block sourceBlock(Block block) {
         if (block instanceof PatinaDelegatingBlock delegated) return delegated.source();
         if (block instanceof PatinaBlock patina) return patina.source();
         return block;
     }
 
-    private static OxidationStage randomStage(RandomSource random, double[] weights, boolean excludeFresh) {
+    static OxidationStage randomStage(RandomSource random, double[] weights, boolean excludeFresh) {
         int first = excludeFresh ? 1 : 0;
         double total = 0.0D;
         for (int index = first; index < weights.length; index++) total += weights[index];
@@ -802,15 +240,13 @@ public class PatinaGameplayEvents {
         double selected = random.nextDouble() * total;
         for (int index = first; index < weights.length; index++) {
             selected -= weights[index];
-            if (selected <= 0.0D) {
-                return OxidationStage.byOrdinal(index);
-            }
+            if (selected <= 0.0D) return OxidationStage.byOrdinal(index);
         }
 
         return OxidationStage.OXIDIZED;
     }
 
-    private static void processFireReplacements(ServerLevel level) {
+    static void processFireReplacements(ServerLevel level) {
         LinkedHashMap<BlockPos, PendingBlockReplacement> pending = PENDING_REPLACEMENTS.remove(level);
         if (pending == null) return;
         LinkedHashMap<BlockPos, PreparedBlockReplacement> prepared = new LinkedHashMap<>();
@@ -827,15 +263,12 @@ public class PatinaGameplayEvents {
         int flags = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE | Block.UPDATE_SUPPRESS_DROPS;
         prepared.forEach((pos, replacement) -> {
             level.setBlock(pos, replacement.state(), flags);
-            if (level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity) {
-                blockEntity.setData(replacement.data());
-            }
+            if (level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity) blockEntity.setData(replacement.data());
         });
-
         prepared.forEach((pos, replacement) -> level.updateNeighborsAt(pos, replacement.state().getBlock()));
     }
 
-    private static void processLightningStrikes(ServerLevel level) {
+    static void processLightningStrikes(ServerLevel level) {
         List<PendingLightningStrike> pending = PENDING_LIGHTNING_STRIKES.get(level);
         if (pending == null) return;
         Iterator<PendingLightningStrike> iterator = pending.iterator();
@@ -849,7 +282,7 @@ public class PatinaGameplayEvents {
         if (pending.isEmpty()) PENDING_LIGHTNING_STRIKES.remove(level);
     }
 
-    private static void cleanPatinaOnLightningStrike(ServerLevel level, BlockPos strikePos) {
+    static void cleanPatinaOnLightningStrike(ServerLevel level, BlockPos strikePos) {
         VariantData struckData = variantData(level, strikePos);
         if (struckData != null && !struckData.waxed() && struckData.stage() != OxidationStage.FRESH) {
             setVariantData(level, strikePos, struckData.withStage(OxidationStage.FRESH));
@@ -869,7 +302,7 @@ public class PatinaGameplayEvents {
     }
 
     @Nullable
-    private static BlockPos cleanRandomNearbyPatina(ServerLevel level, BlockPos pos) {
+    static BlockPos cleanRandomNearbyPatina(ServerLevel level, BlockPos pos) {
         for (BlockPos candidate : BlockPos.randomInCube(level.getRandom(), 10, pos, 1)) {
             VariantData data = variantData(level, candidate);
             if (data == null) continue;
@@ -884,7 +317,7 @@ public class PatinaGameplayEvents {
         return null;
     }
 
-    private static void replacePlacedBlock(ServerLevel level, BlockPos pos, BlockState state, ItemVariantData data, VariantProvenance.@Nullable Data provenance) {
+    static void replacePlacedBlock(ServerLevel level, BlockPos pos, BlockState state, ItemVariantData data, VariantProvenance.@Nullable Data provenance) {
         VariantData variant = data.forBlock(BuiltInRegistries.BLOCK.getKey(state.getBlock()));
         if (DynamicVariantRegistry.isNativeBlockEntitySource(state.getBlock())) {
             BlockEntity blockEntity = level.getBlockEntity(pos);
@@ -906,32 +339,32 @@ public class PatinaGameplayEvents {
         level.updateNeighborsAt(pos, carrier);
     }
 
-    private static void attachPlacedProvenance(ServerLevel level, BlockPos pos, VariantProvenance.@Nullable Data provenance) {
+    static void attachPlacedProvenance(ServerLevel level, BlockPos pos, VariantProvenance.@Nullable Data provenance) {
         if (provenance == null) return;
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (blockEntity != null) DynamicVariantRegistry.setBlockEntityProvenance(blockEntity, provenance);
     }
 
-    private static void queueFireReplacement(ServerLevel level, BlockPos pos, ItemVariantData data) {
+    static void queueFireReplacement(ServerLevel level, BlockPos pos, ItemVariantData data) {
         Block previousSource = level.getBlockState(pos).getBlock();
         PENDING_REPLACEMENTS.computeIfAbsent(level, _ -> new LinkedHashMap<>())
             .put(pos.immutable(), new PendingBlockReplacement(previousSource, data));
     }
 
-    private static boolean matchesPlacementSource(Block source, ItemVariantData data) {
+    static boolean matchesPlacementSource(Block source, ItemVariantData data) {
         Item sourceItem = BuiltInRegistries.ITEM.getValue(data.sourceId());
         return Block.byItem(sourceItem) == source || source instanceof BaseFireBlock && IGNITERS.contains(sourceItem)
             || source instanceof RedStoneWireBlock && sourceItem == Items.REDSTONE;
     }
 
-    private static ItemVariantData itemVariantData(VariantData data) {
+    static ItemVariantData itemVariantData(VariantData data) {
         Item sourceItem = BuiltInRegistries.BLOCK.getValue(data.sourceId()).asItem();
         Identifier sourceId = sourceItem == Items.AIR ? data.sourceId() : BuiltInRegistries.ITEM.getKey(sourceItem);
         return new ItemVariantData(sourceId, data.stage(), data.waxed(), data.dyeColor(), sourceId, data.customColor());
     }
 
     @Nullable
-    private static ItemVariantData currentVariantUse() {
+    static ItemVariantData currentVariantUse() {
         ArrayDeque<VariantUseFrame> contexts = VARIANT_USE_CONTEXT.get();
         if (contexts == null) return null;
         for (VariantUseFrame frame : contexts) {
@@ -940,7 +373,7 @@ public class PatinaGameplayEvents {
         return null;
     }
 
-    private static VariantProvenance.@Nullable Data currentProvenance() {
+    static VariantProvenance.@Nullable Data currentProvenance() {
         ArrayDeque<VariantUseFrame> contexts = VARIANT_USE_CONTEXT.get();
         if (contexts == null) return null;
         for (VariantUseFrame frame : contexts) {
@@ -949,7 +382,7 @@ public class PatinaGameplayEvents {
         return null;
     }
 
-    private static CraftingChemistry.@Nullable Data currentChemistryUse() {
+    static CraftingChemistry.@Nullable Data currentChemistryUse() {
         ArrayDeque<VariantUseFrame> contexts = VARIANT_USE_CONTEXT.get();
         if (contexts == null) return null;
         for (VariantUseFrame frame : contexts) {
@@ -958,32 +391,29 @@ public class PatinaGameplayEvents {
         return null;
     }
 
-    private static VariantGenetics.@Nullable Data currentGeneticsUse() {
+    static VariantGenetics.@Nullable Data currentGeneticsUse() {
         ArrayDeque<VariantUseFrame> contexts = VARIANT_USE_CONTEXT.get();
         if (contexts == null) return null;
         for (VariantUseFrame frame : contexts) {
             if (frame.genetics() != null) return frame.genetics();
         }
-
         return null;
     }
 
     @Nullable
-    private static ItemVariantData placementVariant(@Nullable Player player, Block placedBlock, @Nullable PendingVariantUse pending, @Nullable ItemVariantData context) {
+    static ItemVariantData placementVariant(@Nullable Player player, Block placedBlock, @Nullable PendingVariantUse pending, @Nullable ItemVariantData context) {
         if (player != null) {
             ItemVariantData mainHand = DynamicVariantRegistry.variantUseData(player.getMainHandItem());
             ItemVariantData offHand = DynamicVariantRegistry.variantUseData(player.getOffhandItem());
             if (mainHand != null && matchesPlacementSource(placedBlock, mainHand)) return mainHand;
             if (offHand != null && matchesPlacementSource(placedBlock, offHand)) return offHand;
         }
-
         if (context != null && matchesPlacementSource(placedBlock, context)) return context;
         return pending != null && pending.data() != null && matchesPlacementSource(placedBlock, pending.data()) ? pending.data() : null;
     }
 
-    private static VariantProvenance.@Nullable Data placementProvenance(
-            @Nullable Player player, Block placedBlock, @Nullable PendingVariantUse pending,
-            @Nullable ItemVariantData context, VariantProvenance.@Nullable Data contextProvenance) {
+    static VariantProvenance.@Nullable Data placementProvenance(@Nullable Player player, Block placedBlock, @Nullable PendingVariantUse pending,
+                                                                @Nullable ItemVariantData context, VariantProvenance.@Nullable Data contextProvenance) {
         if (player != null) {
             ItemStack mainHand = player.getMainHandItem();
             ItemStack offHand = player.getOffhandItem();
@@ -1006,14 +436,14 @@ public class PatinaGameplayEvents {
         return matches ? pending.provenance() : null;
     }
 
-    private static boolean hasHeritableVariant(Mob entity) {
+    static boolean hasHeritableVariant(Mob entity) {
         return entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get()) != null
             || entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_CHEMISTRY.get()) != null
             || entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_GENETICS.get()) != null
             || entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_PROVENANCE.get()) != null;
     }
 
-    private static CraftingChemistry.@Nullable Data breedChemistry(Mob parentAlpha, Mob parentBeta, @Nullable ItemStack childPick, ItemVariantData phenotype) {
+    static CraftingChemistry.@Nullable Data breedChemistry(Mob parentAlpha, Mob parentBeta, @Nullable ItemStack childPick, ItemVariantData phenotype) {
         ItemStack fallback = childPick == null || childPick.isEmpty() ? parentAlpha.getPickResult() : childPick.copy();
         if (fallback == null || fallback.isEmpty()) fallback = parentBeta.getPickResult();
         if (fallback == null || fallback.isEmpty()) return null;
@@ -1021,11 +451,10 @@ public class PatinaGameplayEvents {
         ItemStack beta = chemistryProxy(parentBeta, fallback);
         if (alpha.isEmpty() || beta.isEmpty()) return null;
         CraftingChemistry.Synthesis synthesis = CraftingChemistry.synthesize(CraftingInput.of(2, 1, List.of(alpha, beta)));
-        return synthesis == null ? null : CraftingChemistry.retarget(synthesis.data(), phenotype.stage(), phenotype.waxed(),
-            phenotype.dyeColor(), phenotype.customColor());
+        return synthesis == null ? null : CraftingChemistry.retarget(synthesis.data(), phenotype.stage(), phenotype.waxed(), phenotype.dyeColor(), phenotype.customColor());
     }
 
-    private static ItemStack chemistryProxy(Mob parent, ItemStack fallback) {
+    static ItemStack chemistryProxy(Mob parent, ItemStack fallback) {
         ItemStack stack = parent.getPickResult();
         if (stack == null || stack.isEmpty()) stack = fallback.copy();
         else stack = stack.copy();
@@ -1034,6 +463,7 @@ public class PatinaGameplayEvents {
             ItemStack transformed = DynamicVariantRegistry.transform(stack, variant.stage(), variant.waxed(), variant.dyeColor(), variant.customColor());
             if (!transformed.isEmpty()) stack = transformed;
         }
+
         CraftingChemistry.Data chemistry = parent.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_CHEMISTRY.get());
         if (chemistry != null) {
             stack.set(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get(), variant == null ? chemistry
@@ -1042,10 +472,11 @@ public class PatinaGameplayEvents {
             CraftingChemistry.Synthesis synthesis = CraftingChemistry.synthesize(CraftingInput.of(1, 1, List.of(stack)));
             if (synthesis != null) stack.set(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get(), synthesis.data());
         }
+
         return stack;
     }
 
-    private static OxidationStage randomNaturalStage(ServerLevel level) {
+    static OxidationStage randomNaturalStage(ServerLevel level) {
         double[] weights = PatinaRules.INSTANCE.naturalVariantStageWeights;
         double total = 0.0D;
         for (int index = 1; index < weights.length; index++) total += weights[index];
@@ -1057,7 +488,7 @@ public class PatinaGameplayEvents {
         return OxidationStage.OXIDIZED;
     }
 
-    private static void setEntityVariant(Entity entity, ItemVariantData data) {
+    static void setEntityVariant(Entity entity, ItemVariantData data) {
         entity.setData(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get(), data);
         CraftingChemistry.Data chemistry = entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_CHEMISTRY.get());
         if (chemistry != null) {
@@ -1067,7 +498,7 @@ public class PatinaGameplayEvents {
     }
 
     @Nullable
-    private static ItemVariantData strongestVariant(@Nullable ItemVariantData first, @Nullable ItemVariantData second) {
+    static ItemVariantData strongestVariant(@Nullable ItemVariantData first, @Nullable ItemVariantData second) {
         if (first == null) return second;
         if (second == null) return first;
         int comparison = Integer.compare(first.stage().ordinal(), second.stage().ordinal());
@@ -1075,22 +506,21 @@ public class PatinaGameplayEvents {
         return first.waxed() && !second.waxed() ? second : first;
     }
 
-    private record VariantUseFrame(@Nullable ItemVariantData data, VariantProvenance.@Nullable Data provenance,
-                                   CraftingChemistry.@Nullable Data chemistry, VariantGenetics.@Nullable Data genetics) {}
+    record VariantUseFrame(@Nullable ItemVariantData data, VariantProvenance.@Nullable Data provenance, CraftingChemistry.@Nullable Data chemistry, VariantGenetics.@Nullable Data genetics) {}
 
-    private record PendingVariantUse(long gameTime, Item sourceItem, @Nullable ItemVariantData data, VariantProvenance.@Nullable Data provenance) {}
+    record PendingVariantUse(long gameTime, Item sourceItem, @Nullable ItemVariantData data, VariantProvenance.@Nullable Data provenance) {}
 
-    private record PendingBlockReplacement(Block previousSource, ItemVariantData data) {}
+    record PendingBlockReplacement(Block previousSource, ItemVariantData data) {}
 
-    private record PreparedBlockReplacement(BlockState state, VariantData data) {}
+    record PreparedBlockReplacement(BlockState state, VariantData data) {}
 
-    private record PendingToolTransformation(Block targetBlock, VariantData data, ItemStack tool) {}
+    record PendingToolTransformation(Block targetBlock, VariantData data, ItemStack tool) {}
 
-    private record PendingLightningStrike(long dueGameTime, BlockPos pos) {}
+    record PendingLightningStrike(long dueGameTime, BlockPos pos) {}
 
-    private record SaplingGroup(Block source, List<BlockPos> positions, List<@Nullable VariantData> variants) {}
+    record SaplingGroup(Block source, List<BlockPos> positions, List<@Nullable VariantData> variants) {}
 
-    private record PendingTreeGrowth(long dueGameTime, BlockPos min, BlockPos max, Set<Long> existingWood,
+    record PendingTreeGrowth(long dueGameTime, BlockPos min, BlockPos max, Set<Long> existingWood,
                                      Block saplingSource, List<BlockPos> saplingPositions,
                                      List<@Nullable VariantData> variants, long seed) {}
 
