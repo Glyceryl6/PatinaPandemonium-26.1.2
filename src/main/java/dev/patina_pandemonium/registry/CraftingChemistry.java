@@ -74,6 +74,9 @@ public class CraftingChemistry {
         long signature = mix64((long) width << 32 ^ height);
         ArrayList<Integer> groups = new ArrayList<>();
         boolean[] variantSlots = new boolean[input.size()];
+        int occupied = 0;
+        for (ItemStack ingredient : input.items()) if (!ingredient.isEmpty()) occupied++;
+        int groupBudget = Math.max(1, PatinaRules.INSTANCE.maximumChemicalNameGroups / Math.max(1, occupied));
 
         for (int index = 0; index < input.size(); index++) {
             ItemStack ingredient = input.getItem(index);
@@ -96,6 +99,16 @@ public class CraftingChemistry {
                 polymerDegree = bounded(polymerDegree.multiply(prior.polymerDegreeValue().max(BigInteger.ONE)));
                 signature = mix64(signature ^ prior.signature());
                 hasPriorChemistry = true;
+                int inheritedGroups = 0;
+                int inheritedGroupLimit = Math.max(0, groupBudget - (variant == null ? 0 : 1));
+                for (int priorGroup : prior.groups()) {
+                    if (groups.size() >= PatinaRules.INSTANCE.maximumChemicalNameGroups || inheritedGroups >= inheritedGroupLimit) break;
+                    int priorLocant = Math.max(1, priorGroup & 0xFFF);
+                    int nestedLocant = 1 + (int) Math.floorMod((priorLocant - 1L) * 37L + (locant - 1L) * 131L
+                        + (long) prior.generation() * 17L, 0xFFFL);
+                    groups.add(priorGroup & ~0xFFF | nestedLocant);
+                    inheritedGroups++;
+                }
             }
 
             polymerDegree = bounded(polymerDegree.multiply(BigInteger.valueOf(polymerFactor(locant, sourceHash, variant, prior))));
@@ -120,11 +133,8 @@ public class CraftingChemistry {
                 sharedDye = variant.dyeColor();
                 dyeInitialized = true;
             } else if (sharedDye != variant.dyeColor()) sharedDyeValid = false;
-            if (prior != null) {
-                for (int group : prior.groups()) {
-                    if (groups.size() >= PatinaRules.INSTANCE.maximumChemicalNameGroups) break;
-                    groups.add(group);
-                }
+            if (groups.size() < PatinaRules.INSTANCE.maximumChemicalNameGroups) {
+                groups.add(packGroup(locant, variant, postColor, sourceHash, prior != null));
             }
 
             signature = mix64(signature ^ ((long) variant.stage().ordinal() << 48)
@@ -139,8 +149,6 @@ public class CraftingChemistry {
         Integer customColor = colorWeight <= 0.0D ? null : mixedColor(absorbance, colorWeight);
         DyeColor dye = sharedDyeValid && dyeInitialized ? sharedDye : null;
         int topology = topology(variantSlots, width, height, hasPriorChemistry);
-        int occupied = 0;
-        for (ItemStack ingredient : input.items()) if (!ingredient.isEmpty()) occupied++;
         polymerDegree = bounded(polymerDegree.multiply(factorial(Math.min(occupied, 64))));
         BigInteger molarMass = molarMass(elements);
         Data data = new Data(customColor == null ? NO_COLOR : customColor, oxidationPermille, waxPermille,
@@ -151,23 +159,29 @@ public class CraftingChemistry {
 
     public static Component name(ItemStack stack, Data data) {
         Component sourceName = sourceName(stack);
+        Component color = data.color() == NO_COLOR
+            ? Component.translatable("item.patina_pandemonium.chemistry.color.none") : colorName(data.color());
         MutableComponent groupList = Component.empty();
         for (int index = 0; index < data.groups().size(); index++) {
             if (index > 0) groupList.append(Component.translatable("item.patina_pandemonium.chemistry.separator"));
             groupList.append(groupName(data.groups().get(index)));
         }
-        if (data.groups().isEmpty()) groupList.append(Component.translatable("item.patina_pandemonium.chemistry.group.residual"));
-        Component color = data.color() == NO_COLOR
-            ? Component.translatable("item.patina_pandemonium.chemistry.color.none") : colorName(data.color());
+        if (data.groups().isEmpty()) {
+            int aggregateStage = Math.clamp((int) Math.round(data.oxidationPermille() / 1_000.0D), 0, 3);
+            groupList.append(Component.translatable("item.patina_pandemonium.chemistry.group.aggregate",
+                Component.translatable("item.patina_pandemonium.chemistry.oxidation." + aggregateStage),
+                Component.translatable("item.patina_pandemonium.chemistry.wax." + (data.waxPermille() >= 500 ? "waxed" : "bare")), color));
+        }
         boolean polymer = data.generation() > 1 || data.groups().size() > 1 || data.polymerDegreeValue().compareTo(BigInteger.ONE) > 0;
         Component stereo = Component.translatable("item.patina_pandemonium.chemistry.stereo.prefix",
             Component.translatable("item.patina_pandemonium.chemistry.stereo." + (data.signature() & 3L)));
         Component topology = Component.translatable("item.patina_pandemonium.chemistry.topology." + data.topology());
         Component polymerMode = Component.translatable("item.patina_pandemonium.chemistry.polymer_mode."
             + (polymer ? Long.toString(data.signature() >>> 2 & 7L) : "mono"));
+        Component generation = Component.translatable("item.patina_pandemonium.chemistry.generation", data.generation());
         return Component.translatable(polymer
                 ? "item.patina_pandemonium.chemistry.name.polymer" : "item.patina_pandemonium.chemistry.name.monomer",
-            stereo, groupList, polymerMode, topology, sourceName, color);
+            stereo, groupList, polymerMode, topology, sourceName, color, generation);
     }
 
     private static Component sourceName(ItemStack stack) {

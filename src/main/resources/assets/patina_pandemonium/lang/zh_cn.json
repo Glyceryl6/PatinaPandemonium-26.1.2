@@ -80,8 +80,8 @@
   "item.patina_pandemonium.chemistry.stereo.3": "Z",
   "item.patina_pandemonium.chemistry.branch.mono": "单支",
   "item.patina_pandemonium.chemistry.branch.poly": "聚支",
-  "item.patina_pandemonium.chemistry.wax.bare": "未蜡封",
-  "item.patina_pandemonium.chemistry.wax.waxed": "蜡封",
+  "item.patina_pandemonium.chemistry.wax.bare": "未涂蜡",
+  "item.patina_pandemonium.chemistry.wax.waxed": "涂蜡",
   "item.patina_pandemonium.chemistry.oxidation.0": "零氧化",
   "item.patina_pandemonium.chemistry.oxidation.1": "一氧化",
   "item.patina_pandemonium.chemistry.oxidation.2": "二氧化",
@@ -94,8 +94,8 @@
   "item.patina_pandemonium.chemistry.value.1": "深",
   "item.patina_pandemonium.chemistry.value.2": "明",
   "item.patina_pandemonium.chemistry.value.3": "亮",
-  "item.patina_pandemonium.chemistry.name.monomer": "%1$s%2$s%5$s%6$s",
-  "item.patina_pandemonium.chemistry.name.polymer": "%1$s聚(%2$s%3$s%4$s%5$s%6$s)",
+  "item.patina_pandemonium.chemistry.name.monomer": "%7$s%1$s%2$s%5$s%6$s",
+  "item.patina_pandemonium.chemistry.name.polymer": "%7$s%1$s聚(%2$s%3$s%4$s%5$s%6$s)",
   "item.patina_pandemonium.chemistry.chain.0": "甲",
   "item.patina_pandemonium.chemistry.chain.1": "乙",
   "item.patina_pandemonium.chemistry.chain.2": "丙",
@@ -132,5 +132,7 @@
   "item.patina_pandemonium.chemistry.polymer_mode.5": "嵌段共聚",
   "item.patina_pandemonium.chemistry.polymer_mode.6": "接枝共聚",
   "item.patina_pandemonium.chemistry.polymer_mode.7": "梳形共聚",
-  "item.patina_pandemonium.chemistry.stereo.prefix": "(%1$s)-"
+  "item.patina_pandemonium.chemistry.stereo.prefix": "(%1$s)-",
+  "item.patina_pandemonium.chemistry.generation": "第%1$s代-",
+  "item.patina_pandemonium.chemistry.group.aggregate": "%1$s%2$s%3$s母核"
 }

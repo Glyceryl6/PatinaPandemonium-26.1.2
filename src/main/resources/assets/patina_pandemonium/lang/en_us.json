@@ -80,8 +80,8 @@
   "item.patina_pandemonium.chemistry.stereo.3": "Z",
   "item.patina_pandemonium.chemistry.branch.mono": "mono",
   "item.patina_pandemonium.chemistry.branch.poly": "polybranch",
-  "item.patina_pandemonium.chemistry.wax.bare": "decerato",
-  "item.patina_pandemonium.chemistry.wax.waxed": "cerato",
+  "item.patina_pandemonium.chemistry.wax.bare": "unwaxed",
+  "item.patina_pandemonium.chemistry.wax.waxed": "waxed",
   "item.patina_pandemonium.chemistry.oxidation.0": "zerooxido",
   "item.patina_pandemonium.chemistry.oxidation.1": "monoxido",
   "item.patina_pandemonium.chemistry.oxidation.2": "dioxido",
@@ -94,8 +94,8 @@
   "item.patina_pandemonium.chemistry.value.1": "deep",
   "item.patina_pandemonium.chemistry.value.2": "light",
   "item.patina_pandemonium.chemistry.value.3": "brilliant",
-  "item.patina_pandemonium.chemistry.name.monomer": "%1$s%2$s%5$s%6$s",
-  "item.patina_pandemonium.chemistry.name.polymer": "%1$spoly(%2$s%3$s-%4$s-%5$s%6$s)",
+  "item.patina_pandemonium.chemistry.name.monomer": "%7$s%1$s%2$s%5$s%6$s",
+  "item.patina_pandemonium.chemistry.name.polymer": "%7$s%1$spoly(%2$s%3$s-%4$s-%5$s%6$s)",
   "item.patina_pandemonium.chemistry.chain.0": "meth",
   "item.patina_pandemonium.chemistry.chain.1": "eth",
   "item.patina_pandemonium.chemistry.chain.2": "prop",
@@ -132,5 +132,7 @@
   "item.patina_pandemonium.chemistry.polymer_mode.5": "block",
   "item.patina_pandemonium.chemistry.polymer_mode.6": "graft",
   "item.patina_pandemonium.chemistry.polymer_mode.7": "comb",
-  "item.patina_pandemonium.chemistry.stereo.prefix": "(%1$s)-"
+  "item.patina_pandemonium.chemistry.stereo.prefix": "(%1$s)-",
+  "item.patina_pandemonium.chemistry.generation": "gen-%1$s-",
+  "item.patina_pandemonium.chemistry.group.aggregate": "%1$s-%2$s-%3$s-parent-"
 }

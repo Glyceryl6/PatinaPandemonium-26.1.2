@@ -66,8 +66,8 @@ public class PatinaRules {
     public boolean inventoryOxidationAffectsCreative = false;
     public int maximumCachedModelParts = 2_048;
     public int maximumCachedItemQuads = 4_096;
-    public int chemistryMaximumNumberBits = 4_096;
-    public int maximumChemicalNameGroups = 4_096;
+    public int chemistryMaximumNumberBits = 65_536;
+    public int maximumChemicalNameGroups = 65_536;
     public boolean showChemicalNames = true;
     public JsonObject textureOverrides = new JsonObject();
     public JsonObject existingFormOverrides = new JsonObject();

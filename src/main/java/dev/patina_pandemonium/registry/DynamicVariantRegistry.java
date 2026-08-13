@@ -582,12 +582,18 @@ public class DynamicVariantRegistry {
             ItemStack cleaned = input.transmuteCopy(source, input.getCount());
             cleaned.remove(ITEM_VARIANT_DATA.get());
             cleaned.remove(VARIANT_DATA.get());
-            if (itemData.modelId() == null || itemData.modelId().equals(itemData.sourceId())) {
+            ItemStack sourceDefaults = source.getDefaultInstance();
+            Identifier sourceModel = sourceDefaults.get(DataComponents.ITEM_MODEL);
+            Component sourceName = sourceDefaults.get(DataComponents.ITEM_NAME);
+            if (itemData.modelId() != null && !itemData.modelId().equals(itemData.sourceId())) {
+                cleaned.set(DataComponents.ITEM_MODEL, itemData.modelId());
+            } else if (sourceModel != null) {
+                cleaned.set(DataComponents.ITEM_MODEL, sourceModel);
+            } else {
                 cleaned.remove(DataComponents.ITEM_MODEL);
             }
-
-            else cleaned.set(DataComponents.ITEM_MODEL, itemData.modelId());
-            cleaned.remove(DataComponents.ITEM_NAME);
+            if (sourceName != null) cleaned.set(DataComponents.ITEM_NAME, sourceName);
+            else cleaned.remove(DataComponents.ITEM_NAME);
             restoreDurability(cleaned, input);
             return cleaned;
         }
