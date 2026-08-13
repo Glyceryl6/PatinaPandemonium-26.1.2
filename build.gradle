@@ -88,6 +88,7 @@ dependencies {
     implementation "mezz.jei:jei-${minecraft_version}-neoforge-api:${jei_version}"
     implementation "mezz.jei:jei-${minecraft_version}-neoforge:${jei_version}"
     implementation "curse.maven:configured-457570:7943180"
+    implementation "curse.maven:jade-324717:8326300"
 }
 
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {

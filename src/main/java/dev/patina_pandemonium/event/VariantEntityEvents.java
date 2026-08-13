@@ -35,6 +35,8 @@ import static dev.patina_pandemonium.event.PatinaGameplayEvents.*;
 @EventBusSubscriber(modid = PatinaPandemonium.MOD_ID)
 public class VariantEntityEvents {
 
+    private static final long LIGHTNING_CLEAN_PROTECTION_TICKS = 40L;
+
     @SubscribeEvent
     public static void onEntityJoinLevel(EntityJoinLevelEvent event) {
         if (!(event.getLevel() instanceof ServerLevel level)) return;
@@ -98,6 +100,18 @@ public class VariantEntityEvents {
     public static void onEntityStruckByLightning(EntityStruckByLightningEvent event) {
         Entity entity = event.getEntity();
         if (!(entity.level() instanceof ServerLevel)) return;
+        if (entity instanceof LivingEntity living) {
+            LightningCleanProtection protection = LIGHTNING_CLEAN_PROTECTION.get(living);
+            if (protection != null) {
+                if (living.level().getGameTime() <= protection.expiresAt() && protection.lightningId() == event.getLightning().getId()) {
+                    living.clearFire();
+                    event.setCanceled(true);
+                    return;
+                }
+                LIGHTNING_CLEAN_PROTECTION.remove(living);
+            }
+        }
+
         if (entity instanceof Player player) {
             boolean inventoryChanged = false;
             for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
@@ -115,7 +129,7 @@ public class VariantEntityEvents {
         setEntityVariant(entity, entityData.withStage(OxidationStage.FRESH));
         if (entity instanceof LivingEntity living) {
             living.clearFire();
-            LIGHTNING_CLEAN_PROTECTION.put(living, living.level().getGameTime() + 2L);
+            LIGHTNING_CLEAN_PROTECTION.put(living, new LightningCleanProtection(event.getLightning().getId(), living.level().getGameTime() + LIGHTNING_CLEAN_PROTECTION_TICKS));
         }
         event.setCanceled(true);
     }
@@ -123,13 +137,15 @@ public class VariantEntityEvents {
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onLivingIncomingDamage(LivingIncomingDamageEvent event) {
         LivingEntity entity = event.getEntity();
-        Long protectedUntil = LIGHTNING_CLEAN_PROTECTION.get(entity);
-        if (protectedUntil == null) return;
-        if (entity.level().getGameTime() > protectedUntil) {
+        LightningCleanProtection protection = LIGHTNING_CLEAN_PROTECTION.get(entity);
+        if (protection == null) return;
+        if (entity.level().getGameTime() > protection.expiresAt()) {
             LIGHTNING_CLEAN_PROTECTION.remove(entity);
             return;
         }
-        if (event.getSource().is(DamageTypes.LIGHTNING_BOLT)) event.setCanceled(true);
+        Entity direct = event.getSource().getDirectEntity();
+        if (event.getSource().is(DamageTypes.LIGHTNING_BOLT)
+            && (!(direct instanceof LightningBolt lightning) || lightning.getId() == protection.lightningId())) event.setCanceled(true);
     }
 
     @SubscribeEvent

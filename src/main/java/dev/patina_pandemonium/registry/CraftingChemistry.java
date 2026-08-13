@@ -23,7 +23,9 @@ import org.jspecify.annotations.Nullable;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** Runtime-only virtual chemistry for crafting results. The values are deterministic game mechanics, not claims about real-world substances. */
 public class CraftingChemistry {
@@ -38,6 +40,9 @@ public class CraftingChemistry {
     private static final int ELEMENT_CU = 4;
     private static final int ELEMENT_SI = 5;
     private static final int ELEMENT_COUNT = 6;
+    private static final int LOCANT_MASK = 0xFFF;
+    private static final int NESTING_SHIFT = 29;
+    private static final int NESTING_MASK = 0x7 << NESTING_SHIFT;
     private static final long[] ATOMIC_MASS_MILLI = {12_011L, 1_008L, 14_007L, 15_999L, 63_546L, 28_085L};
 
     public static final Codec<Data> CODEC = RecordCodecBuilder.create(instance -> instance.group(
@@ -132,10 +137,11 @@ public class CraftingChemistry {
                 int inheritedGroupLimit = Math.max(0, groupBudget - (variant == null ? 0 : 1));
                 for (int priorGroup : prior.groups()) {
                     if (groups.size() >= PatinaRules.INSTANCE.maximumChemicalNameGroups || inheritedGroups >= inheritedGroupLimit) break;
-                    int priorLocant = Math.max(1, priorGroup & 0xFFF);
+                    int priorLocant = Math.max(1, priorGroup & LOCANT_MASK);
                     int nestedLocant = 1 + (int) Math.floorMod((priorLocant - 1L) * 37L + (locant - 1L) * 131L
                         + (long) prior.generation() * 17L, 0xFFFL);
-                    groups.add(priorGroup & ~0xFFF | nestedLocant);
+                    int nesting = Math.min(7, (priorGroup >>> NESTING_SHIFT & 0x7) + 1);
+                    groups.add(priorGroup & ~LOCANT_MASK & ~NESTING_MASK | nestedLocant | nesting << NESTING_SHIFT);
                     inheritedGroups++;
                 }
             }
@@ -191,9 +197,16 @@ public class CraftingChemistry {
         Component color = data.color() == NO_COLOR
             ? Component.translatable("item.patina_pandemonium.chemistry.color.none") : colorName(data.color());
         MutableComponent groupList = Component.empty();
-        for (int index = 0; index < data.groups().size(); index++) {
-            if (index > 0) groupList.append(Component.translatable("item.patina_pandemonium.chemistry.separator"));
-            groupList.append(groupName(data.groups().get(index)));
+        Map<Integer, List<Integer>> locantsByGroup = new LinkedHashMap<>();
+        for (int packed : data.groups()) {
+            int descriptor = packed & ~LOCANT_MASK;
+            locantsByGroup.computeIfAbsent(descriptor, _ -> new ArrayList<>()).add(Math.max(1, packed & LOCANT_MASK));
+        }
+        int groupIndex = 0;
+        for (Map.Entry<Integer, List<Integer>> entry : locantsByGroup.entrySet()) {
+            if (groupIndex++ > 0) groupList.append(Component.translatable("item.patina_pandemonium.chemistry.separator"));
+            entry.getValue().sort(Integer::compareTo);
+            groupList.append(groupName(entry.getKey(), locantList(entry.getValue())));
         }
         if (data.groups().isEmpty()) {
             int aggregateStage = Math.clamp((int) Math.round(data.oxidationPermille() / 1_000.0D), 0, 3);
@@ -239,8 +252,7 @@ public class CraftingChemistry {
         return configured == null ? Component.translatable(sourceItem.getDescriptionId()) : configured;
     }
 
-    private static Component groupName(int packed) {
-        int locant = packed & 0xFFF;
+    private static Component groupName(int packed, Component locants) {
         int stage = packed >>> 12 & 0x3;
         boolean waxed = (packed >>> 14 & 0x1) != 0;
         int hue = packed >>> 15 & 0x1F;
@@ -248,19 +260,33 @@ public class CraftingChemistry {
         int value = packed >>> 22 & 0x3;
         boolean branch = (packed >>> 24 & 0x1) != 0;
         int chain = packed >>> 25 & 0xF;
+        int nesting = Math.max(packed >>> NESTING_SHIFT & 0x7, branch ? 1 : 0);
         Component color = hue == NO_HUE
             ? Component.translatable("item.patina_pandemonium.chemistry.chromato.none")
             : Component.translatable("item.patina_pandemonium.chemistry.chromato.colored",
                 Component.translatable("item.patina_pandemonium.chemistry.value." + value),
                 Component.translatable("item.patina_pandemonium.chemistry.saturation." + saturation),
                 Component.translatable("item.patina_pandemonium.chemistry.hue." + hue));
-        return Component.translatable("item.patina_pandemonium.chemistry.group",
-            locant,
+        Component group = Component.translatable("item.patina_pandemonium.chemistry.group",
+            locants,
             Component.translatable("item.patina_pandemonium.chemistry.chain." + chain),
             Component.translatable("item.patina_pandemonium.chemistry.oxidation." + stage),
             Component.translatable("item.patina_pandemonium.chemistry.wax." + (waxed ? "waxed" : "bare")),
             color,
             Component.translatable("item.patina_pandemonium.chemistry.branch." + (branch ? "poly" : "mono")));
+        for (int depth = 0; depth < nesting; depth++) {
+            group = Component.translatable("item.patina_pandemonium.chemistry.nested", group);
+        }
+        return group;
+    }
+
+    private static Component locantList(List<Integer> locants) {
+        StringBuilder value = new StringBuilder();
+        for (int index = 0; index < locants.size(); index++) {
+            if (index > 0) value.append(',');
+            value.append(locants.get(index));
+        }
+        return Component.literal(value.toString());
     }
 
     private static Component colorName(int color) {

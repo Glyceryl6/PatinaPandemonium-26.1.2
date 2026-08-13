@@ -40,7 +40,7 @@ public class PatinaGameplayEvents {
     static final Map<ServerLevel, List<PendingTreeGrowth>> PENDING_TREE_GROWTHS = new WeakHashMap<>();
     static final Map<ServerLevel, LinkedHashMap<BlockPos, PendingToolTransformation>> PENDING_TOOL_TRANSFORMATIONS = new WeakHashMap<>();
     static final Map<Player, Integer> INVENTORY_OXIDATION_CURSORS = new WeakHashMap<>();
-    static final Map<LivingEntity, Long> LIGHTNING_CLEAN_PROTECTION = new WeakHashMap<>();
+    static final Map<LivingEntity, LightningCleanProtection> LIGHTNING_CLEAN_PROTECTION = new WeakHashMap<>();
     static final ThreadLocal<ArrayDeque<VariantUseFrame>> VARIANT_USE_CONTEXT = new ThreadLocal<>();
 
     public static void beginVariantUse(ItemStack stack) {
@@ -432,7 +432,7 @@ public class PatinaGameplayEvents {
         if (context != null && matchesPlacementSource(placedBlock, context)) return contextProvenance;
         if (pending == null) return null;
         boolean matches = Block.byItem(pending.sourceItem()) == placedBlock
-            || pending.data() != null && matchesPlacementSource(placedBlock, pending.data());
+                || pending.data() != null && matchesPlacementSource(placedBlock, pending.data());
         return matches ? pending.provenance() : null;
     }
 
@@ -517,6 +517,8 @@ public class PatinaGameplayEvents {
     record PendingToolTransformation(Block targetBlock, VariantData data, ItemStack tool) {}
 
     record PendingLightningStrike(long dueGameTime, BlockPos pos) {}
+
+    record LightningCleanProtection(int lightningId, long expiresAt) {}
 
     record SaplingGroup(Block source, List<BlockPos> positions, List<@Nullable VariantData> variants) {}
 
