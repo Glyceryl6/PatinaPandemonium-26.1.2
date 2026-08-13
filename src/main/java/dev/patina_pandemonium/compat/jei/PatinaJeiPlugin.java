@@ -14,6 +14,8 @@ import mezz.jei.api.recipe.vanilla.IVanillaRecipeFactory;
 import mezz.jei.api.registration.IAdvancedRegistration;
 import mezz.jei.api.registration.IRecipeRegistration;
 import mezz.jei.api.registration.ISubtypeRegistration;
+import mezz.jei.library.ingredients.subtypes.SubtypeInterpreters;
+import mezz.jei.library.load.registration.SubtypeRegistration;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -30,7 +32,9 @@ import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.display.SlotDisplay;
 import org.jspecify.annotations.Nullable;
 
+import java.lang.reflect.Field;
 import java.util.List;
+import java.util.Map;
 
 @JeiPlugin
 public class PatinaJeiPlugin implements IModPlugin, ISimpleRecipeManagerPlugin<RecipeHolder<CraftingRecipe>> {
@@ -47,8 +51,21 @@ public class PatinaJeiPlugin implements IModPlugin, ISimpleRecipeManagerPlugin<R
     public void registerItemSubtypes(ISubtypeRegistration registration) {
         DynamicVariantRegistry.blockVariantItems().forEach(item ->
             registration.registerFromDataComponentTypes(item, DynamicVariantRegistry.VARIANT_DATA.get()));
-        DynamicVariantRegistry.standaloneVariantItems().forEach(item ->
-            registration.registerFromDataComponentTypes(item, DynamicVariantRegistry.ITEM_VARIANT_DATA.get()));
+        DynamicVariantRegistry.standaloneVariantItems().forEach(item -> {
+            if (registration instanceof SubtypeRegistration subtypeRegistration) {
+                SubtypeInterpreters interpreters = subtypeRegistration.getInterpreters();
+                Class<? extends SubtypeInterpreters> clazz = interpreters.getClass();
+                try {
+                    Field field = clazz.getDeclaredField("map");
+                    field.setAccessible(true);
+                    Object object = field.get(interpreters);
+                    if (object instanceof Map<?, ?> map && !map.containsKey(item)) {
+                        registration.registerFromDataComponentTypes(item, DynamicVariantRegistry.ITEM_VARIANT_DATA.get());
+                    }
+
+                } catch (NoSuchFieldException | IllegalAccessException _) {}
+            }
+        });
     }
 
     @Override
