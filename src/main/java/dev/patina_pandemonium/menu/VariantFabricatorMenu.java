@@ -24,7 +24,9 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
     public static final int DYE_BUTTON_START = 16;
     public static final int STAGE_BUTTON_START = 40;
     public static final int CLEAR_STAGES_BUTTON = 44;
+    public static final int CLEAR_COLOR_BUTTON = 48;
     public static final int RESULT_BUTTON_START = 64;
+    public static final int CUSTOM_COLOR_BUTTON_START = 128;
     public static final int INPUT_SLOT = 0;
     public static final int RESULT_SLOT = 1;
     private static final int INVENTORY_START = 2;
@@ -37,6 +39,10 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
     private final ContainerLevelAccess access;
     private final DataSlot selectedForm = DataSlot.standalone();
     private final DataSlot selectedDye = DataSlot.standalone();
+    private final DataSlot selectedRed = DataSlot.standalone();
+    private final DataSlot selectedGreen = DataSlot.standalone();
+    private final DataSlot selectedBlue = DataSlot.standalone();
+    private final DataSlot customColorEnabled = DataSlot.standalone();
     private final DataSlot oxidationMask = DataSlot.standalone();
     private final DataSlot selectedResult = DataSlot.standalone();
     private final List<VariantData> visibleVariants = new ArrayList<>(8);
@@ -56,6 +62,10 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
         this.access = access;
         this.selectedForm.set(VariantForm.FULL.ordinal());
         this.selectedDye.set(-1);
+        this.selectedRed.set(255);
+        this.selectedGreen.set(255);
+        this.selectedBlue.set(255);
+        this.customColorEnabled.set(0);
         this.selectedResult.set(-1);
         this.inputSlot = this.addSlot(new Slot(input, 0, 68, 50) {
             @Override
@@ -86,9 +96,13 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
                 super.onTake(player, stack);
             }
         });
-        this.addStandardInventorySlots(inventory, 82, 146);
+        this.addStandardInventorySlots(inventory, 82, 186);
         this.addDataSlot(this.selectedForm);
         this.addDataSlot(this.selectedDye);
+        this.addDataSlot(this.selectedRed);
+        this.addDataSlot(this.selectedGreen);
+        this.addDataSlot(this.selectedBlue);
+        this.addDataSlot(this.customColorEnabled);
         this.addDataSlot(this.oxidationMask);
         this.addDataSlot(this.selectedResult);
         this.refreshVariants(false);
@@ -101,6 +115,24 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
     @Nullable
     public DyeColor selectedDye() {
         return VariantData.dyeById(this.selectedDye.get());
+    }
+
+    @Nullable
+    public Integer selectedCustomColor() {
+        return this.customColorEnabled.get() == 0 ? null
+            : (this.selectedRed.get() & 0xFF) << 16 | (this.selectedGreen.get() & 0xFF) << 8 | this.selectedBlue.get() & 0xFF;
+    }
+
+    public int colorChannel(int channel) {
+        return switch (channel) {
+            case 0 -> this.selectedRed.get();
+            case 1 -> this.selectedGreen.get();
+            default -> this.selectedBlue.get();
+        };
+    }
+
+    public static int customColorButton(int channel, int value) {
+        return CUSTOM_COLOR_BUTTON_START + Math.clamp(channel, 0, 2) * 256 + Math.clamp(value, 0, 255);
     }
 
     public int oxidationMask() {
@@ -120,12 +152,14 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
     }
 
     public ItemStack preview(VariantForm form, OxidationStage stage, boolean waxed, @Nullable DyeColor dye) {
-        ItemStack result = DynamicVariantRegistry.fabricate(this.inputSlot.getItem(), form, stage, waxed, dye, 1);
+        return this.preview(form, stage, waxed, dye, dye == null ? this.selectedCustomColor() : null);
+    }
+
+    public ItemStack preview(VariantForm form, OxidationStage stage, boolean waxed, @Nullable DyeColor dye, @Nullable Integer customColor) {
+        ItemStack result = DynamicVariantRegistry.fabricate(this.inputSlot.getItem(), form, stage, waxed, dye, customColor, 1);
         return VariantProvenance.equipment(this.inputSlot.getItem(), result, "variant_fabricator", null, VariantProvenance.attributes(
-            "form", form.id(),
-            "oxidation", stage.name().toLowerCase(Locale.ROOT),
-            "waxed", waxed,
-            "dye", dye == null ? "none" : dye.getSerializedName()));
+            "form", form.id(), "oxidation", stage.name().toLowerCase(Locale.ROOT), "waxed", waxed, "dye", dye == null ? "none" : dye.getSerializedName(),
+            "color", customColor == null ? dye == null ? "none" : dye.getSerializedName() : String.format("#%06X", customColor & 0xFFFFFF)));
     }
 
     public void registerUpdateListener(Runnable listener) {
@@ -148,7 +182,33 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
         }
         if (buttonId >= DYE_BUTTON_START && buttonId < DYE_BUTTON_START + DyeColor.VALUES.size()) {
             int dye = buttonId - DYE_BUTTON_START;
-            this.selectedDye.set(this.selectedDye.get() == dye ? -1 : dye);
+            boolean clear = this.selectedDye.get() == dye && this.customColorEnabled.get() == 0;
+            this.selectedDye.set(clear ? -1 : dye);
+            if (!clear) {
+                int color = DyeColor.VALUES.get(dye).getTextureDiffuseColor();
+                this.selectedRed.set(color >>> 16 & 0xFF);
+                this.selectedGreen.set(color >>> 8 & 0xFF);
+                this.selectedBlue.set(color & 0xFF);
+            }
+            this.customColorEnabled.set(0);
+            this.refreshVariants(true);
+            return true;
+        }
+        if (buttonId >= CUSTOM_COLOR_BUTTON_START && buttonId < CUSTOM_COLOR_BUTTON_START + 3 * 256) {
+            int encoded = buttonId - CUSTOM_COLOR_BUTTON_START;
+            int channel = encoded / 256;
+            int value = encoded % 256;
+            if (channel == 0) this.selectedRed.set(value);
+            else if (channel == 1) this.selectedGreen.set(value);
+            else this.selectedBlue.set(value);
+            this.selectedDye.set(-1);
+            this.customColorEnabled.set(1);
+            this.refreshVariants(true);
+            return true;
+        }
+        if (buttonId == CLEAR_COLOR_BUTTON) {
+            this.selectedDye.set(-1);
+            this.customColorEnabled.set(0);
             this.refreshVariants(true);
             return true;
         }
@@ -258,7 +318,9 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
             int mask = this.oxidationMask.get();
             for (OxidationStage stage : OxidationStage.values()) {
                 if (mask != 0 && (mask & 1 << stage.ordinal()) == 0) continue;
-                VariantData base = VariantData.defaultFor(this.selectedForm()).withStage(stage).withDye(this.selectedDye());
+                VariantData base = VariantData.defaultFor(this.selectedForm()).withStage(stage);
+                Integer customColor = this.selectedCustomColor();
+                base = customColor == null ? base.withDye(this.selectedDye()) : base.withCustomColor(customColor);
                 this.visibleVariants.add(base.withWaxed(false));
                 this.visibleVariants.add(base.withWaxed(true));
             }
@@ -273,7 +335,7 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
         int index = this.selectedResult.get();
         if (index < 0 || index >= this.visibleVariants.size()) return ItemStack.EMPTY;
         VariantData choice = this.visibleVariants.get(index);
-        return this.preview(choice.form(), choice.stage(), choice.waxed(), choice.dyeColor());
+        return this.preview(choice.form(), choice.stage(), choice.waxed(), choice.dyeColor(), choice.customColor());
     }
 
     private boolean isCurrentResult(ItemStack stack) {

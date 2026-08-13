@@ -100,6 +100,9 @@ public class DynamicVariantRegistry {
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<ItemVariantData>> ENTITY_VARIANT_DATA = ATTACHMENTS.register(
         "entity_variant_data", () -> AttachmentType.builder(ItemVariantData::defaultData)
             .serialize(ItemVariantData.CODEC.fieldOf("variant")).sync(ItemVariantData.STREAM_CODEC).build());
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<CraftingChemistry.Data>> ENTITY_CHEMISTRY = ATTACHMENTS.register(
+        "entity_crafting_chemistry", () -> AttachmentType.builder(CraftingChemistry::emptyData)
+            .serialize(CraftingChemistry.CODEC.fieldOf("chemistry")).build());
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<ItemVariantData>> ENTITY_FIRE_VARIANT_DATA = ATTACHMENTS.register(
         "entity_fire_variant_data", () -> AttachmentType.builder(ItemVariantData::defaultData).sync(ItemVariantData.STREAM_CODEC).build());
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<VariantData>> BLOCK_ENTITY_VARIANT_DATA = ATTACHMENTS.register(
@@ -523,26 +526,36 @@ public class DynamicVariantRegistry {
     }
 
     public static ItemStack fabricate(ItemStack input, VariantForm form, OxidationStage stage, boolean waxed, @Nullable DyeColor dye, int count) {
+        return fabricate(input, form, stage, waxed, dye, null, count);
+    }
+
+    public static ItemStack fabricate(ItemStack input, VariantForm form, OxidationStage stage, boolean waxed, @Nullable DyeColor dye,
+                                      @Nullable Integer customColor, int count) {
         if (input.isEmpty() || !supportsForm(input, form)) return ItemStack.EMPTY;
         ItemStack output;
         Identifier fullSource = fullSourceId(input);
         if (fullSource != null) {
-            output = displayStack(new VariantData(fullSource, stage, waxed, form, dye), count);
+            output = displayStack(new VariantData(fullSource, stage, waxed, form, dye, customColor), count);
         } else {
             Identifier specialSource = specialSourceId(input);
             if (specialSource != null) {
-                VariantData data = new VariantData(specialSource, stage, waxed, VariantForm.FULL, dye);
+                VariantData data = new VariantData(specialSource, stage, waxed, VariantForm.FULL, dye, customColor);
                 if (NATIVE_BLOCK_ENTITY_SOURCE_IDS.contains(specialSource)) {
-                    output = variantItemStack(input.copyWithCount(Math.max(1, count)), stage, waxed, dye);
+                    output = variantItemStack(input.copyWithCount(Math.max(1, count)), stage, waxed, dye, customColor);
                 } else {
                     output = delegatedStack(input, data, count);
                 }
             } else {
-                output = variantItemStack(input.copyWithCount(Math.max(1, count)), stage, waxed, dye);
+                output = variantItemStack(input.copyWithCount(Math.max(1, count)), stage, waxed, dye, customColor);
             }
         }
 
-        if (output.isEmpty() || output.get(CRAFTING_CHEMISTRY.get()) != null) return output;
+        if (output.isEmpty()) return output;
+        CraftingChemistry.Data chemistry = input.get(CRAFTING_CHEMISTRY.get());
+        if (chemistry != null) {
+            output.set(CRAFTING_CHEMISTRY.get(), CraftingChemistry.retarget(chemistry, stage, waxed, dye, customColor));
+            return output;
+        }
         CraftingChemistry.Synthesis synthesis = CraftingChemistry.synthesize(CraftingInput.of(1, 1, List.of(output)));
         if (synthesis != null) output.set(CRAFTING_CHEMISTRY.get(), synthesis.data());
         return output;
@@ -575,6 +588,8 @@ public class DynamicVariantRegistry {
         }
         if (target.isEmpty()) return ItemStack.EMPTY;
         ItemStack result = mergeCraftingOutput(input, target);
+        CraftingChemistry.Data chemistry = input.get(CRAFTING_CHEMISTRY.get());
+        if (chemistry != null) result.set(CRAFTING_CHEMISTRY.get(), CraftingChemistry.retarget(chemistry, stage, waxed, dye, customColor));
         OxidationStage fromStage = state == null ? null : state.stage();
         return VariantProvenance.localStateEdit(input, result, variantOperation(state, stage, waxed, dye, customColor), fromStage, stage, waxed);
     }
@@ -764,7 +779,8 @@ public class DynamicVariantRegistry {
         blockEntity.setChanged();
     }
 
-    public static VariantProvenance.@Nullable Data blockEntityProvenance(BlockEntity blockEntity) {
+    @Nullable
+    public static VariantProvenance.Data blockEntityProvenance(BlockEntity blockEntity) {
         return blockEntity.getExistingDataOrNull(BLOCK_ENTITY_PROVENANCE.get());
     }
 
@@ -1171,7 +1187,7 @@ public class DynamicVariantRegistry {
         namingStack.set(DataComponents.ITEM_MODEL, data.modelId() == null ? data.sourceId() : data.modelId());
         Component sourceName = source.getName(namingStack);
         if (sourceName.getString().isBlank()) sourceName = Component.translatable(source.getDescriptionId());
-        return variantName(data.stageKey(), data.dyeKey(), sourceName, Component.empty());
+        return variantName(data.stageKey(), colorName(data.dyeColor(), data.customColor()), sourceName, Component.empty());
     }
 
     public static Component generatedBlockName(ItemStack stack, VariantData data) {
@@ -1183,13 +1199,17 @@ public class DynamicVariantRegistry {
     }
 
     public static Component variantName(VariantData data, Component sourceName) {
-        return variantName(data.stageKey(), data.dyeKey(), sourceName, Component.translatable(data.formKey()));
+        return variantName(data.stageKey(), colorName(data.dyeColor(), data.customColor()), sourceName, Component.translatable(data.formKey()));
     }
 
-    private static Component variantName(String stageKey, String dyeKey, Component sourceName, Component formName) {
+    private static Component variantName(String stageKey, Component colorName, Component sourceName, Component formName) {
         return Component.translatable(
-            "item.patina_pandemonium.variant_name",
-            Component.translatable(stageKey), Component.translatable(dyeKey), sourceName, formName);
+            "item.patina_pandemonium.variant_name", Component.translatable(stageKey), colorName, sourceName, formName);
+    }
+
+    private static Component colorName(@Nullable DyeColor dye, @Nullable Integer customColor) {
+        if (customColor != null) return Component.translatable("patina_pandemonium.dye.custom", String.format("#%06X", customColor & 0xFFFFFF));
+        return Component.translatable(dye == null ? "patina_pandemonium.dye.none" : "patina_pandemonium.dye." + dye.getSerializedName());
     }
 
     @Nullable

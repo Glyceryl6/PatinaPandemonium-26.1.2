@@ -23,7 +23,7 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 17;
+    public int schemaVersion = 18;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
     public Set<String> excludedItems = new HashSet<>();
@@ -32,9 +32,9 @@ public class PatinaRules {
     public int maximumCreativePreviewSources = 0;
     public double oxidationAttemptChance = 0.05688889D;
     public double naturalVariantSpawnChance = 0.015D;
-    public int entityOxidationInterval = 64;
+    public int entityOxidationInterval = 1_365;
     public double entityOxidationAttemptChance = 0.05688889D;
-    public double entityOxidationRainMultiplier = 4.0D;
+    public double entityOxidationRainMultiplier = 1.0D;
     public double waxTetanusMultiplier = 0.65D;
     public double waxFoodRiskMultiplier = 0.5D;
     public double[] naturalVariantStageWeights = {0.0D, 0.50D, 0.32D, 0.18D};
@@ -122,7 +122,15 @@ public class PatinaRules {
                 rules.trackToolProvenance = true;
                 rules.automaticPolymerLineage = true;
             }
-            rules.schemaVersion = 17;
+            if (previousSchema < 18) {
+                if (!source.has("entityOxidationInterval") || source.get("entityOxidationInterval").getAsInt() == 64) {
+                    rules.entityOxidationInterval = 1_365;
+                }
+                if (!source.has("entityOxidationRainMultiplier") || source.get("entityOxidationRainMultiplier").getAsDouble() == 4.0D) {
+                    rules.entityOxidationRainMultiplier = 1.0D;
+                }
+            }
+            rules.schemaVersion = 18;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
             if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
             if (rules.excludedItems == null) rules.excludedItems = new HashSet<>();

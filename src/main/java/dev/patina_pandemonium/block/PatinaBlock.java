@@ -15,8 +15,8 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.SpreadingSnowyBlock;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.redstone.Orientation;
@@ -30,10 +30,6 @@ public class PatinaBlock extends Block implements PatinaOxidizable {
 
     public static PatinaBlock create(Block source, BlockBehaviour.Properties properties) {
         return new PatinaBlock(source, properties);
-    }
-
-    public PatinaBlock(BlockBehaviour.Properties properties) {
-        this(Blocks.STONE, properties);
     }
 
     private PatinaBlock(Block source, BlockBehaviour.Properties properties) {
@@ -96,7 +92,19 @@ public class PatinaBlock extends Block implements PatinaOxidizable {
 
     @Override
     protected void randomTick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
-        this.patinaRandomTick(level, pos, random);
+        if (this.source instanceof SpreadingSnowyBlock) {
+            VariantData data = this.data(level, pos);
+            PatinaGameplayEvents.beginVariantUse(data);
+            try {
+                this.source.defaultBlockState().randomTick(level, pos, random);
+            } finally {
+                PatinaGameplayEvents.endVariantUse();
+            }
+        }
+
+        if (level.getBlockState(pos).is(this)) {
+            this.patinaRandomTick(level, pos, random);
+        }
     }
 
     @Override
@@ -109,6 +117,7 @@ public class PatinaBlock extends Block implements PatinaOxidizable {
         } finally {
             PatinaGameplayEvents.endVariantUse();
         }
+
         this.restore(level, pos, data);
         return result;
     }
@@ -123,6 +132,7 @@ public class PatinaBlock extends Block implements PatinaOxidizable {
         } finally {
             PatinaGameplayEvents.endVariantUse();
         }
+
         this.restore(level, pos, data);
         return result;
     }

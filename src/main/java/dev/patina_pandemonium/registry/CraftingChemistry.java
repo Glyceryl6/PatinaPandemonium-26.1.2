@@ -53,6 +53,35 @@ public class CraftingChemistry {
         Codec.INT.listOf().fieldOf("groups").forGetter(Data::groups)).apply(instance, Data::new));
     public static final StreamCodec<RegistryFriendlyByteBuf, Data> STREAM_CODEC = ByteBufCodecs.fromCodecWithRegistries(CODEC);
 
+    public static Data emptyData() {
+        return new Data(NO_COLOR, 0, 0, List.of("0", "0", "0", "0", "0", "0"),
+            "0", "1", 1, 0, 0L, List.of());
+    }
+
+    public static Data retarget(Data data, OxidationStage stage, boolean waxed, @Nullable DyeColor dye, @Nullable Integer customColor) {
+        int color = customColor == null ? dye == null ? NO_COLOR : dye.getTextureDiffuseColor() & 0xFFFFFF : customColor & 0xFFFFFF;
+        ColorClass colorClass = color == NO_COLOR ? new ColorClass(NO_HUE, 0, 0) : classify(color);
+        int mutableMask = 3 << 12 | 1 << 14 | 0x1F << 15 | 3 << 20 | 3 << 22;
+        ArrayList<Integer> groups = new ArrayList<>(data.groups().size());
+        boolean changed = data.color() != color || data.oxidationPermille() != stage.ordinal() * 1_000
+            || data.waxPermille() != (waxed ? 1_000 : 0);
+        for (int group : data.groups()) {
+            int retargeted = group & ~mutableMask
+                | stage.ordinal() << 12
+                | (waxed ? 1 : 0) << 14
+                | colorClass.hue() << 15
+                | colorClass.saturation() << 20
+                | colorClass.value() << 22;
+            groups.add(retargeted);
+            changed |= retargeted != group;
+        }
+        if (!changed) return data;
+        long signature = mix64(data.signature() ^ ((long) stage.ordinal() << 48)
+            ^ (waxed ? 0x5A5A5A5A5A5A5A5AL : 0L) ^ (color == NO_COLOR ? 0L : color));
+        return new Data(color, stage.ordinal() * 1_000, waxed ? 1_000 : 0, data.elements(),
+            data.molarMassMilli(), data.polymerDegree(), data.generation(), data.topology(), signature, groups);
+    }
+
     @Nullable
     public static Synthesis synthesize(CraftingInput input) {
         if (input.isEmpty()) return null;

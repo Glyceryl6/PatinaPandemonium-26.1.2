@@ -107,8 +107,8 @@ public class VariantProvenance {
                 pigmentFingerprints.add(ingredientFingerprint);
             }
         }
-
         if (roots.isEmpty()) return output;
+
         ArrayList<String> craftAttributes = new ArrayList<>(attributes(
             "output", itemId(output),
             "occupied", roots.size(),
@@ -116,17 +116,21 @@ public class VariantProvenance {
             "grid", input.width() + "x" + input.height()));
         craftAttributes.addAll(inputFingerprints);
         int root = builder.node(NodeType.CRAFT, operation, roots, slots, input.width(), input.height(), craftAttributes);
+
         if (roots.size() > 1 && PatinaRules.INSTANCE.automaticPolymerLineage) {
-            root = builder.node(NodeType.POLYMER, "ordered_crafting_sequence", List.of(root), List.of(-1),
-                    input.width(), input.height(), attributes("monomers", roots.size(), "topology", gridTopology(input)));
+            root = builder.node(NodeType.POLYMER, "ordered_crafting_sequence", List.of(root), List.of(-1), input.width(), input.height(), attributes(
+                "monomers", roots.size(),
+                "topology", gridTopology(input)));
         }
 
         if (!pigmentSlots.isEmpty()) {
-            ArrayList<String> pigmentAttributes = new ArrayList<>(attributes("pigments", pigmentSlots.size(), "output_color", colorSignature(output)));
+            ArrayList<String> pigmentAttributes = new ArrayList<>(attributes(
+                "pigments", pigmentSlots.size(),
+                "output_color", colorSignature(output)));
             for (int index = 0; index < pigmentSlots.size(); index++) {
-                pigmentAttributes.add("pigment_" + index + "=" + pigmentSlots.get(index) + "@" + Long.toUnsignedString(pigmentFingerprints.get(index), 16));
+                pigmentAttributes.add("pigment_" + index + "=" + pigmentSlots.get(index) + "@"
+                    + Long.toUnsignedString(pigmentFingerprints.get(index), 16));
             }
-
             root = builder.node(NodeType.PIGMENT, "crafting_pigment_lineage", List.of(root), List.of(-1), input.width(), input.height(), pigmentAttributes);
         }
 
@@ -145,8 +149,8 @@ public class VariantProvenance {
         return output;
     }
 
-    public static void singleItemProcess(ItemStack input, ItemStack output, NodeType type, String operation, List<String> extraAttributes) {
-        process(input, output, type, operation, List.of(), extraAttributes);
+    public static ItemStack singleItemProcess(ItemStack input, ItemStack output, NodeType type, String operation, List<String> extraAttributes) {
+        return process(input, output, type, operation, List.of(), extraAttributes);
     }
 
     public static Data process(Data input, NodeType type, String operation, List<ItemStack> catalysts, List<String> extraAttributes) {
@@ -189,16 +193,16 @@ public class VariantProvenance {
         return builder.build(root);
     }
 
-    public static void toolProcess(ItemStack input, ItemStack output, ItemStack tool, String operation, String target) {
-        process(input, output, NodeType.TOOL, operation, tool.isEmpty() ? List.of() : List.of(tool), attributes(
-                "target", target,
-                "tool", tool.isEmpty() ? "none" : itemId(tool),
-                "tool_damage", tool.getOrDefault(DataComponents.DAMAGE, 0),
-                "tool_enchantments", enchantmentSignature(tool)));
+    public static ItemStack toolProcess(ItemStack input, ItemStack output, ItemStack tool, String operation, String target) {
+        return process(input, output, NodeType.TOOL, operation, tool.isEmpty() ? List.of() : List.of(tool), attributes(
+            "target", target,
+            "tool", tool.isEmpty() ? "none" : itemId(tool),
+            "tool_damage", tool.getOrDefault(DataComponents.DAMAGE, 0),
+            "tool_enchantments", enchantmentSignature(tool)));
     }
 
-    public static void anvil(ItemStack left, ItemStack right, ItemStack output, int xpCost, int materialCost, @Nullable String name) {
-        if (left.isEmpty() || output.isEmpty()) return;
+    public static ItemStack anvil(ItemStack left, ItemStack right, ItemStack output, int xpCost, int materialCost, @Nullable String name) {
+        if (left.isEmpty() || output.isEmpty()) return output;
         Builder builder = new Builder();
         ArrayList<Integer> roots = new ArrayList<>();
         roots.add(builder.stackRoot(left, 0));
@@ -209,16 +213,19 @@ public class VariantProvenance {
             "renamed", name != null,
             "result_enchantments", enchantmentSignature(output)));
         output.set(DynamicVariantRegistry.PROVENANCE.get(), builder.build(root));
+        return output;
     }
 
-    public static void enchantingTable(ItemStack stack, List<?> appliedEnchantments) {
-        if (stack.isEmpty()) return;
+    public static ItemStack enchantingTable(ItemStack stack, List<?> appliedEnchantments) {
+        if (stack.isEmpty()) return stack;
         ItemStack pedigree = stack.copy();
-        process(pedigree, stack, NodeType.ENCHANT, "enchanting_table", List.of(),
-                attributes("applied_enchantments", appliedEnchantments, "result_enchantments", enchantmentSignature(stack)));
+        return process(pedigree, stack, NodeType.ENCHANT, "enchanting_table", List.of(), attributes(
+            "applied_enchantments", appliedEnchantments,
+            "result_enchantments", enchantmentSignature(stack)));
     }
 
-    public static ItemStack equipment(ItemStack input, ItemStack output, String equipment, @Nullable ItemStack equipmentStack, List<String> extraAttributes) {
+    public static ItemStack equipment(ItemStack input, ItemStack output, String equipment, @Nullable ItemStack equipmentStack,
+                                      List<String> extraAttributes) {
         ArrayList<ItemStack> catalysts = new ArrayList<>();
         if (equipmentStack != null && !equipmentStack.isEmpty()) catalysts.add(equipmentStack);
         ArrayList<String> allAttributes = new ArrayList<>(extraAttributes);
@@ -226,14 +233,16 @@ public class VariantProvenance {
         return process(input, output, NodeType.EQUIPMENT, equipment, catalysts, allAttributes);
     }
 
-    public static void equipmentInstance(ItemStack output, Data equipmentProvenance, String equipment) {
-        if (output.isEmpty()) return;
+    public static ItemStack equipmentInstance(ItemStack output, Data equipmentProvenance, String equipment) {
+        if (output.isEmpty()) return output;
         Builder builder = new Builder();
         int outputRoot = builder.stackRoot(output, 0);
         int equipmentRoot = builder.importData(equipmentProvenance);
-        int root = builder.node(NodeType.EQUIPMENT, equipment + "_instance", List.of(outputRoot, equipmentRoot), List.of(0, 1), 0, 0,
-                attributes("equipment", equipment, "physical_instance", Long.toUnsignedString(equipmentProvenance.rootFingerprint(), 16)));
+        int root = builder.node(NodeType.EQUIPMENT, equipment + "_instance", List.of(outputRoot, equipmentRoot), List.of(0, 1), 0, 0, attributes(
+            "equipment", equipment,
+            "physical_instance", Long.toUnsignedString(equipmentProvenance.rootFingerprint(), 16)));
         output.set(DynamicVariantRegistry.PROVENANCE.get(), builder.build(root));
+        return output;
     }
 
     public static ItemStack splitMerge(ItemStack input, ItemStack output, String operation, int outputIndex, int outputCount) {
@@ -367,7 +376,7 @@ public class VariantProvenance {
         Object enchantments = stack.get(DataComponents.ENCHANTMENTS);
         Object stored = stack.get(DataComponents.STORED_ENCHANTMENTS);
         if (enchantments == null && stored == null) return "none";
-        return sanitize(enchantments + "/" + stored);
+        return sanitize(String.valueOf(enchantments) + "/" + String.valueOf(stored));
     }
 
     private static String sanitize(String value) {
@@ -605,7 +614,8 @@ public class VariantProvenance {
         }
     }
 
-    private record NodeKey(NodeType type, String operation, List<Long> inputFingerprints, List<Integer> slots, int width, int height, List<String> attributes) {
+    private record NodeKey(NodeType type, String operation, List<Long> inputFingerprints, List<Integer> slots, int width, int height,
+                           List<String> attributes) {
         long fingerprint() {
             long result = mixString(0x243F6A8885A308D3L, this.type.name());
             result = mixString(result, this.operation);
@@ -616,5 +626,4 @@ public class VariantProvenance {
             return result;
         }
     }
-
 }

@@ -24,6 +24,25 @@ public class LevelMixin {
         if (sourceState != state) callback.setReturnValue(sourceState);
     }
 
+    @Inject(method = "setBlock(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;I)Z", at = @At("HEAD"), cancellable = true)
+    private void patina$preserveDelegatedSourceWriteSimple(BlockPos pos, BlockState blockState, int updateFlags, CallbackInfoReturnable<Boolean> callback) {
+        Level level = (Level) (Object) this;
+        BlockState preserved = PatinaDelegatingBlock.preserveSourceWrite(level, pos, blockState);
+        if (preserved != blockState) {
+            callback.setReturnValue(level.setBlock(pos, preserved, updateFlags));
+            return;
+        }
+
+        Block source = blockState.getBlock();
+        VariantData data = PatinaGameplayEvents.outputVariant(source);
+        Block carrier = data == null ? null : DynamicVariantRegistry.fullCarrier(source);
+        if (carrier == null) return;
+        BlockState target = carrier instanceof PatinaDelegatingBlock ? carrier.withPropertiesOf(blockState) : carrier.defaultBlockState();
+        boolean changed = level.setBlock(pos, target, updateFlags);
+        if (changed && level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity) blockEntity.setData(data);
+        callback.setReturnValue(changed);
+    }
+
     @Inject(method = "setBlock(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;II)Z", at = @At("HEAD"), cancellable = true)
     private void patina$preserveDelegatedSourceWrite(BlockPos pos, BlockState blockState, int updateFlags, int updateLimit, CallbackInfoReturnable<Boolean> callback) {
         Level level = (Level) (Object) this;

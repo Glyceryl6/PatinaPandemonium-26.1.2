@@ -108,7 +108,6 @@ public record VariantData(Identifier sourceId, OxidationStage stage, boolean wax
         return new VariantData(sourceId, OxidationStage.byOrdinal(stage), waxed, VariantForm.byOrdinal(form), dyeById(dye), customColor.orElse(null));
     }
 
-    @Nullable
     public static DyeColor dyeById(int dye) {
         return dye < 0 || dye >= DyeColor.VALUES.size() ? null : DyeColor.VALUES.get(dye);
     }
