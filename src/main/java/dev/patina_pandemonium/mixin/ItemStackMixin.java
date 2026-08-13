@@ -5,6 +5,7 @@ import dev.patina_pandemonium.event.PatinaGameplayEvents;
 import dev.patina_pandemonium.registry.CraftingChemistry;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ItemVariantData;
+import dev.patina_pandemonium.registry.VariantGenetics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -30,7 +31,12 @@ public class ItemStackMixin {
             callback.setReturnValue(CraftingChemistry.name(stack, chemistry));
             return;
         }
-        ItemVariantData data = DynamicVariantRegistry.itemData(stack);
+        VariantGenetics.Data genetics = VariantGenetics.get(stack);
+        if (genetics != null && PatinaRules.INSTANCE.showGeneticNames) {
+            callback.setReturnValue(VariantGenetics.systematicName(stack, genetics));
+            return;
+        }
+        ItemVariantData data = DynamicVariantRegistry.peekItemData(stack);
         if (data != null) callback.setReturnValue(DynamicVariantRegistry.variantItemName(stack, data));
     }
 

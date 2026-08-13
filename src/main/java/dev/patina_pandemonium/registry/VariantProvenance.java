@@ -8,6 +8,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ItemContainerContents;
@@ -77,6 +78,35 @@ public class VariantProvenance {
     public static Data defaultData() {
         Builder builder = new Builder();
         return builder.build(builder.node(NodeType.SOURCE, "unknown_source", List.of(), List.of(), 0, 0, List.of()));
+    }
+
+    public static Data entitySource(Entity entity) {
+        Builder builder = new Builder();
+        ItemVariantData variant = entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
+        CraftingChemistry.Data chemistry = entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_CHEMISTRY.get());
+        VariantGenetics.Data genetics = entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_GENETICS.get());
+        return builder.build(builder.node(NodeType.SOURCE, "entity_source", List.of(), List.of(), 0, 0, attributes(
+            "entity", BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()),
+            "oxidation", variant == null ? "fresh/unwaxed" : stageName(variant.stage()) + "/" + (variant.waxed() ? "waxed" : "unwaxed"),
+            "chemistry", chemistry == null ? "none" : Long.toUnsignedString(chemistry.signature(), 16),
+            "genetics", genetics == null ? "none" : VariantGenetics.shortSignature(genetics.lineageSignature()))));
+    }
+
+    public static Data breed(Data parentAlpha, Data parentBeta, Entity child, VariantGenetics.Data genetics) {
+        Builder builder = new Builder();
+        int alpha = builder.importData(parentAlpha);
+        int beta = builder.importData(parentBeta);
+        int root = builder.node(NodeType.BREED, "meiotic_recombination", List.of(alpha, beta), List.of(0, 1), 2, 1, attributes(
+            "child", BuiltInRegistries.ENTITY_TYPE.getKey(child.getType()),
+            "genetic_generation", genetics.generation(),
+            "lineage", VariantGenetics.shortSignature(genetics.lineageSignature()),
+            "parent_alpha", VariantGenetics.shortSignature(genetics.parentAlpha()),
+            "parent_beta", VariantGenetics.shortSignature(genetics.parentBeta()),
+            "recombinations", genetics.recombinations(),
+            "mutations", genetics.mutations(),
+            "heterozygosity_permille", genetics.heterozygosityPermille(),
+            "inbreeding_permille", genetics.inbreedingPermille()));
+        return builder.build(root);
     }
 
     public static ItemStack attachSourceIfMissing(ItemStack stack) {
@@ -411,6 +441,7 @@ public class VariantProvenance {
         LOCAL_STATE_EDIT,
         CONTAINER,
         SPLIT_MERGE,
+        BREED,
         SUMMARY
     }
 

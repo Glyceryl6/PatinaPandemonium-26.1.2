@@ -213,7 +213,7 @@ public class CraftingChemistry {
             stereo, groupList, polymerMode, topology, sourceName, color, generation);
     }
 
-    private static Component sourceName(ItemStack stack) {
+    public static Component sourceName(ItemStack stack) {
         Item sourceItem = stack.getItem();
         ItemVariantData itemData = DynamicVariantRegistry.peekItemData(stack);
         if (itemData != null) {

@@ -95,6 +95,9 @@ public class DynamicVariantRegistry {
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<VariantProvenance.Data>> PROVENANCE =
         COMPONENTS.registerComponentType("variant_provenance", builder -> builder.persistent(VariantProvenance.CODEC)
             .networkSynchronized(VariantProvenance.STREAM_CODEC));
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<VariantGenetics.Data>> GENETICS =
+        COMPONENTS.registerComponentType("variant_genetics", builder -> builder.persistent(VariantGenetics.CODEC)
+            .networkSynchronized(VariantGenetics.STREAM_CODEC));
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> ORIGINAL_MAX_DAMAGE =
         COMPONENTS.registerComponentType("original_max_damage", builder -> builder.persistent(Codec.INT));
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<ItemVariantData>> ENTITY_VARIANT_DATA = ATTACHMENTS.register(
@@ -103,6 +106,12 @@ public class DynamicVariantRegistry {
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<CraftingChemistry.Data>> ENTITY_CHEMISTRY = ATTACHMENTS.register(
         "entity_crafting_chemistry", () -> AttachmentType.builder(CraftingChemistry::emptyData)
             .serialize(CraftingChemistry.CODEC.fieldOf("chemistry")).build());
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<VariantGenetics.Data>> ENTITY_GENETICS = ATTACHMENTS.register(
+        "entity_genetics", () -> AttachmentType.builder(VariantGenetics::defaultData)
+            .serialize(VariantGenetics.CODEC.fieldOf("genetics")).build());
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<VariantProvenance.Data>> ENTITY_PROVENANCE = ATTACHMENTS.register(
+        "entity_provenance", () -> AttachmentType.builder(VariantProvenance::defaultData)
+            .serialize(VariantProvenance.CODEC.fieldOf("provenance")).build());
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<ItemVariantData>> ENTITY_FIRE_VARIANT_DATA = ATTACHMENTS.register(
         "entity_fire_variant_data", () -> AttachmentType.builder(ItemVariantData::defaultData).sync(ItemVariantData.STREAM_CODEC).build());
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<VariantData>> BLOCK_ENTITY_VARIANT_DATA = ATTACHMENTS.register(
@@ -779,8 +788,7 @@ public class DynamicVariantRegistry {
         blockEntity.setChanged();
     }
 
-    @Nullable
-    public static VariantProvenance.Data blockEntityProvenance(BlockEntity blockEntity) {
+    public static VariantProvenance.@Nullable Data blockEntityProvenance(BlockEntity blockEntity) {
         return blockEntity.getExistingDataOrNull(BLOCK_ENTITY_PROVENANCE.get());
     }
 

@@ -23,7 +23,7 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 18;
+    public int schemaVersion = 19;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
     public Set<String> excludedItems = new HashSet<>();
@@ -78,6 +78,11 @@ public class PatinaRules {
     public boolean trackContainerProvenance = true;
     public boolean trackToolProvenance = true;
     public boolean automaticPolymerLineage = true;
+    public double geneticCrossoverChance = 0.12D;
+    public double geneticMutationChance = 0.0025D;
+    public double geneticPhenotypeImprintWeight = 0.25D;
+    public int maximumGeneticAncestors = 24;
+    public boolean showGeneticNames = true;
     public JsonObject textureOverrides = new JsonObject();
     public JsonObject existingFormOverrides = new JsonObject();
 
@@ -130,7 +135,14 @@ public class PatinaRules {
                     rules.entityOxidationRainMultiplier = 1.0D;
                 }
             }
-            rules.schemaVersion = 18;
+            if (previousSchema < 19) {
+                rules.geneticCrossoverChance = 0.12D;
+                rules.geneticMutationChance = 0.0025D;
+                rules.geneticPhenotypeImprintWeight = 0.25D;
+                rules.maximumGeneticAncestors = 24;
+                rules.showGeneticNames = true;
+            }
+            rules.schemaVersion = 19;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
             if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
             if (rules.excludedItems == null) rules.excludedItems = new HashSet<>();
@@ -147,6 +159,10 @@ public class PatinaRules {
             rules.maximumProvenanceContainerDepth = Math.clamp(rules.maximumProvenanceContainerDepth, 0, 16);
             rules.maximumProvenanceContainerEntries = Math.clamp(rules.maximumProvenanceContainerEntries, 0, 4_096);
             rules.maximumProvenanceTooltipNodes = Math.clamp(rules.maximumProvenanceTooltipNodes, 0, 128);
+            rules.geneticCrossoverChance = chance(rules.geneticCrossoverChance);
+            rules.geneticMutationChance = chance(rules.geneticMutationChance);
+            rules.geneticPhenotypeImprintWeight = chance(rules.geneticPhenotypeImprintWeight);
+            rules.maximumGeneticAncestors = Math.clamp(rules.maximumGeneticAncestors, 4, 256);
             rules.treeScanHorizontalRadius = Math.clamp(rules.treeScanHorizontalRadius, 4, 32);
             rules.treeScanBelow = Math.clamp(rules.treeScanBelow, 0, 8);
             rules.treeScanHeight = Math.clamp(rules.treeScanHeight, 8, 96);

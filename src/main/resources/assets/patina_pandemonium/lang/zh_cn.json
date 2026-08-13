@@ -104,8 +104,8 @@
   "item.patina_pandemonium.chemistry.value.1": "深",
   "item.patina_pandemonium.chemistry.value.2": "明",
   "item.patina_pandemonium.chemistry.value.3": "亮",
-  "item.patina_pandemonium.chemistry.name.monomer": "%7$s%1$s%2$s%5$s%6$s",
-  "item.patina_pandemonium.chemistry.name.polymer": "%7$s%1$s聚(%2$s%3$s%4$s%5$s%6$s)",
+  "item.patina_pandemonium.chemistry.name.monomer": "%7$s%1$s%2$s%6$s-%5$s",
+  "item.patina_pandemonium.chemistry.name.polymer": "%7$s%1$s聚(%2$s%3$s%4$s%6$s)-%5$s",
   "item.patina_pandemonium.chemistry.chain.0": "甲",
   "item.patina_pandemonium.chemistry.chain.1": "乙",
   "item.patina_pandemonium.chemistry.chain.2": "丙",
@@ -148,5 +148,10 @@
   "tooltip.patina_pandemonium.provenance.summary": "制造谱系：第%s代 · %s个节点 · 深度%s",
   "tooltip.patina_pandemonium.provenance.fingerprint": "谱系根指纹：%s",
   "tooltip.patina_pandemonium.provenance.truncated": "部分祖先谱系已因性能预算压缩为摘要，但其身份指纹仍被保留",
-  "tooltip.patina_pandemonium.provenance.operation": "[%s] %s：%s"
+  "tooltip.patina_pandemonium.provenance.operation": "[%s] %s：%s",
+  "item.patina_pandemonium.genetics.name": "第%1$s代-%2$s×%3$s系-[I:%4$s|II:%5$s|III:%6$s|IV:%7$s]-杂合%8$s‰-近交%9$s‰-%10$s",
+  "item.patina_pandemonium.genetics.pedigree": "F%1$s[%2$s×%3$s→%4$s]",
+  "tooltip.patina_pandemonium.genetics.systematic": "遗传系统名：%1$s",
+  "tooltip.patina_pandemonium.genetics.pedigree": "系谱：%1$s",
+  "tooltip.patina_pandemonium.genetics.meiosis": "减数重组：%1$s次交叉，%2$s次突变；杂合度%3$s‰；近交估计%4$s‰"
 }
