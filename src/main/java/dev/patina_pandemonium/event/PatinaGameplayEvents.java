@@ -225,7 +225,7 @@ public class PatinaGameplayEvents {
         pending.forEach((pos, transformation) -> {
             if (!level.getBlockState(pos).is(transformation.targetBlock())) return;
             setVariantData(level, pos, transformation.data());
-            appendBlockToolHistory(level, pos, transformation.tool(), "block_tool_modification");
+            appendBlockToolHistory(level, pos, transformation.tool(), transformation.operation());
         });
     }
 
@@ -546,7 +546,7 @@ public class PatinaGameplayEvents {
 
     record PreparedBlockReplacement(BlockState state, VariantData data) {}
 
-    record PendingToolTransformation(Block targetBlock, VariantData data, ItemStack tool) {}
+    record PendingToolTransformation(Block targetBlock, VariantData data, ItemStack tool, String operation) {}
 
     record PendingLightningStrike(long dueGameTime, BlockPos pos) {}
 

@@ -2,8 +2,6 @@ package dev.patina_pandemonium.event;
 
 import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.advancement.VariantAdvancements;
-import dev.patina_pandemonium.block.PatinaBlock;
-import dev.patina_pandemonium.block.PatinaDelegatingBlock;
 import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.registry.*;
 import net.minecraft.core.BlockPos;
@@ -19,14 +17,17 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.*;
+import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.common.ItemAbilities;
+import net.neoforged.neoforge.common.ItemAbility;
 import net.neoforged.neoforge.common.util.BlockSnapshot;
 import net.neoforged.neoforge.event.entity.player.BonemealEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
@@ -35,11 +36,15 @@ import net.neoforged.neoforge.event.level.BlockGrowFeatureEvent;
 
 import java.util.*;
 
+import org.jspecify.annotations.Nullable;
+
 import static dev.patina_pandemonium.event.PatinaGameplayEvents.*;
 
 /** Event handlers grouped by gameplay responsibility. */
 @EventBusSubscriber(modid = PatinaPandemonium.MOD_ID)
 public class VariantInteractionEvents {
+
+    private static final ThreadLocal<Boolean> SOURCE_TOOL_PROBE = new ThreadLocal<>();
 
     @SubscribeEvent(priority = EventPriority.HIGH)
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
@@ -67,32 +72,41 @@ public class VariantInteractionEvents {
         if (blockEntity == null) return;
         VariantData current = DynamicVariantRegistry.blockEntityVariantData(blockEntity);
         if (current == null) return;
+        // Structural source transformations (most notably log stripping) take priority over the
+        // Patina surface layers. This mirrors AxeItem's vanilla ability ordering and prevents a
+        // single click from both stripping the source and scraping/unwaxing the Patina overlay.
+        if (held.canPerformAction(ItemAbilities.AXE_STRIP)) {
+            UseOnContext context = new UseOnContext(player, event.getHand(), event.getHitVec());
+            BlockState sourceState = DynamicVariantRegistry.sourceFormState(current, level.getBlockState(pos));
+            if (sourceState != null && probeSourceToolState(sourceState, context, ItemAbilities.AXE_STRIP) != null) return;
+        }
+
         Optional<VariantData> target = Optional.empty();
         SoundEvent sound = null;
         int levelEvent = -1;
+        AxeSurfaceMutation axeMutation = null;
         if (held.getItem() instanceof DyeItem dyeItem) {
             DyeColor dyeColor = dyeItem.components().get(DataComponents.DYE);
-            if (dyeColor != null && current.dyeColor() != dyeColor) {
-                target = Optional.of(current.withDye(dyeColor));
-            }
-
+            if (dyeColor != null && current.dyeColor() != dyeColor) target = Optional.of(current.withDye(dyeColor));
             sound = SoundEvents.DYE_USE;
         } else if (held.is(Items.HONEYCOMB)) {
             target = VariantRuntime.waxed(current);
             sound = SoundEvents.HONEYCOMB_WAX_ON;
-        } else if (current.waxed() && held.canPerformAction(ItemAbilities.AXE_WAX_OFF)) {
-            target = VariantRuntime.unwaxed(current);
-            sound = SoundEvents.AXE_WAX_OFF;
-            levelEvent = 3004;
-        } else if (held.canPerformAction(ItemAbilities.AXE_SCRAPE)) {
-            target = VariantRuntime.previous(current);
-            sound = SoundEvents.AXE_SCRAPE;
-            levelEvent = 3005;
+        } else {
+            axeMutation = resolveAxeSurfaceMutation(current, held);
+            if (axeMutation != null) {
+                target = Optional.of(axeMutation.data());
+                sound = axeMutation.sound();
+                levelEvent = axeMutation.levelEvent();
+            }
         }
 
         if (target.isEmpty()) return;
         setVariantData(level, pos, target.get());
-        if (level instanceof ServerLevel serverLevel) appendBlockCatalystHistory(serverLevel, pos, held);
+        if (level instanceof ServerLevel serverLevel) {
+            if (axeMutation != null) appendBlockToolHistory(serverLevel, pos, held, axeMutation.operation());
+            else appendBlockCatalystHistory(serverLevel, pos, held);
+        }
         level.playSound(null, pos, sound, SoundSource.BLOCKS, 1.0F, 1.0F);
         if (levelEvent >= 0) level.levelEvent(player, levelEvent, pos, 0);
         if (!player.getAbilities().instabuild) {
@@ -142,30 +156,65 @@ public class VariantInteractionEvents {
 
     @SubscribeEvent(priority = EventPriority.LOW)
     public static void onBlockToolModification(BlockEvent.BlockToolModificationEvent event) {
-        if (event.getItemAbility() == ItemAbilities.AXE_SCRAPE || event.getItemAbility() == ItemAbilities.AXE_WAX_OFF) return;
         BlockState state = event.getState();
         if (event.getFinalState() != state) return;
-        BlockState sourceState;
-        if (state.getBlock() instanceof PatinaDelegatingBlock delegated) sourceState = delegated.sourceState(state);
-        else if (state.getBlock() instanceof PatinaBlock patina) sourceState = patina.source().defaultBlockState();
-        else return;
+        if (Boolean.TRUE.equals(SOURCE_TOOL_PROBE.get())) return;
         VariantData data = variantData(event.getContext().getLevel(), event.getPos());
         if (data == null) return;
-        BlockState modified = sourceState.getBlock().getToolModifiedState(
-            sourceState, event.getContext(), event.getItemAbility(), event.isSimulated());
+        ItemAbility ability = event.getItemAbility();
+        // Patina wax/oxidation is the outer surface. Native copper scraping/wax removal only
+        // becomes reachable after those layers are gone. AXE_STRIP is structural instead, so it
+        // is deliberately allowed through even while the Patina surface is oxidized or waxed.
+        if (ability == ItemAbilities.AXE_WAX_OFF && data.waxed()) return;
+        if (ability == ItemAbilities.AXE_SCRAPE && (data.waxed() || data.stage() != OxidationStage.FRESH)) return;
+        BlockState sourceState = DynamicVariantRegistry.sourceFormState(data, state);
+        if (sourceState == null) return;
+        BlockState modified = probeSourceToolState(sourceState, event.getContext(), ability);
         if (modified == null || modified.equals(sourceState)) return;
-        Block targetBlock = DynamicVariantRegistry.isNativeBlockEntitySource(modified.getBlock())
-            ? modified.getBlock() : DynamicVariantRegistry.fullCarrier(modified.getBlock());
+        VariantData targetData = DynamicVariantRegistry.retargetSource(data, modified.getBlock());
+        if (targetData == null) return;
+        BlockEntity blockEntity = event.getContext().getLevel().getBlockEntity(event.getPos());
+        Block existingTarget = DynamicVariantRegistry.existingForm(targetData.sourceId(), targetData.form());
+        boolean collapse = existingTarget != null && existingTarget != Blocks.AIR
+            && DynamicVariantRegistry.canCollapseToExistingSource(blockEntity, targetData);
+        Block targetBlock = collapse ? existingTarget : DynamicVariantRegistry.variantCarrier(targetData.sourceId(), targetData.form());
         if (targetBlock == null) return;
-        BlockState target = targetBlock == modified.getBlock() ? modified
-            : targetBlock instanceof PatinaDelegatingBlock ? targetBlock.withPropertiesOf(modified) : targetBlock.defaultBlockState();
+        BlockState target = targetBlock == modified.getBlock() ? modified : targetBlock.withPropertiesOf(modified);
         event.setFinalState(target);
-        if (event.isSimulated() || !(event.getContext().getLevel() instanceof ServerLevel level)) return;
-        VariantData targetData = new VariantData(BuiltInRegistries.BLOCK.getKey(modified.getBlock()), data.stage(), data.waxed(),
-            VariantForm.FULL, data.dyeColor(), data.customColor());
-        PENDING_TOOL_TRANSFORMATIONS.computeIfAbsent(level, _ -> new LinkedHashMap<>())
-            .put(event.getPos().immutable(), new PendingToolTransformation(target.getBlock(), targetData, event.getContext().getItemInHand().copy()));
+        if (event.isSimulated() || collapse || !(event.getContext().getLevel() instanceof ServerLevel level)) return;
+        PENDING_TOOL_TRANSFORMATIONS.computeIfAbsent(level, _ -> new LinkedHashMap<>()).put(event.getPos().immutable(),
+            new PendingToolTransformation(target.getBlock(), targetData, event.getContext().getItemInHand().copy(), sourceToolOperation(ability)));
     }
+
+    @Nullable
+    private static BlockState probeSourceToolState(BlockState sourceState, UseOnContext context, ItemAbility ability) {
+        SOURCE_TOOL_PROBE.set(true);
+        try {
+            return sourceState.getToolModifiedState(context, ability, true);
+        } finally {
+            SOURCE_TOOL_PROBE.remove();
+        }
+    }
+
+    @Nullable
+    private static AxeSurfaceMutation resolveAxeSurfaceMutation(VariantData current, ItemStack held) {
+        if (current.waxed() && held.canPerformAction(ItemAbilities.AXE_WAX_OFF)) {
+            return VariantRuntime.unwaxed(current).map(data -> new AxeSurfaceMutation(data, SoundEvents.AXE_WAX_OFF, 3004, "patina_axe_wax_off")).orElse(null);
+        }
+        if (held.canPerformAction(ItemAbilities.AXE_SCRAPE)) {
+            return VariantRuntime.previous(current).map(data -> new AxeSurfaceMutation(data, SoundEvents.AXE_SCRAPE, 3005, "patina_axe_scrape")).orElse(null);
+        }
+        return null;
+    }
+
+    private static String sourceToolOperation(ItemAbility ability) {
+        if (ability == ItemAbilities.AXE_STRIP) return "source_axe_strip";
+        if (ability == ItemAbilities.AXE_SCRAPE) return "source_axe_scrape";
+        if (ability == ItemAbilities.AXE_WAX_OFF) return "source_axe_wax_off";
+        return "source_tool_modification";
+    }
+
+    private record AxeSurfaceMutation(VariantData data, SoundEvent sound, int levelEvent, String operation) {}
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onBonemeal(BonemealEvent event) {

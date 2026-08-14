@@ -719,6 +719,49 @@ public class DynamicVariantRegistry {
         return forms.get(form);
     }
 
+    /** Resolves the real source-form state behind a carrier without applying Patina surface state. */
+    @Nullable
+    public static BlockState sourceFormState(VariantData data, BlockState carrierState) {
+        Block source = existingForm(data.sourceId(), data.form());
+        if (source == null || source == Blocks.AIR) return null;
+        return source.withPropertiesOf(carrierState);
+    }
+
+    /** Resolves the carrier that represents a specific source/form pair. */
+    @Nullable
+    public static Block variantCarrier(Identifier sourceId, VariantForm form) {
+        if (form == VariantForm.FULL && NATIVE_BLOCK_ENTITY_SOURCE_IDS.contains(sourceId)) {
+            Block source = BuiltInRegistries.BLOCK.getValue(sourceId);
+            return source == Blocks.AIR ? null : source;
+        }
+        EnumMap<VariantForm, Block> sourceBlocks = SOURCE_BLOCKS.get(sourceId);
+        Block carrier = sourceBlocks == null ? null : sourceBlocks.get(form);
+        if (carrier == null && form == VariantForm.FULL) carrier = DELEGATED_CARRIERS.get(sourceId);
+        return carrier;
+    }
+
+    /**
+     * Returns whether a fully neutral carrier can safely collapse back to the existing source block.
+     * Keep this as the single extension point for future identity layers such as functional groups.
+     */
+    public static boolean canCollapseToExistingSource(@Nullable BlockEntity blockEntity, VariantData data) {
+        if (data.stage() != OxidationStage.FRESH || data.waxed() || data.dyeColor() != null || data.customColor() != null) return false;
+        return blockEntity == null || blockEntityChemistry(blockEntity) == null && blockEntityProvenance(blockEntity) == null;
+    }
+
+    /** Maps a vanilla/source-side tool transformation back into the same Patina form. */
+    @Nullable
+    public static VariantData retargetSource(VariantData current, Block transformedSource) {
+        Identifier sourceId = null;
+        ExistingFormBinding existing = EXISTING_FORM_OUTPUTS.get(transformedSource.asItem());
+        if (existing != null && existing.form() == current.form()) sourceId = existing.sourceId();
+        else if (current.form() == VariantForm.FULL) {
+            Identifier candidate = BuiltInRegistries.BLOCK.getKey(transformedSource);
+            if (transformedSource != Blocks.AIR && (FULL_SOURCE_IDS.contains(candidate) || SPECIAL_SOURCE_IDS.contains(candidate))) sourceId = candidate;
+        }
+        return sourceId == null ? null : new VariantData(sourceId, current.stage(), current.waxed(), current.form(), current.dyeColor(), current.customColor());
+    }
+
     public static boolean isGeneratedId(Identifier id) {
         Block block = BuiltInRegistries.BLOCK.getValue(id);
         return block instanceof PatinaOxidizable;
