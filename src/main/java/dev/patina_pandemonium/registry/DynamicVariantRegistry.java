@@ -574,7 +574,7 @@ public class DynamicVariantRegistry {
         VariantData current = input.get(VARIANT_DATA.get());
         ItemStack target;
         if (current != null) {
-            target = displayStack(new VariantData(current.sourceId(), stage, waxed, current.form(), dye, customColor), input.getCount());
+            target = stack(new VariantData(current.sourceId(), stage, waxed, current.form(), dye, customColor), input.getCount());
         } else {
             ExistingFormBinding existing = EXISTING_FORM_OUTPUTS.get(input.getItem());
             target = existing == null
@@ -611,37 +611,33 @@ public class DynamicVariantRegistry {
     }
 
     public static ItemStack cleanOxidationCopy(ItemStack input) {
+        VariantState state = variantState(input);
+        if (state == null || state.stage() == OxidationStage.FRESH || state.waxed()) return ItemStack.EMPTY;
         ItemVariantData itemData = peekItemData(input);
         if (itemData != null) {
-            if (itemData.stage() == OxidationStage.FRESH || itemData.waxed()) return ItemStack.EMPTY;
-            Item source = BuiltInRegistries.ITEM.getValue(itemData.sourceId());
-            if (source == Items.AIR) return ItemStack.EMPTY;
-            ItemStack cleaned = input.transmuteCopy(source, input.getCount());
-            cleaned.remove(ITEM_VARIANT_DATA.get());
-            cleaned.remove(VARIANT_DATA.get());
-            ItemStack sourceDefaults = source.getDefaultInstance();
-            Identifier sourceModel = sourceDefaults.get(DataComponents.ITEM_MODEL);
-            Component sourceName = sourceDefaults.get(DataComponents.ITEM_NAME);
-            if (itemData.modelId() != null && !itemData.modelId().equals(itemData.sourceId())) {
-                cleaned.set(DataComponents.ITEM_MODEL, itemData.modelId());
-            } else if (sourceModel != null) {
-                cleaned.set(DataComponents.ITEM_MODEL, sourceModel);
-            } else {
-                cleaned.remove(DataComponents.ITEM_MODEL);
-            }
-
-            if (sourceName != null) cleaned.set(DataComponents.ITEM_NAME, sourceName);
-            else cleaned.remove(DataComponents.ITEM_NAME);
-            restoreDurability(cleaned, input);
+            ItemStack cleaned = input.copy();
+            ItemVariantData cleanedData = new ItemVariantData(itemData.sourceId(), OxidationStage.FRESH, false,
+                itemData.dyeColor(), itemData.modelId(), itemData.customColor());
+            cleaned.set(ITEM_VARIANT_DATA.get(), cleanedData);
+            cleaned.set(DataComponents.ITEM_MODEL, VARIANT_ITEM_MODEL);
+            cleaned.remove(DataComponents.ITEM_NAME);
+            applyDurabilityProfile(cleaned, cleanedData);
+            CraftingChemistry.Data chemistry = input.get(CRAFTING_CHEMISTRY.get());
+            if (chemistry != null) cleaned.set(CRAFTING_CHEMISTRY.get(), CraftingChemistry.retarget(
+                chemistry, OxidationStage.FRESH, false, itemData.dyeColor(), itemData.customColor()));
             return VariantProvenance.localStateEdit(input, cleaned, "lightning_clean", itemData.stage(), OxidationStage.FRESH, false);
         }
 
         VariantData blockData = input.get(VARIANT_DATA.get());
-        if (blockData == null || blockData.stage() == OxidationStage.FRESH || blockData.waxed()) return ItemStack.EMPTY;
-        VariantData cleanedData = new VariantData(blockData.sourceId(), OxidationStage.FRESH, false, blockData.form(), null);
-        ItemStack target = displayStack(cleanedData, input.getCount());
+        if (blockData == null) return ItemStack.EMPTY;
+        VariantData cleanedData = new VariantData(blockData.sourceId(), OxidationStage.FRESH, false, blockData.form(),
+            blockData.dyeColor(), blockData.customColor());
+        ItemStack target = stack(cleanedData, input.getCount());
         if (target.isEmpty()) return ItemStack.EMPTY;
         ItemStack cleaned = mergeCraftingOutput(input, target);
+        CraftingChemistry.Data chemistry = input.get(CRAFTING_CHEMISTRY.get());
+        if (chemistry != null) cleaned.set(CRAFTING_CHEMISTRY.get(), CraftingChemistry.retarget(
+            chemistry, OxidationStage.FRESH, false, blockData.dyeColor(), blockData.customColor()));
         return VariantProvenance.localStateEdit(input, cleaned, "lightning_clean", blockData.stage(), OxidationStage.FRESH, false);
     }
 
@@ -1113,6 +1109,10 @@ public class DynamicVariantRegistry {
         namingStack.set(DataComponents.ITEM_MODEL, data.modelId() == null ? data.sourceId() : data.modelId());
         Component sourceName = source.getName(namingStack);
         if (sourceName.getString().isBlank()) sourceName = Component.translatable(source.getDescriptionId());
+        return variantName(data.stageKey(), colorName(data.dyeColor(), data.customColor()), sourceName, Component.empty());
+    }
+
+    public static Component variantName(ItemVariantData data, Component sourceName) {
         return variantName(data.stageKey(), colorName(data.dyeColor(), data.customColor()), sourceName, Component.empty());
     }
 

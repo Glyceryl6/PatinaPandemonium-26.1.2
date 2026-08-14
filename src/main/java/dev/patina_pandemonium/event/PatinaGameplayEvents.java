@@ -176,16 +176,19 @@ public class PatinaGameplayEvents {
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (blockEntity == null) return;
         VariantData previous = DynamicVariantRegistry.blockEntityVariantData(blockEntity);
+        CraftingChemistry.Data chemistry = DynamicVariantRegistry.blockEntityChemistry(blockEntity);
         VariantProvenance.Data provenance = DynamicVariantRegistry.blockEntityProvenance(blockEntity);
         if (blockEntity instanceof PatinaVariantBlockEntity) PatinaOxidizable.setLinkedData(level, pos, data);
         else DynamicVariantRegistry.setBlockEntityVariantData(blockEntity, data);
+        BlockEntity current = level.getBlockEntity(pos);
+        if (current != null && chemistry != null && !(current instanceof PatinaVariantBlockEntity)) DynamicVariantRegistry.setBlockEntityChemistry(current,
+            CraftingChemistry.retarget(chemistry, data.stage(), data.waxed(), data.dyeColor(), data.customColor()));
         if (provenance == null || previous == null || previous.equals(data)) return;
         String operation;
         if (previous.waxed() != data.waxed()) operation = data.waxed() ? "world_wax" : "world_unwax";
         else if (previous.stage() != data.stage()) operation = data.stage().ordinal() > previous.stage().ordinal() ? "world_oxidize" : "world_clean_oxidation";
         else if (!Objects.equals(previous.dyeColor(), data.dyeColor()) || !Objects.equals(previous.customColor(), data.customColor())) operation = "world_recolor";
         else operation = "world_variant_transform";
-        BlockEntity current = level.getBlockEntity(pos);
         if (current != null) DynamicVariantRegistry.setBlockEntityProvenance(current, VariantProvenance.localStateEdit(
             provenance, operation, previous.stage(), data.stage(), data.waxed()));
     }
@@ -335,9 +338,9 @@ public class PatinaGameplayEvents {
         int flags = Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE | Block.UPDATE_SUPPRESS_DROPS;
         level.setBlock(pos, target, flags);
         BlockEntity blockEntity = level.getBlockEntity(pos);
-        if (blockEntity instanceof PatinaVariantBlockEntity patina) patina.setData(variant);
         if (blockEntity != null && provenance != null) DynamicVariantRegistry.setBlockEntityProvenance(blockEntity, provenance);
         if (blockEntity != null && chemistry != null) DynamicVariantRegistry.setBlockEntityChemistry(blockEntity, chemistry);
+        if (blockEntity instanceof PatinaVariantBlockEntity patina) patina.setData(variant);
         level.updateNeighborsAt(pos, carrier);
     }
 

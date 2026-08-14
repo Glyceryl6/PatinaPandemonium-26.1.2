@@ -22,8 +22,10 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.ScheduledTickAccess;
+import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.FireBlock;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
@@ -241,6 +243,24 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
     }
 
     @Override
+    protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState oldState, boolean movedByPiston) {
+        super.onPlace(state, level, pos, oldState, movedByPiston);
+        if (level.isClientSide() || !(this.source instanceof BaseFireBlock)) return;
+        VariantData data = this.data(level, pos);
+        PatinaGameplayEvents.beginVariantUse(data);
+        beginSourceView();
+        try {
+            this.sourceState(state).onPlace(level, pos, sourceView(oldState), movedByPiston);
+        } finally {
+            endSourceView();
+            PatinaGameplayEvents.endVariantUse();
+        }
+
+        this.restoreAround(level, pos, data);
+        if (this.source instanceof FireBlock && level.getBlockState(pos).is(this)) level.scheduleTick(pos, this, fireTickDelay(level.getRandom()));
+    }
+
+    @Override
     protected boolean isRandomlyTicking(BlockState state) {
         return true;
     }
@@ -274,6 +294,9 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
         }
 
         this.restore(level, pos, data);
+        if (this.source instanceof FireBlock && level.getBlockState(pos).is(this)) {
+            level.scheduleTick(pos, this, fireTickDelay(random));
+        }
     }
 
     @Override
@@ -385,6 +408,10 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
         level.playSound(sourceEntity, pos, open ? door.type().doorOpen() : door.type().doorClose(), SoundSource.BLOCKS,
             1.0F, level.getRandom().nextFloat() * 0.1F + 0.9F);
         level.gameEvent(sourceEntity, open ? GameEvent.BLOCK_OPEN : GameEvent.BLOCK_CLOSE, pos);
+    }
+
+    private static int fireTickDelay(RandomSource random) {
+        return 30 + random.nextInt(10);
     }
 
     @Nullable

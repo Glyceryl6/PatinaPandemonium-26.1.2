@@ -109,7 +109,7 @@ public class VariantInteractionEvents {
     @SubscribeEvent(priority = EventPriority.HIGH)
     public static void onEntityInteract(PlayerInteractEvent.EntityInteract event) {
         Player player = event.getEntity();
-        if (!(player.level() instanceof ServerLevel level) || !(event.getTarget() instanceof LivingEntity target)) return;
+        if (!(player.level() instanceof ServerLevel level) || !(event.getTarget() instanceof LivingEntity target) || target instanceof Player) return;
         ItemStack held = player.getItemInHand(event.getHand());
         ItemVariantData current = target.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
         ItemVariantData changed = null;

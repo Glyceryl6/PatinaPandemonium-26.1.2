@@ -4,13 +4,19 @@ import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
 import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.registry.*;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -39,10 +45,41 @@ public interface PatinaOxidizable extends EntityBlock, IBlockExtension {
         ItemStack stack = DynamicVariantRegistry.stack(data.normalized(this.patinaForm()));
         if (blockEntity == null) return stack;
         var chemistry = DynamicVariantRegistry.blockEntityChemistry(blockEntity);
-        if (chemistry != null) stack.set(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get(), chemistry);
+        if (chemistry != null) stack.set(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get(), CraftingChemistry.retarget(
+            chemistry, data.stage(), data.waxed(), data.dyeColor(), data.customColor()));
         var provenance = DynamicVariantRegistry.blockEntityProvenance(blockEntity);
         if (provenance != null) stack.set(DynamicVariantRegistry.PROVENANCE.get(), provenance);
         return stack;
+    }
+
+    @Override
+    default int getFlammability(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
+        return patinaSourceState(state).getFlammability(level, pos, direction);
+    }
+
+    @Override
+    default boolean isFlammable(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
+        return patinaSourceState(state).isFlammable(level, pos, direction);
+    }
+
+    @Override
+    default boolean onCaughtFire(BlockState state, Level level, BlockPos pos, @Nullable Direction direction, @Nullable LivingEntity igniter) {
+        return patinaSourceState(state).onCaughtFire(level, pos, direction, igniter);
+    }
+
+    @Override
+    default int getFireSpreadSpeed(BlockState state, BlockGetter level, BlockPos pos, Direction direction) {
+        return patinaSourceState(state).getFireSpreadSpeed(level, pos, direction);
+    }
+
+    @Override
+    default boolean isFireSource(BlockState state, LevelReader level, BlockPos pos, Direction direction) {
+        return patinaSourceState(state).isFireSource(level, pos, direction);
+    }
+
+    @Override
+    default boolean isBurning(BlockState state, BlockGetter level, BlockPos pos) {
+        return patinaSourceState(state).isBurning(level, pos);
     }
 
     @Override
@@ -104,8 +141,18 @@ public interface PatinaOxidizable extends EntityBlock, IBlockExtension {
         return changed;
     }
 
+    private static BlockState patinaSourceState(BlockState state) {
+        var sourceId = DynamicVariantRegistry.sourceId(state.getBlock());
+        if (sourceId == null) return Blocks.AIR.defaultBlockState();
+        Block source = BuiltInRegistries.BLOCK.getValue(sourceId);
+        return source == Blocks.AIR ? Blocks.AIR.defaultBlockState() : source.withPropertiesOf(state);
+    }
+
     private static boolean setData(Level level, BlockPos pos, VariantData data) {
         if (!(level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity) || blockEntity.data().equals(data)) return false;
+        CraftingChemistry.Data chemistry = DynamicVariantRegistry.blockEntityChemistry(blockEntity);
+        if (chemistry != null) DynamicVariantRegistry.setBlockEntityChemistry(blockEntity,
+            CraftingChemistry.retarget(chemistry, data.stage(), data.waxed(), data.dyeColor(), data.customColor()));
         blockEntity.setData(data);
         return true;
     }

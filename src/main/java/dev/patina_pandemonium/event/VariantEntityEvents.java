@@ -6,6 +6,7 @@ import dev.patina_pandemonium.registry.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
@@ -113,15 +114,19 @@ public class VariantEntityEvents {
         }
 
         if (entity instanceof Player player) {
-            boolean inventoryChanged = false;
-            for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {
-                ItemStack cleaned = DynamicVariantRegistry.cleanOxidationCopy(player.getInventory().getItem(slot));
+            if (player.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get()) != null) {
+                player.removeData(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
+            }
+            boolean handChanged = false;
+            for (InteractionHand hand : InteractionHand.values()) {
+                ItemStack cleaned = DynamicVariantRegistry.cleanOxidationCopy(player.getItemInHand(hand));
                 if (cleaned.isEmpty()) continue;
-                player.getInventory().setItem(slot, cleaned);
-                inventoryChanged = true;
+                player.setItemInHand(hand, cleaned);
+                handChanged = true;
             }
 
-            if (inventoryChanged) player.getInventory().setChanged();
+            if (handChanged) player.getInventory().setChanged();
+            return;
         }
 
         ItemVariantData entityData = entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
@@ -203,6 +208,12 @@ public class VariantEntityEvents {
         if (!(entity.level() instanceof ServerLevel level)) return;
         if (!entity.isOnFire() && entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_FIRE_VARIANT_DATA.get()) != null) {
             entity.removeData(DynamicVariantRegistry.ENTITY_FIRE_VARIANT_DATA.get());
+        }
+        if (entity instanceof Player player) {
+            if (player.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get()) != null) {
+                player.removeData(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get());
+            }
+            return;
         }
         if (!(entity instanceof LivingEntity living)) return;
         PatinaRules rules = PatinaRules.INSTANCE;

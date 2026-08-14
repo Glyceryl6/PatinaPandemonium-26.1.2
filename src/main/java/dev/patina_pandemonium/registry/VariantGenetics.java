@@ -148,21 +148,29 @@ public class VariantGenetics {
     }
 
     public static Component systematicName(ItemStack stack, Data data) {
+        return systematicName(data, CraftingChemistry.sourceName(stack));
+    }
+
+    public static Component systematicName(Data data, Component sourceName) {
         TraitSummary traits = traitSummary(data);
         return Component.translatable("item.patina_pandemonium.genetics.name",
-            data.generation(), shortSignature(data.parentAlpha()), shortSignature(data.parentBeta()), chromosomeNotation(data, 0),
+            formatted(data.generation()), shortSignature(data.parentAlpha()), shortSignature(data.parentBeta()), chromosomeNotation(data, 0),
             chromosomeNotation(data, 1), chromosomeNotation(data, 2), chromosomeNotation(data, 3), chromosomeNotation(data, 4),
-            chromosomeNotation(data, 5), data.heterozygosityPermille(), data.inbreedingPermille(), traits.recessiveHomozygotes(),
-            traits.recessiveCarriers(), traits.heterosisPermille(), CraftingChemistry.sourceName(stack));
+            chromosomeNotation(data, 5), formatted(data.heterozygosityPermille()), formatted(data.inbreedingPermille()),
+            formatted(traits.recessiveHomozygotes()), formatted(traits.recessiveCarriers()), formatted(traits.heterosisPermille()), sourceName);
     }
 
     public static Component compactPedigree(Data data) {
-        return Component.translatable("item.patina_pandemonium.genetics.pedigree", data.generation(),
+        return Component.translatable("item.patina_pandemonium.genetics.pedigree", formatted(data.generation()),
             shortSignature(data.parentAlpha()), shortSignature(data.parentBeta()), shortSignature(data.lineageSignature()));
     }
 
     public static String shortSignature(long signature) {
         return signature == 0L ? "0" : String.format(Locale.ROOT, "%08x", signature);
+    }
+
+    private static String formatted(int value) {
+        return String.format(Locale.ROOT, "%,d", value);
     }
 
     private static Gamete gamete(Data parent, RandomSource random) {
@@ -398,9 +406,16 @@ public class VariantGenetics {
         StringBuilder result = new StringBuilder();
         for (int locus = start; locus < end; locus++) {
             if (!result.isEmpty()) result.append(';');
-            result.append(LOCUS_NAMES[locus]).append('^').append(allele(data, locus, false)).append('/')
-                .append(LOCUS_NAMES[locus]).append('^').append(allele(data, locus, true));
+            result.append(LOCUS_NAMES[locus]).append(superscript(allele(data, locus, false))).append('/')
+                .append(LOCUS_NAMES[locus]).append(superscript(allele(data, locus, true)));
         }
+        return result.toString();
+    }
+
+    private static String superscript(int value) {
+        String digits = Integer.toString(value);
+        StringBuilder result = new StringBuilder(digits.length());
+        for (int index = 0; index < digits.length(); index++) result.append("⁰¹²³⁴⁵⁶⁷⁸⁹".charAt(digits.charAt(index) - '0'));
         return result.toString();
     }
 

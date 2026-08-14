@@ -195,7 +195,10 @@ public class CraftingChemistry {
     }
 
     public static Component name(ItemStack stack, Data data) {
-        Component sourceName = sourceName(stack);
+        return name(data, sourceName(stack));
+    }
+
+    public static Component name(Data data, Component sourceName) {
         Component color = data.color() == NO_COLOR
             ? Component.translatable("item.patina_pandemonium.chemistry.color.none") : colorName(data.color());
         MutableComponent groupList = Component.empty();
@@ -206,7 +209,7 @@ public class CraftingChemistry {
             int currentDescriptor = packed & ~LOCANT_MASK;
             if (descriptor != Integer.MIN_VALUE && currentDescriptor != descriptor) {
                 if (groupIndex++ > 0) groupList.append(Component.translatable("item.patina_pandemonium.chemistry.separator"));
-                groupList.append(groupName(descriptor, locantList(locants)));
+                groupList.append(groupName(descriptor, locants));
                 locants.clear();
             }
             descriptor = currentDescriptor;
@@ -214,7 +217,7 @@ public class CraftingChemistry {
         }
         if (descriptor != Integer.MIN_VALUE) {
             if (groupIndex > 0) groupList.append(Component.translatable("item.patina_pandemonium.chemistry.separator"));
-            groupList.append(groupName(descriptor, locantList(locants)));
+            groupList.append(groupName(descriptor, locants));
         }
         if (data.groups().isEmpty()) {
             int aggregateStage = Math.clamp((int) Math.round(data.oxidationPermille() / 1_000.0D), 0, 3);
@@ -266,7 +269,7 @@ public class CraftingChemistry {
         return configured == null ? Component.translatable(sourceItem.getDescriptionId()) : configured;
     }
 
-    private static Component groupName(int packed, Component locants) {
+    private static Component groupName(int packed, List<Integer> locants) {
         int stage = packed >>> 12 & 0x3;
         boolean waxed = (packed >>> 14 & 0x1) != 0;
         int hue = packed >>> 15 & 0x1F;
@@ -281,10 +284,15 @@ public class CraftingChemistry {
         if (hue != NO_HUE) parts.add(chromatoName(hue, saturation, value));
         if (branch) parts.add(Component.translatable("item.patina_pandemonium.chemistry.branch.poly"));
 
-        Component group = Component.translatable("item.patina_pandemonium.chemistry.group", locants, descriptorList(parts),
+        Component group = Component.translatable("item.patina_pandemonium.chemistry.group", locantList(locants, nesting), descriptorList(parts),
             Component.translatable("item.patina_pandemonium.chemistry.chain." + chain));
         for (int depth = 0; depth < nesting; depth++) {
-            group = Component.translatable("item.patina_pandemonium.chemistry.nested", group);
+            String bracket = switch (depth % 3) {
+                case 0 -> "round";
+                case 1 -> "square";
+                default -> "brace";
+            };
+            group = Component.translatable("item.patina_pandemonium.chemistry.nested." + bracket, group);
         }
         return group;
     }
@@ -306,15 +314,18 @@ public class CraftingChemistry {
         return descriptors;
     }
 
-    private static Component locantList(List<Integer> locants) {
+    private static Component locantList(List<Integer> locants, int nesting) {
         ArrayList<Integer> ordered = new ArrayList<>(locants);
         ordered.sort(Integer::compareTo);
-        StringBuilder value = new StringBuilder();
+        MutableComponent value = Component.empty();
         for (int index = 0; index < ordered.size(); index++) {
-            if (index > 0) value.append(',');
-            value.append(ordered.get(index));
+            if (index > 0) value.append(Component.translatable("item.patina_pandemonium.chemistry.locant.separator"));
+            value.append(Component.literal(String.format(Locale.ROOT, "%,d", ordered.get(index))));
+            for (int depth = 0; depth < nesting; depth++) {
+                value.append(Component.translatable("item.patina_pandemonium.chemistry.locant.prime"));
+            }
         }
-        return Component.literal(value.toString());
+        return value;
     }
 
     private static Component colorName(int color) {
