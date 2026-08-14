@@ -112,8 +112,8 @@
   "item.patina_pandemonium.chemistry.value.1": "deep",
   "item.patina_pandemonium.chemistry.value.2": "light",
   "item.patina_pandemonium.chemistry.value.3": "brilliant",
-  "item.patina_pandemonium.chemistry.name.monomer": "%7$s%1$s(%2$s)%6$s-%5$s",
-  "item.patina_pandemonium.chemistry.name.polymer": "%7$s%1$spoly(%2$s(%3$s-%4$s)%6$s)-%5$s",
+  "item.patina_pandemonium.chemistry.name.monomer": "%6$s%7$s%1$s(%2$s)-%5$s",
+  "item.patina_pandemonium.chemistry.name.polymer": "%6$s%7$s%1$spoly(%2$s(%3$s-%4$s))-%5$s",
   "item.patina_pandemonium.chemistry.chain.0": "meth",
   "item.patina_pandemonium.chemistry.chain.1": "eth",
   "item.patina_pandemonium.chemistry.chain.2": "prop",
@@ -236,5 +236,6 @@
   "advancement.patina_pandemonium.heterosis_500.title": "Heterosis 500‰",
   "advancement.patina_pandemonium.heterosis_500.description": "Reach a heterosis score of 500‰.",
   "jade.patina_pandemonium.genetics_name": "Genetic systematic name: %1$s",
-  "tooltip.patina_pandemonium.genetics.lifecycle": "Genetic reproductive cycle: love duration %1$s · breeding cooldown %2$s · juvenile growth duration %3$s"
+  "tooltip.patina_pandemonium.genetics.lifecycle": "Genetic reproductive cycle: love duration %1$s · breeding cooldown %2$s · juvenile growth duration %3$s",
+  "item.patina_pandemonium.chemistry.group.source": "%1$s-%2$s%3$s-derived substituent"
 }

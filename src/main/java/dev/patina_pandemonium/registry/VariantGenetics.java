@@ -297,7 +297,7 @@ public class VariantGenetics {
         for (int locus = 15; locus <= 17; locus++) if (allele(data, locus, false) != allele(data, locus, true)) overdominantHeterozygotes++;
         int heterosis = Math.clamp(Math.max(0, data.heterozygosityPermille() - 300) / 2 + overdominantHeterozygotes * 55
             - data.inbreedingPermille() / 4, 0, 350);
-        int depression = Math.clamp(data.inbreedingPermille() * 3L / 10 + recessiveHomozygotes * 140, 0, 750);
+        int depression = Math.clamp(data.inbreedingPermille() * 3 / 10 + recessiveHomozygotes * 140, 0, 750);
         return new TraitSummary(recessiveHomozygotes, recessiveCarriers, overdominantHeterozygotes, heterosis, depression,
             homozygous(data, 12, 1), homozygous(data, 13, 1), homozygous(data, 14, 1), heterozygous(data, 15),
             heterozygous(data, 16), heterozygous(data, 17));
@@ -329,7 +329,7 @@ public class VariantGenetics {
             + fitness.attackMultiplier() * 0.20D + fitness.armorDelta() * 0.025D;
         vigor = Math.clamp(vigor * PatinaRules.INSTANCE.geneticLifecycleEffect, -0.50D, 0.25D);
         return new LifecycleEffects(Math.clamp(1.0D + vigor, 0.50D, 1.25D),
-            Math.clamp(1.0D - vigor, 0.75D, 1.50D), Math.clamp(1.0D - vigor * 0.80D, 0.80D, 1.40D));
+            Math.clamp(1.0D - vigor, 0.75D, 1.50D), Math.clamp(1.0D - vigor * 1.10D, 0.70D, 1.60D));
     }
 
     public static void adjustLoveDuration(Animal animal) {

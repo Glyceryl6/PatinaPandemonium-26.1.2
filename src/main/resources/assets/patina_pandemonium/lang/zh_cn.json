@@ -112,8 +112,8 @@
   "item.patina_pandemonium.chemistry.value.1": "深",
   "item.patina_pandemonium.chemistry.value.2": "明",
   "item.patina_pandemonium.chemistry.value.3": "亮",
-  "item.patina_pandemonium.chemistry.name.monomer": "%7$s%1$s(%2$s)%6$s-%5$s",
-  "item.patina_pandemonium.chemistry.name.polymer": "%7$s%1$s聚(%2$s(%3$s%4$s)%6$s)-%5$s",
+  "item.patina_pandemonium.chemistry.name.monomer": "%6$s%7$s%1$s(%2$s)-%5$s",
+  "item.patina_pandemonium.chemistry.name.polymer": "%6$s%7$s%1$s聚(%2$s(%3$s%4$s))-%5$s",
   "item.patina_pandemonium.chemistry.chain.0": "甲",
   "item.patina_pandemonium.chemistry.chain.1": "乙",
   "item.patina_pandemonium.chemistry.chain.2": "丙",
@@ -236,5 +236,6 @@
   "advancement.patina_pandemonium.heterosis_500.title": "杂种优势 500‰",
   "advancement.patina_pandemonium.heterosis_500.description": "让后代的杂种优势指标达到 500‰。",
   "jade.patina_pandemonium.genetics_name": "遗传系统名：%1$s",
-  "tooltip.patina_pandemonium.genetics.lifecycle": "遗传繁殖周期：求爱持续 %1$s · 繁殖冷却 %2$s · 幼体成长时长 %3$s"
+  "tooltip.patina_pandemonium.genetics.lifecycle": "遗传繁殖周期：求爱持续 %1$s · 繁殖冷却 %2$s · 幼体成长时长 %3$s",
+  "item.patina_pandemonium.chemistry.group.source": "%1$s-%2$s%3$s衍生基"
 }

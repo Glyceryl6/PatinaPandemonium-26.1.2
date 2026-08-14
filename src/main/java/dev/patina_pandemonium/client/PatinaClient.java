@@ -6,6 +6,8 @@ import dev.patina_pandemonium.block.PatinaOxidizable;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ItemVariantData;
 import dev.patina_pandemonium.registry.VariantForm;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.block.BlockModelRenderState;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
@@ -19,9 +21,11 @@ import net.minecraft.client.resources.model.geometry.QuadCollection;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.context.ContextKey;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -31,7 +35,9 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.client.event.ModelEvent;
+import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
+import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.client.model.quad.MutableQuad;
 import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEvent;
 
@@ -48,6 +54,12 @@ public class PatinaClient {
     private static final ContextKey<Integer> ENTITY_TINT = new ContextKey<>(PatinaPandemonium.id("entity_tint"));
     private static final ContextKey<Integer> FIRE_TINT = new ContextKey<>(PatinaPandemonium.id("fire_tint"));
     private static final ThreadLocal<ArrayDeque<Integer>> MODEL_TINTS = new ThreadLocal<>();
+    private static final long SELECTED_NAME_VISIBLE_MILLIS = 2_500L;
+    private static final long SELECTED_NAME_FADE_MILLIS = 500L;
+    private static int selectedItemKey = Integer.MIN_VALUE;
+    private static long selectedItemChangedAt;
+    private static int selectedNameLineWidth = -1;
+    private static List<FormattedCharSequence> selectedNameLines = List.of();
     private static final Map<VariantForm, Block> TEMPLATES = Map.of(
         VariantForm.FULL, Blocks.STONE,
         VariantForm.SLAB, Blocks.STONE_SLAB,
@@ -58,6 +70,48 @@ public class PatinaClient {
         VariantForm.CARPET, Blocks.WHITE_CARPET,
         VariantForm.BUTTON, Blocks.STONE_BUTTON,
         VariantForm.PRESSURE_PLATE, Blocks.STONE_PRESSURE_PLATE);
+
+
+    @SubscribeEvent
+    public static void registerGuiLayers(RegisterGuiLayersEvent event) {
+        event.wrapLayer(VanillaGuiLayers.SELECTED_ITEM_NAME, original -> (graphics, deltaTracker) -> {
+            if (!renderWrappedSelectedItemName(graphics)) original.render(graphics, deltaTracker);
+        });
+    }
+
+    private static boolean renderWrappedSelectedItemName(GuiGraphicsExtractor graphics) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) return false;
+        ItemStack stack = minecraft.player.getInventory().getSelectedItem();
+        int key = 31 * minecraft.player.getInventory().getSelectedSlot() + (stack.isEmpty() ? 0 : ItemStack.hashItemAndComponents(stack));
+        long now = System.currentTimeMillis();
+        if (key != selectedItemKey) {
+            selectedItemKey = key;
+            selectedItemChangedAt = now;
+            selectedNameLineWidth = -1;
+            selectedNameLines = List.of();
+        }
+        if (stack.isEmpty() || stack.get(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get()) == null) return false;
+        int maximumWidth = Math.max(120, graphics.guiWidth() - 24);
+        if (selectedNameLineWidth != maximumWidth) {
+            selectedNameLineWidth = maximumWidth;
+            selectedNameLines = List.copyOf(minecraft.font.split(stack.getHoverName(), maximumWidth));
+        }
+        if (selectedNameLines.size() <= 1) return false;
+        long remaining = SELECTED_NAME_VISIBLE_MILLIS - (now - selectedItemChangedAt);
+        if (remaining <= 0L) return true;
+        int alpha = remaining >= SELECTED_NAME_FADE_MILLIS ? 255 : Math.clamp((int) (remaining * 255L / SELECTED_NAME_FADE_MILLIS), 0, 255);
+        int color = alpha << 24 | 0xFFFFFF;
+        int lineHeight = minecraft.font.lineHeight + 1;
+        int bottom = graphics.guiHeight() - 59;
+        int y = bottom - (selectedNameLines.size() - 1) * lineHeight;
+        for (FormattedCharSequence line : selectedNameLines) {
+            int x = (graphics.guiWidth() - minecraft.font.width(line)) / 2;
+            graphics.text(minecraft.font, line, x, y, color, true);
+            y += lineHeight;
+        }
+        return true;
+    }
 
     @SubscribeEvent
     public static void registerScreens(RegisterMenuScreensEvent event) {

@@ -73,9 +73,15 @@ public class VariantBreedingEvents {
     @SubscribeEvent
     public static void onLifecycleTick(EntityTickEvent.Post event) {
         if (PENDING_LIFECYCLE.isEmpty() || !(event.getEntity() instanceof AgeableMob ageable)) return;
-        LifecycleAdjustment adjustment = PENDING_LIFECYCLE.remove(ageable);
-        if (adjustment == LifecycleAdjustment.PARENT_COOLDOWN) VariantGenetics.adjustBreedingCooldown(ageable);
-        else if (adjustment == LifecycleAdjustment.CHILD_GROWTH) VariantGenetics.adjustGrowthDuration(ageable);
+        LifecycleAdjustment adjustment = PENDING_LIFECYCLE.get(ageable);
+        if (adjustment == LifecycleAdjustment.PARENT_COOLDOWN) {
+            if (ageable.getAge() <= 0) return;
+            VariantGenetics.adjustBreedingCooldown(ageable);
+        } else if (adjustment == LifecycleAdjustment.CHILD_GROWTH) {
+            if (ageable.getAge() >= 0) return;
+            VariantGenetics.adjustGrowthDuration(ageable);
+        } else return;
+        PENDING_LIFECYCLE.remove(ageable);
     }
 
     private enum LifecycleAdjustment {
