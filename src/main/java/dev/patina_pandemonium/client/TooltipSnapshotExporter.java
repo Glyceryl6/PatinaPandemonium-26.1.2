@@ -37,9 +37,7 @@ public class TooltipSnapshotExporter {
 
     private static final long HOVER_TIMEOUT_MILLIS = 750L;
     private static final int DOCUMENT_PADDING = 24;
-    private static final int COLUMN_GAP = 24;
     private static final int FONT_SIZE = 20;
-    private static final int MIN_COLUMN_CHARACTERS = 24;
     private static final long MAX_IMAGE_PIXELS = 16_777_216L;
     private static final DateTimeFormatter FILE_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH.mm.ss.SSS");
     private static ItemStack hoveredStack = ItemStack.EMPTY;
@@ -69,7 +67,7 @@ public class TooltipSnapshotExporter {
     public static boolean hasCurrentHover() {
         Minecraft minecraft = Minecraft.getInstance();
         return minecraft.screen != null && minecraft.screen == hoveredScreen && !hoveredStack.isEmpty()
-                && System.currentTimeMillis() - hoveredAt <= HOVER_TIMEOUT_MILLIS;
+            && System.currentTimeMillis() - hoveredAt <= HOVER_TIMEOUT_MILLIS;
     }
 
     public static @Nullable ExportResult exportCurrentTooltip() throws IOException {
@@ -92,12 +90,12 @@ public class TooltipSnapshotExporter {
         String baseName = "tooltip_" + FILE_TIME.format(LocalDateTime.now());
         List<Path> outputs;
         if ((long) layout.width() * layout.height() <= MAX_IMAGE_PIXELS) {
-            List<SnapshotLine> wrapped = wrapAll(metrics, layout.columnWidth());
+            List<SnapshotLine> wrapped = wrapAll(metrics, layout.contentWidth());
             Path output = directory.resolve(baseName + ".png");
-            writePage(output, wrapped, 0, wrapped.size(), layout, font, metrics, lineHeight, true);
+            writePage(output, wrapped, 0, wrapped.size(), layout, font, metrics, lineHeight);
             outputs = List.of(output);
         } else {
-            outputs = writePaged(directory, baseName, layout.columns(), font, metrics, lineHeight, aspectRatio);
+            outputs = writePaged(directory, baseName, font, metrics, lineHeight, aspectRatio);
         }
 
         int characters = hoveredLines.stream().mapToInt(line -> line.text().codePointCount(0, line.text().length())).sum();
@@ -105,50 +103,34 @@ public class TooltipSnapshotExporter {
     }
 
     private static SnapshotLayout bestLayout(FontMetrics metrics, int lineHeight, double aspectRatio) {
-        SnapshotLayout best = null;
-        int maxColumns = Math.max(1, Math.min(8, (int) Math.ceil(aspectRatio * 3.0D)));
-        int minimumColumnWidth = Math.max(1, metrics.charWidth('M')) * MIN_COLUMN_CHARACTERS;
-        for (int columns = 1; columns <= maxColumns; columns++) {
-            SnapshotLayout candidate = minimumLayout(metrics, lineHeight, aspectRatio, columns, minimumColumnWidth);
-            if (best == null || (long) candidate.width() * candidate.height() < (long) best.width() * best.height()) best = candidate;
-        }
-        return best;
-    }
-
-    private static SnapshotLayout minimumLayout(FontMetrics metrics, int lineHeight, double aspectRatio, int columns, int minimumColumnWidth) {
         int low = DOCUMENT_PADDING * 2 + lineHeight;
         int high = low;
-        while (!fitsHeight(metrics, lineHeight, aspectRatio, columns, minimumColumnWidth, high)) {
+        while (!fitsHeight(metrics, lineHeight, aspectRatio, high)) {
             if (high > Integer.MAX_VALUE / 2) throw new IllegalStateException("Tooltip snapshot dimensions overflowed");
             high *= 2;
         }
 
         while (low < high) {
             int middle = low + (high - low) / 2;
-            if (fitsHeight(metrics, lineHeight, aspectRatio, columns, minimumColumnWidth, middle)) high = middle;
+            if (fitsHeight(metrics, lineHeight, aspectRatio, middle)) high = middle;
             else low = middle + 1;
         }
         int width = widthForHeight(low, aspectRatio);
-        return new SnapshotLayout(width, low, columns, columnWidth(width, columns));
+        return new SnapshotLayout(width, low, Math.max(1, width - DOCUMENT_PADDING * 2));
     }
 
-    private static boolean fitsHeight(FontMetrics metrics, int lineHeight, double aspectRatio, int columns, int minimumColumnWidth, int height) {
+    private static boolean fitsHeight(FontMetrics metrics, int lineHeight, double aspectRatio, int height) {
         int width = widthForHeight(height, aspectRatio);
-        int columnWidth = columnWidth(width, columns);
-        if (columnWidth <= 0 || columns > 1 && columnWidth < minimumColumnWidth) return false;
-        long lines = wrappedLineCount(metrics, columnWidth);
-        long rows = (lines + columns - 1L) / columns;
-        return DOCUMENT_PADDING * 2L + rows * lineHeight <= height;
+        int contentWidth = width - DOCUMENT_PADDING * 2;
+        if (contentWidth <= 0) return false;
+        long lines = wrappedLineCount(metrics, contentWidth);
+        return DOCUMENT_PADDING * 2L + lines * lineHeight <= height;
     }
 
     private static int widthForHeight(int height, double aspectRatio) {
         long width = Math.max(DOCUMENT_PADDING * 2L + 1L, Math.round(height * aspectRatio));
         if (width > Integer.MAX_VALUE) throw new IllegalStateException("Tooltip snapshot dimensions overflowed");
         return (int) width;
-    }
-
-    private static int columnWidth(int width, int columns) {
-        return (width - DOCUMENT_PADDING * 2 - COLUMN_GAP * (columns - 1)) / columns;
     }
 
     private static long wrappedLineCount(FontMetrics metrics, int maximumWidth) {
@@ -183,34 +165,30 @@ public class TooltipSnapshotExporter {
         return hasText ? lines + 1 : lines;
     }
 
-    private static List<Path> writePaged(Path directory, String baseName, int preferredColumns, Font font, FontMetrics metrics, int lineHeight, double aspectRatio) throws IOException {
+    private static List<Path> writePaged(Path directory, String baseName, Font font, FontMetrics metrics, int lineHeight, double aspectRatio) throws IOException {
         int pageHeight = Math.max(DOCUMENT_PADDING * 2 + lineHeight, (int) Math.floor(Math.sqrt(MAX_IMAGE_PIXELS / aspectRatio)));
         int pageWidth = widthForHeight(pageHeight, aspectRatio);
         while ((long) pageWidth * pageHeight > MAX_IMAGE_PIXELS && pageHeight > DOCUMENT_PADDING * 2 + lineHeight) {
             pageHeight--;
             pageWidth = widthForHeight(pageHeight, aspectRatio);
         }
-        int columns = preferredColumns;
-        int minimumColumnWidth = Math.max(1, metrics.charWidth('M')) * MIN_COLUMN_CHARACTERS;
-        while (columns > 1 && columnWidth(pageWidth, columns) < minimumColumnWidth) columns--;
-        int contentWidth = columnWidth(pageWidth, columns);
+        int contentWidth = Math.max(1, pageWidth - DOCUMENT_PADDING * 2);
         List<SnapshotLine> wrapped = wrapAll(metrics, contentWidth);
-        int rowsPerColumn = Math.max(1, (pageHeight - DOCUMENT_PADDING * 2) / lineHeight);
-        int linesPerPage = Math.max(1, rowsPerColumn * columns);
+        int linesPerPage = Math.max(1, (pageHeight - DOCUMENT_PADDING * 2) / lineHeight);
         int pages = Math.max(1, (wrapped.size() + linesPerPage - 1) / linesPerPage);
-        SnapshotLayout pageLayout = new SnapshotLayout(pageWidth, pageHeight, columns, contentWidth);
+        SnapshotLayout pageLayout = new SnapshotLayout(pageWidth, pageHeight, contentWidth);
         List<Path> outputs = new ArrayList<>(pages);
         for (int page = 0; page < pages; page++) {
             int from = page * linesPerPage;
             int to = Math.min(wrapped.size(), from + linesPerPage);
             Path output = directory.resolve(baseName + "_part_" + String.format("%03d", page + 1) + ".png");
-            writePage(output, wrapped, from, to, pageLayout, font, metrics, lineHeight, page == pages - 1);
+            writePage(output, wrapped, from, to, pageLayout, font, metrics, lineHeight);
             outputs.add(output);
         }
         return List.copyOf(outputs);
     }
 
-    private static void writePage(Path output, List<SnapshotLine> lines, int from, int to, SnapshotLayout layout, Font font, FontMetrics metrics, int lineHeight, boolean balanceColumns) throws IOException {
+    private static void writePage(Path output, List<SnapshotLine> lines, int from, int to, SnapshotLayout layout, Font font, FontMetrics metrics, int lineHeight) throws IOException {
         BufferedImage image = new BufferedImage(layout.width(), layout.height(), BufferedImage.TYPE_INT_ARGB);
         Graphics2D graphics = image.createGraphics();
         graphics.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
@@ -223,16 +201,10 @@ public class TooltipSnapshotExporter {
         graphics.setColor(new Color(40, 0, 48, 255));
         graphics.drawRect(2, 2, layout.width() - 5, layout.height() - 5);
         graphics.setFont(font);
-        int pageLines = to - from;
-        int rowsPerColumn = Math.max(1, (layout.height() - DOCUMENT_PADDING * 2) / lineHeight);
-        if (balanceColumns) rowsPerColumn = Math.min(rowsPerColumn, Math.max(1, (pageLines + layout.columns() - 1) / layout.columns()));
         for (int index = from; index < to; index++) {
-            int localIndex = index - from;
-            int column = localIndex / rowsPerColumn;
-            int row = localIndex % rowsPerColumn;
             SnapshotLine line = lines.get(index);
             graphics.setColor(new Color(line.color(), true));
-            graphics.drawString(line.text(), DOCUMENT_PADDING + column * (layout.columnWidth() + COLUMN_GAP), DOCUMENT_PADDING + metrics.getAscent() + row * lineHeight);
+            graphics.drawString(line.text(), DOCUMENT_PADDING, DOCUMENT_PADDING + metrics.getAscent() + (index - from) * lineHeight);
         }
         graphics.dispose();
         ImageIO.write(image, "PNG", output.toFile());
@@ -298,7 +270,7 @@ public class TooltipSnapshotExporter {
 
     public record ExportResult(List<Path> files, int characters) {}
 
-    private record SnapshotLayout(int width, int height, int columns, int columnWidth) {}
+    private record SnapshotLayout(int width, int height, int contentWidth) {}
 
     private record SnapshotLine(String text, int color) {}
 
