@@ -35,7 +35,7 @@ public class VariantFabricatorScreen extends AbstractContainerScreen<VariantFabr
     private static final int DYE_Y = 100;
     private static final int DYE_SIZE = 16;
     private static final int PALETTE_X = 10;
-    private static final int PALETTE_Y = 172;
+    private static final int PALETTE_Y = 180;
     private static final int PALETTE_BAR_X = 20;
     private static final int PALETTE_BAR_WIDTH = 28;
     private static final int PALETTE_ROW_HEIGHT = 10;
@@ -43,7 +43,7 @@ public class VariantFabricatorScreen extends AbstractContainerScreen<VariantFabr
     private static final int PALETTE_MINUS_X = 50;
     private static final int PALETTE_PLUS_X = 62;
     private static final int PALETTE_STEP_WIDTH = 11;
-    private static final int CLEAR_COLOR_Y = 207;
+    private static final int CLEAR_COLOR_Y = 215;
     private static final int STAGE_X = 100;
     private static final int STAGE_Y = 30;
     private static final int STAGE_SIZE = 18;
@@ -71,7 +71,7 @@ public class VariantFabricatorScreen extends AbstractContainerScreen<VariantFabr
         this.panel(graphics, left + 78, top + 180, 184, 84);
         graphics.text(this.font, Component.translatable("container.patina_pandemonium.forms"), left + 10, top + 20, MUTED_TEXT, false);
         graphics.text(this.font, Component.translatable("container.patina_pandemonium.colors"), left + 10, top + 88, MUTED_TEXT, false);
-        graphics.text(this.font, Component.translatable("container.patina_pandemonium.palette"), left + 10, top + 161, MUTED_TEXT, false);
+        graphics.text(this.font, Component.translatable("container.patina_pandemonium.palette"), left + 10, top + 168, MUTED_TEXT, false);
         graphics.text(this.font, Component.translatable("container.patina_pandemonium.oxidation"), left + 100, top + 20, MUTED_TEXT, false);
         graphics.text(this.font, Component.translatable("container.patina_pandemonium.variants"), left + 180, top + 20, MUTED_TEXT, false);
         graphics.centeredText(this.font, Component.translatable("container.patina_pandemonium.output"), left + 306, top + 20, MUTED_TEXT);
@@ -253,9 +253,9 @@ public class VariantFabricatorScreen extends AbstractContainerScreen<VariantFabr
             inside(mouseX, mouseY, this.leftPos + PALETTE_X, clearY, 63, 14));
         graphics.centeredText(this.font, Component.translatable("container.patina_pandemonium.palette.clear"), this.leftPos + PALETTE_X + 31, clearY + 3, TEXT);
         int preview = customColor == null ? selectedDye == null ? 0xFFFFFF : selectedDye.getTextureDiffuseColor() : customColor;
-        graphics.fill(this.leftPos + PALETTE_X, this.topPos + 224, this.leftPos + PALETTE_X + 12, this.topPos + 236, 0xFF000000 | preview);
-        graphics.outline(this.leftPos + PALETTE_X, this.topPos + 224, 12, 12, BORDER);
-        graphics.text(this.font, Component.literal(String.format("#%06X", preview & 0xFFFFFF)), this.leftPos + PALETTE_X + 16, this.topPos + 226, MUTED_TEXT, false);
+        graphics.fill(this.leftPos + PALETTE_X, this.topPos + 230, this.leftPos + PALETTE_X + 12, this.topPos + 242, 0xFF000000 | preview);
+        graphics.outline(this.leftPos + PALETTE_X, this.topPos + 230, 12, 12, BORDER);
+        graphics.text(this.font, Component.literal(String.format("#%06X", preview & 0xFFFFFF)), this.leftPos + PALETTE_X + 16, this.topPos + 232, MUTED_TEXT, false);
     }
 
     private int paletteColor(int channel, int value) {
