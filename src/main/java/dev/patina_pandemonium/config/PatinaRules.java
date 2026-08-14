@@ -81,6 +81,8 @@ public class PatinaRules {
     public double geneticCrossoverChance = 0.12D;
     public double geneticMutationChance = 0.0025D;
     public double geneticPhenotypeImprintWeight = 0.25D;
+    public int geneticColorMutationStep = 12;
+    public int geneticColorFounderVariation = 18;
     public int maximumGeneticAncestors = 24;
     public boolean showGeneticNames = true;
     public boolean applyGeneticFitnessEffects = true;
@@ -165,7 +167,11 @@ public class PatinaRules {
                 rules.enableAdvancements = true;
                 rules.advancementScanInterval = 20;
             }
-            if (previousSchema < 22) rules.geneticLifecycleEffect = 1.0D;
+            if (previousSchema < 22) {
+                rules.geneticColorMutationStep = 12;
+                rules.geneticColorFounderVariation = 18;
+                rules.geneticLifecycleEffect = 1.0D;
+            }
             rules.schemaVersion = 22;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
             if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
@@ -187,6 +193,8 @@ public class PatinaRules {
             rules.geneticCrossoverChance = chance(rules.geneticCrossoverChance);
             rules.geneticMutationChance = chance(rules.geneticMutationChance);
             rules.geneticPhenotypeImprintWeight = chance(rules.geneticPhenotypeImprintWeight);
+            rules.geneticColorMutationStep = Math.clamp(rules.geneticColorMutationStep, 0, 255);
+            rules.geneticColorFounderVariation = Math.clamp(rules.geneticColorFounderVariation, 0, 255);
             rules.geneticDeleteriousAlleleFrequency = chance(rules.geneticDeleteriousAlleleFrequency);
             rules.geneticVigorAlleleFrequency = chance(rules.geneticVigorAlleleFrequency);
             rules.geneticInbreedingPenalty = Math.clamp(rules.geneticInbreedingPenalty, 0.0D, 0.75D);

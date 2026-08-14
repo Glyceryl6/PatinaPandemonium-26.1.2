@@ -162,6 +162,7 @@
   "item.patina_pandemonium.genetics.pedigree": "F%1$s[%2$s×%3$s→%4$s]",
   "tooltip.patina_pandemonium.genetics.systematic": "Genetic systematic name: %1$s",
   "tooltip.patina_pandemonium.genetics.pedigree": "Pedigree: %1$s",
+  "tooltip.patina_pandemonium.genetics.color": "Genetic color: genotype %1$s · phenotype %2$s · parental imprint %3$s (weight %4$s‰)",
   "tooltip.patina_pandemonium.genetics.meiosis": "Meiotic recombination: %1$s crossovers, %2$s mutations; heterozygosity %3$s‰; estimated inbreeding %4$s‰",
   "tooltip.patina_pandemonium.genetics.fitness": "Genetic fitness: %1$s exposed recessive load · %2$s carrier loci · heterosis %3$s‰ · inbreeding depression %4$s‰",
   "tooltip.patina_pandemonium.genetics.overdominance": "Overdominant heterozygous loci: %1$s/3",

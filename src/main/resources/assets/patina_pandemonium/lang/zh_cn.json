@@ -162,6 +162,7 @@
   "item.patina_pandemonium.genetics.pedigree": "F%1$s[%2$s×%3$s→%4$s]",
   "tooltip.patina_pandemonium.genetics.systematic": "遗传系统名：%1$s",
   "tooltip.patina_pandemonium.genetics.pedigree": "系谱：%1$s",
+  "tooltip.patina_pandemonium.genetics.color": "遗传色彩：基因型 %1$s · 表型 %2$s · 亲本印记 %3$s（权重 %4$s‰）",
   "tooltip.patina_pandemonium.genetics.meiosis": "减数重组：%1$s次交叉，%2$s次突变；杂合度%3$s‰；近交估计%4$s‰",
   "tooltip.patina_pandemonium.genetics.fitness": "遗传适合度：隐性有害纯合 %1$s · 携带者位点 %2$s · 杂种优势 %3$s‰ · 近交衰退 %4$s‰",
   "tooltip.patina_pandemonium.genetics.overdominance": "超显性杂合位点：%1$s/3",

@@ -31,8 +31,9 @@ import java.util.Set;
 
 /**
  * Compact diploid genome for breedable variants. Six linkage groups are used instead of independent random traits,
- * so offspring receive one recombined gamete from each parent. The current oxidized/color phenotype is recorded only
- * as a weak parental imprint; it does not rewrite the inherited chromosome pair of an existing animal.
+ * so offspring receive one recombined gamete from each parent. R1/G1/B1 and R2/G2/B2 form an additive polygenic
+ * RGB system: recombination mixes parental channel alleles and mutation applies small channel-local drift. The current
+ * oxidized/color phenotype is only a weak parental imprint and never rewrites an existing animal's inherited genome.
  */
 public class VariantGenetics {
 
@@ -137,8 +138,7 @@ public class VariantGenetics {
         int genotypeStagePermille = (allele(data, 0, false) + allele(data, 0, true)) * 500;
         int stagePermille = weighted(genotypeStagePermille, data.imprintOxidationPermille(), strength);
         OxidationStage stage = OxidationStage.byOrdinal(Math.clamp((int) Math.round(stagePermille / 1_000.0D), 0, 3));
-        int genotypeColor = genotypeColor(data);
-        int customColor = blendColor(genotypeColor, data.imprintColor(), strength);
+        int customColor = expressedColor(data);
         boolean genotypeWaxed = allele(data, 2, false) != 0 || allele(data, 2, true) != 0;
         boolean waxed = genotypeWaxed || data.imprintWaxPermille() * strength >= 500_000;
         return new ItemVariantData(fallbackSource, stage, waxed, null, fallbackModel, customColor);
@@ -206,12 +206,15 @@ public class VariantGenetics {
 
     private static int mutate(int locus, int value, RandomSource random) {
         if (locus == 2 || locus >= 12) return value == 0 ? 1 : 0;
-        int range = switch (locus) {
-            case 0 -> 1;
-            case 3, 4, 5, 6, 7, 8 -> 24;
-            default -> 750;
-        };
-        int delta = random.nextInt(range * 2 + 1) - range;
+        int delta;
+        if (locus >= 3 && locus <= 8) {
+            int range = PatinaRules.INSTANCE.geneticColorMutationStep;
+            if (range <= 0) return value;
+            delta = random.nextInt(range + 1) - random.nextInt(range + 1);
+        } else {
+            int range = locus == 0 ? 1 : 750;
+            delta = random.nextInt(range * 2 + 1) - range;
+        }
         if (delta == 0) delta = random.nextBoolean() ? 1 : -1;
         return Math.clamp(value + delta, 0, MAX_ALLELES[locus]);
     }
@@ -235,7 +238,7 @@ public class VariantGenetics {
             int spread = switch (locus) {
                 case 0 -> 1;
                 case 2 -> 0;
-                case 3, 4, 5, 6, 7, 8 -> 18;
+                case 3, 4, 5, 6, 7, 8 -> PatinaRules.INSTANCE.geneticColorFounderVariation;
                 default -> 1_250;
             };
             int offset = spread == 0 ? 0 : (int) Long.remainderUnsigned(state, spread * 2L + 1L) - spread;
@@ -277,11 +280,24 @@ public class VariantGenetics {
         return different * 1_000 / LOCUS_COUNT;
     }
 
-    private static int genotypeColor(Data data) {
+    public static int genotypeColor(Data data) {
         int red = (allele(data, 3, false) + allele(data, 3, true) + allele(data, 6, false) + allele(data, 6, true)) / 4;
         int green = (allele(data, 4, false) + allele(data, 4, true) + allele(data, 7, false) + allele(data, 7, true)) / 4;
         int blue = (allele(data, 5, false) + allele(data, 5, true) + allele(data, 8, false) + allele(data, 8, true)) / 4;
         return red << 16 | green << 8 | blue;
+    }
+
+    public static int expressedColor(Data data) {
+        return blendColor(genotypeColor(data), data.imprintColor(), data.imprintStrengthPermille());
+    }
+
+    public static Component colorSummary(Data data) {
+        return Component.translatable("tooltip.patina_pandemonium.genetics.color", formatColor(genotypeColor(data)),
+            formatColor(expressedColor(data)), formatColor(data.imprintColor()), formatted(data.imprintStrengthPermille()));
+    }
+
+    private static String formatColor(int color) {
+        return String.format(Locale.ROOT, "#%06X", color & 0xFFFFFF);
     }
 
     public static TraitSummary traitSummary(Data data) {
@@ -297,7 +313,7 @@ public class VariantGenetics {
         for (int locus = 15; locus <= 17; locus++) if (allele(data, locus, false) != allele(data, locus, true)) overdominantHeterozygotes++;
         int heterosis = Math.clamp(Math.max(0, data.heterozygosityPermille() - 300) / 2 + overdominantHeterozygotes * 55
             - data.inbreedingPermille() / 4, 0, 350);
-        int depression = Math.clamp(data.inbreedingPermille() * 3 / 10 + recessiveHomozygotes * 140, 0, 750);
+        int depression = Math.clamp(data.inbreedingPermille() * 3L / 10 + recessiveHomozygotes * 140, 0, 750);
         return new TraitSummary(recessiveHomozygotes, recessiveCarriers, overdominantHeterozygotes, heterosis, depression,
             homozygous(data, 12, 1), homozygous(data, 13, 1), homozygous(data, 14, 1), heterozygous(data, 15),
             heterozygous(data, 16), heterozygous(data, 17));

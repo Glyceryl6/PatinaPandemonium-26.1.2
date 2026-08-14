@@ -93,6 +93,7 @@ public class VariantInventoryEvents {
                 VariantGenetics.systematicName(event.getItemStack(), genetics)).withStyle(ChatFormatting.DARK_AQUA));
             event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.genetics.pedigree",
                 VariantGenetics.compactPedigree(genetics)).withStyle(ChatFormatting.DARK_GRAY));
+            event.getToolTip().add(VariantGenetics.colorSummary(genetics).copy().withStyle(ChatFormatting.DARK_AQUA));
             VariantGenetics.TraitSummary traits = VariantGenetics.traitSummary(genetics);
             event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.genetics.fitness", traits.recessiveHomozygotes(),
                 traits.recessiveCarriers(), traits.heterosisPermille(), traits.inbreedingDepressionPermille()).withStyle(
@@ -103,11 +104,6 @@ public class VariantInventoryEvents {
                 String.format(Locale.ROOT, "%+.1f%%", effects.movementMultiplier() * 100.0D),
                 String.format(Locale.ROOT, "%+.1f%%", effects.attackMultiplier() * 100.0D),
                 String.format(Locale.ROOT, "%+.2f", effects.armorDelta())).withStyle(ChatFormatting.DARK_GRAY));
-            VariantGenetics.LifecycleEffects lifecycle = VariantGenetics.lifecycleEffects(genetics);
-            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.genetics.lifecycle",
-                String.format(Locale.ROOT, "%.0f%%", lifecycle.loveDurationMultiplier() * 100.0D),
-                String.format(Locale.ROOT, "%.0f%%", lifecycle.breedingCooldownMultiplier() * 100.0D),
-                String.format(Locale.ROOT, "%.0f%%", lifecycle.growthDurationMultiplier() * 100.0D)).withStyle(ChatFormatting.DARK_GRAY));
             if (event.getFlags().isAdvanced()) {
                 event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.genetics.meiosis", genetics.recombinations(),
                     genetics.mutations(), genetics.heterozygosityPermille(), genetics.inbreedingPermille()).withStyle(ChatFormatting.DARK_GRAY));
