@@ -337,7 +337,13 @@ public class CraftingChemistry {
     }
 
     private static Component colorName(int color) {
-        ColorClass colorClass = classify(color);
+        int rgb = color & 0xFFFFFF;
+        boolean dyeColor = Arrays.stream(DyeColor.values()).anyMatch(dye -> (dye.getTextureDiffuseColor() & 0xFFFFFF) == rgb);
+        if (!dyeColor) {
+            return Component.translatable("item.patina_pandemonium.chemistry.color.rgb",
+                Component.literal(String.format(Locale.ROOT, "#%06X", rgb)));
+        }
+        ColorClass colorClass = classify(rgb);
         return Component.translatable("item.patina_pandemonium.chemistry.color",
             Component.translatable("item.patina_pandemonium.chemistry.value." + colorClass.value()),
             Component.translatable("item.patina_pandemonium.chemistry.saturation." + colorClass.saturation()),

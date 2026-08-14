@@ -3,6 +3,7 @@ package dev.patina_pandemonium.client;
 import com.google.common.reflect.TypeToken;
 import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.block.PatinaOxidizable;
+import dev.patina_pandemonium.network.PatinaHudSync;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ItemVariantData;
 import dev.patina_pandemonium.registry.VariantForm;
@@ -39,6 +40,7 @@ import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.client.model.quad.MutableQuad;
+import net.neoforged.neoforge.client.network.event.RegisterClientPayloadHandlersEvent;
 import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEvent;
 
 import java.util.ArrayDeque;
@@ -71,6 +73,12 @@ public class PatinaClient {
         VariantForm.BUTTON, Blocks.STONE_BUTTON,
         VariantForm.PRESSURE_PLATE, Blocks.STONE_PRESSURE_PLATE);
 
+
+    @SubscribeEvent
+    public static void registerPayloadHandlers(RegisterClientPayloadHandlersEvent event) {
+        event.register(PatinaHudSync.BlockHudPayload.TYPE, (payload, _) -> PatinaHudSync.receive(payload));
+        event.register(PatinaHudSync.EntityHudPayload.TYPE, (payload, _) -> PatinaHudSync.receive(payload));
+    }
 
     @SubscribeEvent
     public static void registerGuiLayers(RegisterGuiLayersEvent event) {

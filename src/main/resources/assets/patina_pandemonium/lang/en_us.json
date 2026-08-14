@@ -85,6 +85,7 @@
   "item.patina_pandemonium.chemistry.group.residual": "parent-",
   "item.patina_pandemonium.chemistry.color.none": "",
   "item.patina_pandemonium.chemistry.color": "-%1$s-%2$s-%3$s-type",
+  "item.patina_pandemonium.chemistry.color.rgb": "%1$s",
   "item.patina_pandemonium.chemistry.chromato.none": "",
   "item.patina_pandemonium.chemistry.chromato.colored": "%1$s-%2$s-%3$s-chromato",
   "item.patina_pandemonium.chemistry.topology.0": "monomeric",
