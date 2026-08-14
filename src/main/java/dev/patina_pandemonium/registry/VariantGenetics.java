@@ -15,7 +15,6 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.AgeableMob;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -41,10 +40,8 @@ public class VariantGenetics {
     public static final int LOCUS_COUNT = 18;
     private static final int[] CHROMOSOME_STARTS = {0, 3, 6, 9, 12, 15, 18};
     private static final int[] MAX_ALLELES = {3, 10_000, 1, 255, 255, 255, 255, 255, 255, 10_000, 10_000, 10_000, 1, 1, 1, 1, 1, 1};
-    private static final String[] LOCUS_NAMES = {"Ox", "Or", "Wx", "R1", "G1", "B1", "R2", "G2", "B2", "Rec", "Mut", "Lin",
-        "Dh", "Dm", "Da", "Vh", "Vm", "Va"};
-    private static final List<Integer> DEFAULT_HAPLOTYPE = List.of(0, 5_000, 0, 255, 255, 255, 255, 255, 255, 5_000, 5_000, 5_000,
-        0, 0, 0, 0, 0, 0);
+    private static final String[] LOCUS_NAMES = {"Ox", "Or", "Wx", "R1", "G1", "B1", "R2", "G2", "B2", "Rec", "Mut", "Lin", "Dh", "Dm", "Da", "Vh", "Vm", "Va"};
+    private static final List<Integer> DEFAULT_HAPLOTYPE = List.of(0, 5_000, 0, 255, 255, 255, 255, 255, 255, 5_000, 5_000, 5_000, 0, 0, 0, 0, 0, 0);
     private static final Identifier HEALTH_MODIFIER = PatinaPandemonium.id("genetics.health");
     private static final Identifier MOVEMENT_MODIFIER = PatinaPandemonium.id("genetics.movement");
     private static final Identifier ATTACK_MODIFIER = PatinaPandemonium.id("genetics.attack");
@@ -72,8 +69,7 @@ public class VariantGenetics {
     public static final StreamCodec<RegistryFriendlyByteBuf, Data> STREAM_CODEC = ByteBufCodecs.fromCodecWithRegistries(CODEC);
 
     public static Data defaultData() {
-        return normalized(new Data(SCHEMA_VERSION, 1, 1L, 0L, 0L, DEFAULT_HAPLOTYPE, DEFAULT_HAPLOTYPE, List.of(), 0, 0, 0, 0,
-            0, 0xFFFFFF, 0, 0));
+        return normalized(new Data(SCHEMA_VERSION, 1, 1L, 0L, 0L, DEFAULT_HAPLOTYPE, DEFAULT_HAPLOTYPE, List.of(), 0, 0, 0, 0, 0, 0xFFFFFF, 0, 0));
     }
 
     @Nullable
@@ -120,7 +116,7 @@ public class VariantGenetics {
         int generation = Math.max(alpha.generation(), beta.generation()) + 1;
         List<Long> ancestors = mergeAncestors(alpha, beta);
         int inbreeding = inbreeding(alpha, beta);
-        int imprintStage = Math.clamp((stage(alphaVariant) + stage(betaVariant)) * 500, 0, 3_000);
+        int imprintStage = Math.clamp((stage(alphaVariant) + stage(betaVariant)) * 500L, 0, 3_000);
         int imprintColor = averageColor(variantColor(alphaVariant), variantColor(betaVariant));
         int imprintWax = ((alphaVariant != null && alphaVariant.waxed() ? 1 : 0) + (betaVariant != null && betaVariant.waxed() ? 1 : 0)) * 500;
         int imprintStrength = Math.clamp((int) Math.round(PatinaRules.INSTANCE.geneticPhenotypeImprintWeight * 1_000.0D), 0, 1_000);
@@ -201,6 +197,7 @@ public class VariantGenetics {
                 }
             }
         }
+
         return new Gamete(List.copyOf(alleles), recombinations, mutations);
     }
 
@@ -346,13 +343,6 @@ public class VariantGenetics {
         vigor = Math.clamp(vigor * PatinaRules.INSTANCE.geneticLifecycleEffect, -0.50D, 0.25D);
         return new LifecycleEffects(Math.clamp(1.0D + vigor, 0.50D, 1.25D),
             Math.clamp(1.0D - vigor, 0.75D, 1.50D), Math.clamp(1.0D - vigor * 1.10D, 0.70D, 1.60D));
-    }
-
-    public static void adjustLoveDuration(Animal animal) {
-        Data data = animal.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_GENETICS.get());
-        if (data == null || !PatinaRules.INSTANCE.applyGeneticFitnessEffects) return;
-        int current = animal.getInLoveTime();
-        if (current > 0) animal.setInLoveTime(scaleTicks(current, lifecycleEffects(data).loveDurationMultiplier()));
     }
 
     public static void adjustBreedingCooldown(AgeableMob animal) {

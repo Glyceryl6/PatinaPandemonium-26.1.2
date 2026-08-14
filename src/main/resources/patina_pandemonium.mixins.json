@@ -3,8 +3,8 @@
   "package": "dev.patina_pandemonium.mixin",
   "compatibilityLevel": "JAVA_25",
   "mixins": [
+    "AgeableMobMixin",
     "AttachmentHolderMixin",
-    "AnimalMixin",
     "CrafterBlockMixin",
     "CraftingMenuMixin",
     "DispenserBlockMixin",
@@ -14,9 +14,9 @@
     "LootTableMixin",
     "ServerGamePacketListenerImplMixin",
     "ServerLevelMixin",
+    "SingleItemRecipeMixin",
     "StonecutterMenuMixin",
-    "VillagerMixin",
-    "SingleItemRecipeMixin"
+    "VillagerMixin"
   ],
   "injectors": {
     "defaultRequire": 1
@@ -26,13 +26,13 @@
   },
   "client": [
     "BlockEntityRenderDispatcherMixin",
+    "EntityRenderDispatcherMixin",
     "FallingBlockRendererMixin",
+    "FlameFeatureRendererMixin",
+    "FluidRendererMixin",
     "ModelDataManagerMixin",
     "SubmitNodeCollectorMixin",
     "TntMinecartRendererMixin",
-    "TntRendererMixin",
-    "FlameFeatureRendererMixin",
-    "FluidRendererMixin",
-    "EntityRenderDispatcherMixin"
+    "TntRendererMixin"
   ]
 }

@@ -1,5 +1,6 @@
 package dev.patina_pandemonium.menu;
 
+import dev.patina_pandemonium.advancement.VariantAdvancements;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.OxidationStage;
 import dev.patina_pandemonium.registry.VariantData;
@@ -7,6 +8,7 @@ import dev.patina_pandemonium.registry.VariantForm;
 import dev.patina_pandemonium.registry.VariantProvenance;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.*;
@@ -91,6 +93,9 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
                     return;
                 }
                 stack.onCraftedBy(player, stack.getCount());
+                if (player instanceof ServerPlayer serverPlayer) {
+                    VariantAdvancements.interaction(serverPlayer, VariantAdvancements.Metric.FABRICATOR_USE);
+                }
                 VariantFabricatorMenu.this.inputSlot.remove(1);
                 VariantFabricatorMenu.this.refreshVariants(false);
                 super.onTake(player, stack);
@@ -307,6 +312,9 @@ public class VariantFabricatorMenu extends AbstractContainerMenu {
         if (moved <= 0) return ItemStack.EMPTY;
         this.inputSlot.remove(moved);
         prototype.onCraftedBy(player, moved);
+        if (player instanceof ServerPlayer serverPlayer) {
+            VariantAdvancements.interaction(serverPlayer, VariantAdvancements.Metric.FABRICATOR_USE);
+        }
         this.refreshVariants(false);
         this.broadcastChanges();
         return prototype.copyWithCount(moved);

@@ -1,10 +1,12 @@
 package dev.patina_pandemonium.mixin;
 
+import dev.patina_pandemonium.advancement.VariantAdvancements;
 import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.OxidationStage;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.trading.MerchantOffer;
@@ -44,6 +46,7 @@ public class VillagerMixin {
             ^ Long.rotateLeft(player.getUUID().getMostSignificantBits(), 17)
             ^ Long.rotateLeft(player.getUUID().getLeastSignificantBits(), 41) ^ day;
         RandomSource random = RandomSource.create(seed);
+        boolean variantOffer = false;
         for (MerchantOffer offer : playerOffers) {
             if (random.nextDouble() >= replacementChance) continue;
             OxidationStage stage = this.patina$randomStage(random, rules.villagerVariantStageWeights);
@@ -51,8 +54,12 @@ public class VillagerMixin {
             ItemStack transformed = DynamicVariantRegistry.transform(offer.getResult(), stage, waxed, null);
             if (transformed.isEmpty()) continue;
             offer.result = transformed;
+            variantOffer = true;
             int discount = Math.max(1, (int) Math.floor(offer.getCostA().getCount() * rules.villagerVariantDiscount));
             offer.addToSpecialPriceDiff(-discount);
+        }
+        if (variantOffer && player instanceof ServerPlayer serverPlayer) {
+            VariantAdvancements.interaction(serverPlayer, VariantAdvancements.Metric.VARIANT_TRADE);
         }
         villager.setOffers(playerOffers);
     }

@@ -58,6 +58,9 @@ public class VariantInteractionEvents {
             if (event.getFace() != null) {
                 queueFireReplacement(serverLevel, pos.relative(event.getFace()), heldData);
             }
+            if (player instanceof ServerPlayer serverPlayer) {
+                VariantAdvancements.interaction(serverPlayer, VariantAdvancements.Metric.VARIANT_FIRE_IGNITE);
+            }
         }
 
         BlockEntity blockEntity = level.getBlockEntity(pos);

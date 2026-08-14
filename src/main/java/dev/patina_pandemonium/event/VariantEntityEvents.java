@@ -1,11 +1,13 @@
 package dev.patina_pandemonium.event;
 
+import dev.patina_pandemonium.advancement.VariantAdvancements;
 import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.registry.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -125,7 +127,12 @@ public class VariantEntityEvents {
                 handChanged = true;
             }
 
-            if (handChanged) player.getInventory().setChanged();
+            if (handChanged) {
+                player.getInventory().setChanged();
+                if (player instanceof ServerPlayer serverPlayer) {
+                    VariantAdvancements.interaction(serverPlayer, VariantAdvancements.Metric.LIGHTNING_CLEAN);
+                }
+            }
             return;
         }
 
@@ -174,6 +181,9 @@ public class VariantEntityEvents {
         if (event.getEntity().getRandom().nextDouble() >= chance) return;
         event.getEntity().addEffect(new MobEffectInstance(
             DynamicVariantRegistry.TETANUS, PatinaRules.INSTANCE.tetanusDurations[stage], Math.max(0, stage - 2)));
+        if (attacker instanceof ServerPlayer serverPlayer) {
+            VariantAdvancements.interaction(serverPlayer, VariantAdvancements.Metric.TETANUS);
+        }
     }
 
     @SubscribeEvent
@@ -188,6 +198,9 @@ public class VariantEntityEvents {
         if (event.getEntity().getRandom().nextDouble() >= chance) return;
         event.getEntity().addEffect(new MobEffectInstance(
             MobEffects.POISON, PatinaRules.INSTANCE.foodPoisonDurations[stage], Math.max(0, stage - 2)));
+        if (event.getEntity() instanceof ServerPlayer serverPlayer) {
+            VariantAdvancements.interaction(serverPlayer, VariantAdvancements.Metric.OXIDIZED_FOOD);
+        }
     }
 
     @SubscribeEvent
