@@ -71,10 +71,11 @@ public class PatinaHudSync {
 
     public record HudText(Component title, Component sourceName, Component geneticsName) {
 
+        // Clientbound HUD components can legitimately exceed vanilla's 2 MiB NBT allocation budget when names recurse deeply.
         private static final StreamCodec<RegistryFriendlyByteBuf, HudText> STREAM_CODEC = StreamCodec.composite(
-            ComponentSerialization.STREAM_CODEC, HudText::title,
-            ComponentSerialization.STREAM_CODEC, HudText::sourceName,
-            ComponentSerialization.STREAM_CODEC, HudText::geneticsName,
+            ComponentSerialization.TRUSTED_STREAM_CODEC, HudText::title,
+            ComponentSerialization.TRUSTED_STREAM_CODEC, HudText::sourceName,
+            ComponentSerialization.TRUSTED_STREAM_CODEC, HudText::geneticsName,
             HudText::new);
     }
 
@@ -108,6 +109,6 @@ public class PatinaHudSync {
         }
     }
 
-    private record SentHud(int targetType, long targetId, long revision) { }
-
+    private record SentHud(int targetType, long targetId, long revision) {
+    }
 }
