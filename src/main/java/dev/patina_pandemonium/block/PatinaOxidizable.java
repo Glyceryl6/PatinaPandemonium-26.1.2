@@ -34,9 +34,15 @@ public interface PatinaOxidizable extends EntityBlock, IBlockExtension {
 
     @Override
     default ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state, boolean includeData, Player player) {
-        VariantData data = level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity
-                ? blockEntity.data() : VariantData.defaultFor(this.patinaForm());
-        return DynamicVariantRegistry.stack(data.normalized(this.patinaForm()));
+        PatinaVariantBlockEntity blockEntity = level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity variantBlockEntity ? variantBlockEntity : null;
+        VariantData data = blockEntity == null ? VariantData.defaultFor(this.patinaForm()) : blockEntity.data();
+        ItemStack stack = DynamicVariantRegistry.stack(data.normalized(this.patinaForm()));
+        if (blockEntity == null) return stack;
+        var chemistry = DynamicVariantRegistry.blockEntityChemistry(blockEntity);
+        if (chemistry != null) stack.set(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get(), chemistry);
+        var provenance = DynamicVariantRegistry.blockEntityProvenance(blockEntity);
+        if (provenance != null) stack.set(DynamicVariantRegistry.PROVENANCE.get(), provenance);
+        return stack;
     }
 
     @Override
@@ -52,6 +58,7 @@ public interface PatinaOxidizable extends EntityBlock, IBlockExtension {
         } else {
             return null;
         }
+
         if (target.isEmpty()) return null;
         if (!simulate) setLinkedData(context.getLevel(), context.getClickedPos(), target.get());
         return state;
@@ -64,7 +71,6 @@ public interface PatinaOxidizable extends EntityBlock, IBlockExtension {
         if (!(level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity)) return;
         VariantData data = blockEntity.data();
         if (data.waxed() || data.stage().next() == null || random.nextDouble() >= PatinaRules.INSTANCE.oxidationAttemptChance) return;
-
         int sameStage = 0;
         int laterStage = 0;
         int currentStage = data.stage().ordinal();

@@ -28,7 +28,10 @@ public class ItemStackMixin {
         ItemStack stack = (ItemStack) (Object) this;
         CraftingChemistry.Data chemistry = stack.get(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get());
         if (chemistry != null && PatinaRules.INSTANCE.showChemicalNames) {
-            callback.setReturnValue(CraftingChemistry.name(stack, chemistry));
+            Component chemistryName = CraftingChemistry.name(stack, chemistry);
+            Component prefix = DynamicVariantRegistry.copperStylePrefix(stack);
+            callback.setReturnValue(prefix.getString().isEmpty() ? chemistryName
+                : Component.translatable("item.patina_pandemonium.chemistry.with_variant_prefix", prefix, chemistryName));
             return;
         }
         VariantGenetics.Data genetics = VariantGenetics.get(stack);

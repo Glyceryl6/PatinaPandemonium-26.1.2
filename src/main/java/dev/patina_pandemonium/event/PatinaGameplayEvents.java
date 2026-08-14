@@ -317,13 +317,14 @@ public class PatinaGameplayEvents {
         return null;
     }
 
-    static void replacePlacedBlock(ServerLevel level, BlockPos pos, BlockState state, ItemVariantData data, VariantProvenance.@Nullable Data provenance) {
+    static void replacePlacedBlock(ServerLevel level, BlockPos pos, BlockState state, ItemVariantData data, VariantProvenance.@Nullable Data provenance, CraftingChemistry.@Nullable Data chemistry) {
         VariantData variant = data.forBlock(BuiltInRegistries.BLOCK.getKey(state.getBlock()));
         if (DynamicVariantRegistry.isNativeBlockEntitySource(state.getBlock())) {
             BlockEntity blockEntity = level.getBlockEntity(pos);
             if (blockEntity != null) {
                 DynamicVariantRegistry.setBlockEntityVariantData(blockEntity, variant);
                 if (provenance != null) DynamicVariantRegistry.setBlockEntityProvenance(blockEntity, provenance);
+                if (chemistry != null) DynamicVariantRegistry.setBlockEntityChemistry(blockEntity, chemistry);
             }
             return;
         }
@@ -336,13 +337,16 @@ public class PatinaGameplayEvents {
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (blockEntity instanceof PatinaVariantBlockEntity patina) patina.setData(variant);
         if (blockEntity != null && provenance != null) DynamicVariantRegistry.setBlockEntityProvenance(blockEntity, provenance);
+        if (blockEntity != null && chemistry != null) DynamicVariantRegistry.setBlockEntityChemistry(blockEntity, chemistry);
         level.updateNeighborsAt(pos, carrier);
     }
 
-    static void attachPlacedProvenance(ServerLevel level, BlockPos pos, VariantProvenance.@Nullable Data provenance) {
-        if (provenance == null) return;
+    static void attachPlacedHistory(ServerLevel level, BlockPos pos, VariantProvenance.@Nullable Data provenance, CraftingChemistry.@Nullable Data chemistry) {
+        if (provenance == null && chemistry == null) return;
         BlockEntity blockEntity = level.getBlockEntity(pos);
-        if (blockEntity != null) DynamicVariantRegistry.setBlockEntityProvenance(blockEntity, provenance);
+        if (blockEntity == null) return;
+        if (provenance != null) DynamicVariantRegistry.setBlockEntityProvenance(blockEntity, provenance);
+        if (chemistry != null) DynamicVariantRegistry.setBlockEntityChemistry(blockEntity, chemistry);
     }
 
     static void queueFireReplacement(ServerLevel level, BlockPos pos, ItemVariantData data) {
@@ -357,7 +361,7 @@ public class PatinaGameplayEvents {
             || source instanceof RedStoneWireBlock && sourceItem == Items.REDSTONE;
     }
 
-    static ItemVariantData itemVariantData(VariantData data) {
+    public static ItemVariantData itemVariantData(VariantData data) {
         Item sourceItem = BuiltInRegistries.BLOCK.getValue(data.sourceId()).asItem();
         Identifier sourceId = sourceItem == Items.AIR ? data.sourceId() : BuiltInRegistries.ITEM.getKey(sourceItem);
         return new ItemVariantData(sourceId, data.stage(), data.waxed(), data.dyeColor(), sourceId, data.customColor());
@@ -436,6 +440,30 @@ public class PatinaGameplayEvents {
         return matches ? pending.provenance() : null;
     }
 
+    static CraftingChemistry.@Nullable Data placementChemistry(@Nullable Player player, Block placedBlock, @Nullable PendingVariantUse pending,
+                                                               @Nullable ItemVariantData context, CraftingChemistry.@Nullable Data contextChemistry) {
+        if (player != null) {
+            ItemStack mainHand = player.getMainHandItem();
+            ItemStack offHand = player.getOffhandItem();
+            ItemVariantData mainData = DynamicVariantRegistry.variantUseData(mainHand);
+            ItemVariantData offData = DynamicVariantRegistry.variantUseData(offHand);
+            if (Block.byItem(mainHand.getItem()) == placedBlock || mainData != null && matchesPlacementSource(placedBlock, mainData)) {
+                CraftingChemistry.Data chemistry = mainHand.get(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get());
+                if (chemistry != null) return chemistry;
+            }
+            if (Block.byItem(offHand.getItem()) == placedBlock || offData != null && matchesPlacementSource(placedBlock, offData)) {
+                CraftingChemistry.Data chemistry = offHand.get(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get());
+                if (chemistry != null) return chemistry;
+            }
+        }
+
+        if (context != null && matchesPlacementSource(placedBlock, context) && contextChemistry != null) return contextChemistry;
+        if (pending == null) return null;
+        boolean matches = Block.byItem(pending.sourceItem()) == placedBlock
+            || pending.data() != null && matchesPlacementSource(placedBlock, pending.data());
+        return matches ? pending.chemistry() : null;
+    }
+
     static boolean hasHeritableVariant(Mob entity) {
         return entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get()) != null
             || entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_CHEMISTRY.get()) != null
@@ -508,7 +536,8 @@ public class PatinaGameplayEvents {
 
     record VariantUseFrame(@Nullable ItemVariantData data, VariantProvenance.@Nullable Data provenance, CraftingChemistry.@Nullable Data chemistry, VariantGenetics.@Nullable Data genetics) {}
 
-    record PendingVariantUse(long gameTime, Item sourceItem, @Nullable ItemVariantData data, VariantProvenance.@Nullable Data provenance) {}
+    record PendingVariantUse(long gameTime, Item sourceItem, @Nullable ItemVariantData data, VariantProvenance.@Nullable Data provenance,
+                             CraftingChemistry.@Nullable Data chemistry) {}
 
     record PendingBlockReplacement(Block previousSource, ItemVariantData data) {}
 

@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
 import com.mojang.serialization.JsonOps;
 import dev.patina_pandemonium.PatinaPandemonium;
+import dev.patina_pandemonium.advancement.VariantAdvancements;
 import dev.patina_pandemonium.block.PatinaOxidizable;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.VariantForm;
@@ -152,6 +153,8 @@ public class RuntimePack {
             if (packType != this.packType) return null;
             if (packType == PackType.SERVER_DATA) {
                 if (VARIANT_WAXING_RECIPE.equals(id)) return () -> new ByteArrayInputStream(VARIANT_WAXING_RECIPE_DESCRIPTOR);
+                byte[] advancement = VariantAdvancements.resources().get(id);
+                if (advancement != null) return () -> new ByteArrayInputStream(advancement);
                 VariantForm form = SERVER_TAGS.get(id);
                 return form == null ? null : () -> new TagInputStream(entries().iterator(), form, id.getPath().startsWith(ITEM_TAG_DIRECTORY));
             }
@@ -169,6 +172,11 @@ public class RuntimePack {
             if (packType == PackType.SERVER_DATA) {
                 if (VARIANT_WAXING_RECIPE.getNamespace().equals(namespace) && VARIANT_WAXING_RECIPE.getPath().startsWith(prefix)) {
                     output.accept(VARIANT_WAXING_RECIPE, () -> new ByteArrayInputStream(VARIANT_WAXING_RECIPE_DESCRIPTOR));
+                }
+                for (Map.Entry<Identifier, byte[]> resource : VariantAdvancements.resources().entrySet()) {
+                    if (resource.getKey().getNamespace().equals(namespace) && resource.getKey().getPath().startsWith(prefix)) {
+                        output.accept(resource.getKey(), () -> new ByteArrayInputStream(resource.getValue()));
+                    }
                 }
                 for (Map.Entry<Identifier, VariantForm> resource : SERVER_TAGS.entrySet()) {
                     if (resource.getKey().getNamespace().equals(namespace) && resource.getKey().getPath().startsWith(prefix)) {

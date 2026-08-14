@@ -45,12 +45,15 @@ public class VariantWorldEvents {
         if (blockEntity == null) return;
         VariantData data = DynamicVariantRegistry.blockEntityVariantData(blockEntity);
         VariantProvenance.Data provenance = DynamicVariantRegistry.blockEntityProvenance(blockEntity);
+        CraftingChemistry.Data chemistry = DynamicVariantRegistry.blockEntityChemistry(blockEntity);
         if (data == null) {
-            if (provenance == null) return;
+            if (provenance == null && chemistry == null) return;
             Item sourceItem = event.getState().getBlock().asItem();
             if (sourceItem == Items.AIR) return;
             for (ItemEntity drop : event.getDrops()) {
-                if (drop.getItem().getItem() == sourceItem) drop.getItem().set(DynamicVariantRegistry.PROVENANCE.get(), provenance);
+                if (drop.getItem().getItem() != sourceItem) continue;
+                if (provenance != null) drop.getItem().set(DynamicVariantRegistry.PROVENANCE.get(), provenance);
+                if (chemistry != null) drop.getItem().set(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get(), chemistry);
             }
             return;
         }
@@ -62,6 +65,7 @@ public class VariantWorldEvents {
                 ItemStack stack = drop.getItem();
                 if (stack.getItem() != sourceItem) continue;
                 if (provenance != null) stack.set(DynamicVariantRegistry.PROVENANCE.get(), provenance);
+                if (chemistry != null) stack.set(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get(), chemistry);
                 ItemStack transformed = DynamicVariantRegistry.transform(stack, data.stage(), data.waxed(), data.dyeColor(), data.customColor());
                 if (!transformed.isEmpty()) drop.setItem(transformed);
             }
@@ -77,6 +81,7 @@ public class VariantWorldEvents {
             event.getDrops().clear();
             for (ItemStack stack : sourceDrops) {
                 if (provenance != null) stack.set(DynamicVariantRegistry.PROVENANCE.get(), provenance);
+                if (chemistry != null) stack.set(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get(), chemistry);
                 ItemStack transformed = DynamicVariantRegistry.transform(stack, data.stage(), data.waxed(), data.dyeColor(), data.customColor());
                 if (transformed.isEmpty()) transformed = stack;
                 event.getDrops().add(new ItemEntity(event.getLevel(), event.getPos().getX() + 0.5D,
@@ -91,6 +96,7 @@ public class VariantWorldEvents {
             && event.getState().getValue(SlabBlock.TYPE) == SlabType.DOUBLE ? 2 : 1;
         ItemStack stack = DynamicVariantRegistry.stack(data, count);
         if (provenance != null) stack.set(DynamicVariantRegistry.PROVENANCE.get(), provenance);
+        if (chemistry != null) stack.set(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get(), chemistry);
         event.getDrops().add(new ItemEntity(event.getLevel(), pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D, stack));
     }
 

@@ -23,9 +23,7 @@ import org.jspecify.annotations.Nullable;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /** Runtime-only virtual chemistry for crafting results. The values are deterministic game mechanics, not claims about real-world substances. */
 public class CraftingChemistry {
@@ -141,7 +139,10 @@ public class CraftingChemistry {
                     int nestedLocant = 1 + (int) Math.floorMod((priorLocant - 1L) * 37L + (locant - 1L) * 131L
                         + (long) prior.generation() * 17L, 0xFFFL);
                     int nesting = Math.min(7, (priorGroup >>> NESTING_SHIFT & 0x7) + 1);
-                    groups.add(priorGroup & ~LOCANT_MASK & ~NESTING_MASK | nestedLocant | nesting << NESTING_SHIFT);
+                    int inheritedChain = priorGroup >>> 25 & 0xF;
+                    int branchChain = Math.floorMod(inheritedChain + locant + prior.generation(), 10);
+                    groups.add(priorGroup & ~LOCANT_MASK & ~NESTING_MASK & ~(0xF << 25)
+                        | nestedLocant | branchChain << 25 | nesting << NESTING_SHIFT);
                     inheritedGroups++;
                 }
             }
@@ -197,16 +198,22 @@ public class CraftingChemistry {
         Component color = data.color() == NO_COLOR
             ? Component.translatable("item.patina_pandemonium.chemistry.color.none") : colorName(data.color());
         MutableComponent groupList = Component.empty();
-        Map<Integer, List<Integer>> locantsByGroup = new LinkedHashMap<>();
-        for (int packed : data.groups()) {
-            int descriptor = packed & ~LOCANT_MASK;
-            locantsByGroup.computeIfAbsent(descriptor, _ -> new ArrayList<>()).add(Math.max(1, packed & LOCANT_MASK));
-        }
         int groupIndex = 0;
-        for (Map.Entry<Integer, List<Integer>> entry : locantsByGroup.entrySet()) {
-            if (groupIndex++ > 0) groupList.append(Component.translatable("item.patina_pandemonium.chemistry.separator"));
-            entry.getValue().sort(Integer::compareTo);
-            groupList.append(groupName(entry.getKey(), locantList(entry.getValue())));
+        int descriptor = Integer.MIN_VALUE;
+        ArrayList<Integer> locants = new ArrayList<>();
+        for (int packed : data.groups()) {
+            int currentDescriptor = packed & ~LOCANT_MASK;
+            if (descriptor != Integer.MIN_VALUE && currentDescriptor != descriptor) {
+                if (groupIndex++ > 0) groupList.append(Component.translatable("item.patina_pandemonium.chemistry.separator"));
+                groupList.append(groupName(descriptor, locantList(locants)));
+                locants.clear();
+            }
+            descriptor = currentDescriptor;
+            locants.add(Math.max(1, packed & LOCANT_MASK));
+        }
+        if (descriptor != Integer.MIN_VALUE) {
+            if (groupIndex > 0) groupList.append(Component.translatable("item.patina_pandemonium.chemistry.separator"));
+            groupList.append(groupName(descriptor, locantList(locants)));
         }
         if (data.groups().isEmpty()) {
             int aggregateStage = Math.clamp((int) Math.round(data.oxidationPermille() / 1_000.0D), 0, 3);
@@ -281,10 +288,12 @@ public class CraftingChemistry {
     }
 
     private static Component locantList(List<Integer> locants) {
+        ArrayList<Integer> ordered = new ArrayList<>(locants);
+        ordered.sort(Integer::compareTo);
         StringBuilder value = new StringBuilder();
-        for (int index = 0; index < locants.size(); index++) {
+        for (int index = 0; index < ordered.size(); index++) {
             if (index > 0) value.append(',');
-            value.append(locants.get(index));
+            value.append(ordered.get(index));
         }
         return Component.literal(value.toString());
     }

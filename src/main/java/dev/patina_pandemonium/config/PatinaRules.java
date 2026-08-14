@@ -23,7 +23,7 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 20;
+    public int schemaVersion = 21;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
     public Set<String> excludedItems = new HashSet<>();
@@ -90,6 +90,8 @@ public class PatinaRules {
     public double geneticRecessivePenalty = 0.24D;
     public double geneticHeterosisBonus = 0.35D;
     public double geneticOverdominanceBonus = 0.05D;
+    public boolean enableAdvancements = true;
+    public int advancementScanInterval = 20;
     public JsonObject textureOverrides = new JsonObject();
     public JsonObject existingFormOverrides = new JsonObject();
 
@@ -158,7 +160,11 @@ public class PatinaRules {
                 rules.geneticHeterosisBonus = 0.35D;
                 rules.geneticOverdominanceBonus = 0.05D;
             }
-            rules.schemaVersion = 20;
+            if (previousSchema < 21) {
+                rules.enableAdvancements = true;
+                rules.advancementScanInterval = 20;
+            }
+            rules.schemaVersion = 21;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
             if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
             if (rules.excludedItems == null) rules.excludedItems = new HashSet<>();
@@ -175,6 +181,7 @@ public class PatinaRules {
             rules.maximumProvenanceContainerDepth = Math.clamp(rules.maximumProvenanceContainerDepth, 0, 16);
             rules.maximumProvenanceContainerEntries = Math.clamp(rules.maximumProvenanceContainerEntries, 0, 4_096);
             rules.maximumProvenanceTooltipNodes = Math.clamp(rules.maximumProvenanceTooltipNodes, 0, 128);
+            rules.advancementScanInterval = Math.clamp(rules.advancementScanInterval, 1, 1_200);
             rules.geneticCrossoverChance = chance(rules.geneticCrossoverChance);
             rules.geneticMutationChance = chance(rules.geneticMutationChance);
             rules.geneticPhenotypeImprintWeight = chance(rules.geneticPhenotypeImprintWeight);

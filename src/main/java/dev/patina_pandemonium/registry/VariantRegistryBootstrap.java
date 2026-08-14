@@ -1,5 +1,6 @@
 package dev.patina_pandemonium.registry;
 
+import dev.patina_pandemonium.advancement.VariantAdvancements;
 import net.neoforged.bus.api.IEventBus;
 
 /** Registers the static registries and the runtime source-registration listeners. */
@@ -16,6 +17,7 @@ public class VariantRegistryBootstrap {
         DynamicVariantRegistry.ATTACHMENTS.register(modBus);
         DynamicVariantRegistry.BLOCK_ENTITY_TYPES.register(modBus);
         DynamicVariantRegistry.MENUS.register(modBus);
+        VariantAdvancements.TRIGGERS.register(modBus);
     }
 
 }

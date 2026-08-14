@@ -1,6 +1,7 @@
 package dev.patina_pandemonium.event;
 
 import dev.patina_pandemonium.PatinaPandemonium;
+import dev.patina_pandemonium.advancement.VariantAdvancements;
 import dev.patina_pandemonium.block.PatinaBlock;
 import dev.patina_pandemonium.block.PatinaDelegatingBlock;
 import dev.patina_pandemonium.config.PatinaRules;
@@ -9,6 +10,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
@@ -47,8 +49,9 @@ public class VariantInteractionEvents {
         ItemStack held = player.getItemInHand(event.getHand());
         ItemVariantData heldData = DynamicVariantRegistry.itemData(held);
         VariantProvenance.Data heldProvenance = VariantProvenance.get(held);
-        if (heldData == null && heldProvenance == null) PENDING_USES.remove(player);
-        else PENDING_USES.put(player, new PendingVariantUse(level.getGameTime(), held.getItem(), heldData, heldProvenance));
+        CraftingChemistry.Data heldChemistry = held.get(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get());
+        if (heldData == null && heldProvenance == null && heldChemistry == null) PENDING_USES.remove(player);
+        else PENDING_USES.put(player, new PendingVariantUse(level.getGameTime(), held.getItem(), heldData, heldProvenance, heldChemistry));
         BlockPos pos = event.getPos();
         if (heldData != null && IGNITERS.contains(held.getItem()) && level instanceof ServerLevel serverLevel) {
             queueFireReplacement(serverLevel, pos, heldData);
@@ -93,6 +96,12 @@ public class VariantInteractionEvents {
             if (held.is(Items.HONEYCOMB) || held.getItem() instanceof DyeItem) held.shrink(1);
             else held.hurtAndBreak(1, player, event.getHand());
         }
+        if (player instanceof ServerPlayer serverPlayer) {
+            if (held.is(Items.HONEYCOMB)) VariantAdvancements.interaction(serverPlayer, VariantAdvancements.Metric.WAX_BLOCK);
+            else if (held.canPerformAction(ItemAbilities.AXE_WAX_OFF) || held.canPerformAction(ItemAbilities.AXE_SCRAPE)) {
+                VariantAdvancements.interaction(serverPlayer, VariantAdvancements.Metric.SCRAPE_BLOCK);
+            }
+        }
         event.setCancellationResult(InteractionResult.SUCCESS_SERVER);
         event.setCanceled(true);
     }
@@ -121,6 +130,9 @@ public class VariantInteractionEvents {
         setEntityVariant(target, changed);
         level.playSound(null, target.blockPosition(), sound, SoundSource.PLAYERS, 1.0F, 1.0F);
         if (!player.getAbilities().instabuild && !held.is(Items.HONEYCOMB)) held.hurtAndBreak(1, player, event.getHand());
+        if (player instanceof ServerPlayer serverPlayer) {
+            VariantAdvancements.interaction(serverPlayer, held.is(Items.HONEYCOMB) ? VariantAdvancements.Metric.WAX_ENTITY : VariantAdvancements.Metric.SCRAPE_ENTITY);
+        }
         event.setCancellationResult(InteractionResult.SUCCESS_SERVER);
         event.setCanceled(true);
     }
@@ -195,13 +207,15 @@ public class VariantInteractionEvents {
         if (pending != null && level.getGameTime() - pending.gameTime() > 1L) pending = null;
         ItemVariantData context = currentVariantUse();
         VariantProvenance.Data contextProvenance = currentProvenance();
+        CraftingChemistry.Data contextChemistry = currentChemistryUse();
         if (event instanceof BlockEvent.EntityMultiPlaceEvent multi) {
             for (BlockSnapshot snapshot : multi.getReplacedBlockSnapshots()) {
                 BlockState placedState = snapshot.getCurrentState();
                 ItemVariantData data = placementVariant(player, placedState.getBlock(), pending, context);
                 VariantProvenance.Data provenance = placementProvenance(player, placedState.getBlock(), pending, context, contextProvenance);
-                if (data != null) replacePlacedBlock(level, snapshot.getPos(), placedState, data, provenance);
-                else attachPlacedProvenance(level, snapshot.getPos(), provenance);
+                CraftingChemistry.Data chemistry = placementChemistry(player, placedState.getBlock(), pending, context, contextChemistry);
+                if (data != null) replacePlacedBlock(level, snapshot.getPos(), placedState, data, provenance, chemistry);
+                else attachPlacedHistory(level, snapshot.getPos(), provenance, chemistry);
             }
             return;
         }
@@ -209,8 +223,9 @@ public class VariantInteractionEvents {
         BlockState placedState = event.getPlacedBlock();
         ItemVariantData data = placementVariant(player, placedState.getBlock(), pending, context);
         VariantProvenance.Data provenance = placementProvenance(player, placedState.getBlock(), pending, context, contextProvenance);
-        if (data != null) replacePlacedBlock(level, event.getPos(), placedState, data, provenance);
-        else attachPlacedProvenance(level, event.getPos(), provenance);
+        CraftingChemistry.Data chemistry = placementChemistry(player, placedState.getBlock(), pending, context, contextChemistry);
+        if (data != null) replacePlacedBlock(level, event.getPos(), placedState, data, provenance, chemistry);
+        else attachPlacedHistory(level, event.getPos(), provenance, chemistry);
     }
 
 }

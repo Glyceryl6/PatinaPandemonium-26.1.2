@@ -13,6 +13,7 @@ import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
 import dev.patina_pandemonium.block.entity.VariantFabricatorBlockEntity;
 import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.effect.TetanusMobEffect;
+import dev.patina_pandemonium.event.PatinaGameplayEvents;
 import dev.patina_pandemonium.item.GeneratedBlockItem;
 import dev.patina_pandemonium.menu.VariantFabricatorMenu;
 import dev.patina_pandemonium.recipe.VariantFormRecipe;
@@ -27,6 +28,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.flag.FeatureFlags;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.*;
@@ -118,6 +120,9 @@ public class DynamicVariantRegistry {
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<VariantProvenance.Data>> BLOCK_ENTITY_PROVENANCE = ATTACHMENTS.register(
         "block_entity_provenance", () -> AttachmentType.builder(VariantProvenance::defaultData)
             .serialize(VariantProvenance.CODEC.fieldOf("provenance")).sync(VariantProvenance.STREAM_CODEC).build());
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<CraftingChemistry.Data>> BLOCK_ENTITY_CHEMISTRY = ATTACHMENTS.register(
+        "block_entity_crafting_chemistry", () -> AttachmentType.builder(CraftingChemistry::emptyData)
+            .serialize(CraftingChemistry.CODEC.fieldOf("chemistry")).build());
     public static final DeferredHolder<MobEffect, TetanusMobEffect> TETANUS = MOB_EFFECTS.register(
         "tetanus", () -> new TetanusMobEffect(0x6F7F61));
     public static final DeferredHolder<RecipeSerializer<?>, RecipeSerializer<VariantWaxingRecipe>> VARIANT_WAXING_RECIPE =
@@ -381,7 +386,8 @@ public class DynamicVariantRegistry {
             return withCraftingChemistry(target, synthesis.data());
         }
 
-        return output;
+        ItemStack target = variantItemStack(output.copyWithCount(output.getCount()), stage, waxed, dye, customColor);
+        return withCraftingChemistry(target, synthesis.data());
     }
 
     public static ItemStack stonecutterRecipeInput(ItemStack input) {
@@ -415,6 +421,10 @@ public class DynamicVariantRegistry {
     }
 
     public static ItemStack inheritStonecutterVariant(ItemStack input, ItemStack output) {
+        return inheritSingleItemVariant(input, output);
+    }
+
+    public static ItemStack inheritSingleItemVariant(ItemStack input, ItemStack output) {
         if (input.isEmpty() || output.isEmpty()) return output;
         VariantState state = variantState(input);
         CraftingChemistry.Data chemistry = input.get(CRAFTING_CHEMISTRY.get());
@@ -459,11 +469,8 @@ public class DynamicVariantRegistry {
             return withCraftingChemistry(mergeCraftingOutput(output, target), chemistry);
         }
 
-        if (isStandaloneVariantItem(output.getItem())) {
-            ItemStack target = variantItemStack(output.copyWithCount(output.getCount()), stage, waxed, dye, customColor);
-            return withCraftingChemistry(target, chemistry);
-        }
-        return output;
+        ItemStack target = variantItemStack(output.copyWithCount(output.getCount()), stage, waxed, dye, customColor);
+        return withCraftingChemistry(target, chemistry);
     }
 
     public static ItemStack stack(VariantData data) {
@@ -788,6 +795,15 @@ public class DynamicVariantRegistry {
         blockEntity.setChanged();
     }
 
+    public static CraftingChemistry.@Nullable Data blockEntityChemistry(BlockEntity blockEntity) {
+        return blockEntity.getExistingDataOrNull(BLOCK_ENTITY_CHEMISTRY.get());
+    }
+
+    public static void setBlockEntityChemistry(BlockEntity blockEntity, CraftingChemistry.Data data) {
+        blockEntity.setData(BLOCK_ENTITY_CHEMISTRY.get(), data);
+        blockEntity.setChanged();
+    }
+
     private static String variantOperation(@Nullable VariantState previous, OxidationStage stage, boolean waxed, @Nullable DyeColor dye,
                                            @Nullable Integer customColor) {
         if (previous == null) return "variant_transform";
@@ -1063,6 +1079,33 @@ public class DynamicVariantRegistry {
         return source != Blocks.AIR && HoneycombItem.getWaxed(source.defaultBlockState()).isPresent();
     }
 
+
+    public static ItemStack entityStack(Entity entity, boolean initializeHistory) {
+        ItemStack picked = entity.getPickResult();
+        if (picked == null || picked.isEmpty()) return ItemStack.EMPTY;
+        ItemVariantData data = entity.getExistingDataOrNull(ENTITY_VARIANT_DATA.get());
+        ItemStack result = data == null ? picked.copy() : transform(picked, data.stage(), data.waxed(), data.dyeColor(), data.customColor());
+        if (result.isEmpty()) result = picked.copy();
+        CraftingChemistry.Data chemistry = entity.getExistingDataOrNull(ENTITY_CHEMISTRY.get());
+        if (chemistry != null) {
+            result.set(CRAFTING_CHEMISTRY.get(), data == null ? chemistry
+                : CraftingChemistry.retarget(chemistry, data.stage(), data.waxed(), data.dyeColor(), data.customColor()));
+        } else if (data != null && result.get(CRAFTING_CHEMISTRY.get()) == null && initializeHistory) {
+            CraftingChemistry.Synthesis synthesis = CraftingChemistry.synthesize(CraftingInput.of(1, 1, List.of(result)));
+            if (synthesis != null) result.set(CRAFTING_CHEMISTRY.get(), synthesis.data());
+        }
+        VariantGenetics.Data genetics = entity.getExistingDataOrNull(ENTITY_GENETICS.get());
+        if (genetics == null && initializeHistory) genetics = VariantGenetics.initialize(entity);
+        if (genetics != null) result.set(GENETICS.get(), genetics);
+        VariantProvenance.Data provenance = entity.getExistingDataOrNull(ENTITY_PROVENANCE.get());
+        if (provenance == null && initializeHistory) {
+            provenance = VariantProvenance.entitySource(entity);
+            entity.setData(ENTITY_PROVENANCE.get(), provenance);
+        }
+        if (provenance != null) result.set(PROVENANCE.get(), provenance);
+        return result;
+    }
+
     public static Component variantItemName(ItemStack stack, ItemVariantData data) {
         Item source = BuiltInRegistries.ITEM.getValue(data.sourceId());
         if (source == Items.AIR) source = stack.getItem();
@@ -1089,6 +1132,19 @@ public class DynamicVariantRegistry {
 
     public static Component variantName(VariantData data, Component sourceName) {
         return variantName(data.stageKey(), colorName(data.dyeColor(), data.customColor()), sourceName, Component.translatable(data.formKey()));
+    }
+
+    public static Component copperStylePrefix(ItemStack stack) {
+        ItemVariantData data = peekItemData(stack);
+        if (data == null) {
+            VariantData blockData = stack.get(VARIANT_DATA.get());
+            if (blockData != null) data = PatinaGameplayEvents.itemVariantData(blockData.normalized(blockData.form()));
+        }
+        if (data == null || data.stage() == OxidationStage.FRESH && !data.waxed() && data.dyeColor() == null && data.customColor() == null) {
+            return Component.empty();
+        }
+        return Component.translatable("item.patina_pandemonium.variant_prefix", Component.translatable(data.stageKey()),
+            colorName(data.dyeColor(), data.customColor()));
     }
 
     private static Component variantName(String stageKey, Component colorName, Component sourceName, Component formName) {

@@ -1,10 +1,12 @@
 package dev.patina_pandemonium.event;
 
 import dev.patina_pandemonium.PatinaPandemonium;
+import dev.patina_pandemonium.advancement.VariantAdvancements;
 import dev.patina_pandemonium.registry.*;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.item.*;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -52,6 +54,9 @@ public class VariantBreedingEvents {
         child.setData(DynamicVariantRegistry.ENTITY_GENETICS.get(), genetics);
         setEntityVariant(child, phenotype);
         VariantGenetics.applyGeneticEffects(child);
+        if (event.getCausedByPlayer() instanceof ServerPlayer player) {
+            VariantAdvancements.evaluateGenetics(player, genetics);
+        }
 
         CraftingChemistry.Data chemistry = breedChemistry(parentAlpha, parentBeta, childPick, phenotype);
         if (chemistry != null) child.setData(DynamicVariantRegistry.ENTITY_CHEMISTRY.get(), chemistry);
