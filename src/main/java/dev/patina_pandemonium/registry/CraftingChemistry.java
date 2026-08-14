@@ -24,6 +24,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 /** Runtime-only virtual chemistry for crafting results. The values are deterministic game mechanics, not claims about real-world substances. */
 public class CraftingChemistry {
@@ -217,9 +218,14 @@ public class CraftingChemistry {
         }
         if (data.groups().isEmpty()) {
             int aggregateStage = Math.clamp((int) Math.round(data.oxidationPermille() / 1_000.0D), 0, 3);
-            groupList.append(Component.translatable("item.patina_pandemonium.chemistry.group.aggregate",
-                Component.translatable("item.patina_pandemonium.chemistry.oxidation." + aggregateStage),
-                Component.translatable("item.patina_pandemonium.chemistry.wax." + (data.waxPermille() >= 500 ? "waxed" : "bare")), color));
+            ArrayList<Component> parts = new ArrayList<>(3);
+            if (aggregateStage > 0) parts.add(Component.translatable("item.patina_pandemonium.chemistry.oxidation." + aggregateStage));
+            if (data.waxPermille() >= 500) parts.add(Component.translatable("item.patina_pandemonium.chemistry.wax.waxed"));
+            if (data.color() != NO_COLOR) {
+                ColorClass colorClass = classify(data.color());
+                parts.add(chromatoName(colorClass.hue(), colorClass.saturation(), colorClass.value()));
+            }
+            groupList.append(Component.translatable("item.patina_pandemonium.chemistry.group.aggregate", descriptorList(parts)));
         }
         boolean polymer = data.generation() > 1 || data.groups().size() > 1 || data.polymerDegreeValue().compareTo(BigInteger.ONE) > 0;
         Component stereo = Component.translatable("item.patina_pandemonium.chemistry.stereo.prefix",
@@ -227,7 +233,8 @@ public class CraftingChemistry {
         Component topology = Component.translatable("item.patina_pandemonium.chemistry.topology." + data.topology());
         Component polymerMode = Component.translatable("item.patina_pandemonium.chemistry.polymer_mode."
             + (polymer ? Long.toString(data.signature() >>> 2 & 7L) : "mono"));
-        Component generation = Component.translatable("item.patina_pandemonium.chemistry.generation", data.generation());
+        Component generation = Component.translatable("item.patina_pandemonium.chemistry.generation",
+            Component.literal(String.format(Locale.ROOT, "%,d", data.generation())));
         return Component.translatable(polymer
                 ? "item.patina_pandemonium.chemistry.name.polymer" : "item.patina_pandemonium.chemistry.name.monomer",
             stereo, groupList, polymerMode, topology, sourceName, color, generation);
@@ -268,23 +275,35 @@ public class CraftingChemistry {
         boolean branch = (packed >>> 24 & 0x1) != 0;
         int chain = packed >>> 25 & 0xF;
         int nesting = Math.max(packed >>> NESTING_SHIFT & 0x7, branch ? 1 : 0);
-        Component color = hue == NO_HUE
-            ? Component.translatable("item.patina_pandemonium.chemistry.chromato.none")
-            : Component.translatable("item.patina_pandemonium.chemistry.chromato.colored",
-                Component.translatable("item.patina_pandemonium.chemistry.value." + value),
-                Component.translatable("item.patina_pandemonium.chemistry.saturation." + saturation),
-                Component.translatable("item.patina_pandemonium.chemistry.hue." + hue));
-        Component group = Component.translatable("item.patina_pandemonium.chemistry.group",
-            locants,
-            Component.translatable("item.patina_pandemonium.chemistry.chain." + chain),
-            Component.translatable("item.patina_pandemonium.chemistry.oxidation." + stage),
-            Component.translatable("item.patina_pandemonium.chemistry.wax." + (waxed ? "waxed" : "bare")),
-            color,
-            Component.translatable("item.patina_pandemonium.chemistry.branch." + (branch ? "poly" : "mono")));
+        ArrayList<Component> parts = new ArrayList<>(4);
+        if (stage > 0) parts.add(Component.translatable("item.patina_pandemonium.chemistry.oxidation." + stage));
+        if (waxed) parts.add(Component.translatable("item.patina_pandemonium.chemistry.wax.waxed"));
+        if (hue != NO_HUE) parts.add(chromatoName(hue, saturation, value));
+        if (branch) parts.add(Component.translatable("item.patina_pandemonium.chemistry.branch.poly"));
+
+        Component group = Component.translatable("item.patina_pandemonium.chemistry.group", locants, descriptorList(parts),
+            Component.translatable("item.patina_pandemonium.chemistry.chain." + chain));
         for (int depth = 0; depth < nesting; depth++) {
             group = Component.translatable("item.patina_pandemonium.chemistry.nested", group);
         }
         return group;
+    }
+
+    private static Component chromatoName(int hue, int saturation, int value) {
+        return Component.translatable("item.patina_pandemonium.chemistry.chromato.colored",
+            Component.translatable("item.patina_pandemonium.chemistry.value." + value),
+            Component.translatable("item.patina_pandemonium.chemistry.saturation." + saturation),
+            Component.translatable("item.patina_pandemonium.chemistry.hue." + hue));
+    }
+
+    private static Component descriptorList(List<Component> parts) {
+        MutableComponent descriptors = Component.empty();
+        for (int index = 0; index < parts.size(); index++) {
+            if (index > 0) descriptors.append(Component.translatable("item.patina_pandemonium.chemistry.descriptor.separator"));
+            descriptors.append(parts.get(index));
+        }
+        if (!parts.isEmpty()) descriptors.append(Component.translatable("item.patina_pandemonium.chemistry.descriptor.tail"));
+        return descriptors;
     }
 
     private static Component locantList(List<Integer> locants) {

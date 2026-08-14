@@ -18,11 +18,12 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import org.jspecify.annotations.NonNull;
 import snownee.jade.api.*;
 import snownee.jade.api.config.IPluginConfig;
+import snownee.jade.api.theme.IThemeHelper;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.Optional;
 
-/** Sends systematic variant names only for the object currently inspected by Jade. */
+/** Synchronizes and replaces Jade object titles only for the variant currently being inspected. */
 @WailaPlugin
 public class PatinaJadePlugin implements IWailaPlugin {
 
@@ -30,14 +31,25 @@ public class PatinaJadePlugin implements IWailaPlugin {
     private static final Identifier ENTITY_NAME = PatinaPandemonium.id("entity_systematic_name");
 
     @Override
-    public void registerClient(IWailaClientRegistration registration) {
-        registration.registerBlockComponent(BlockNameProvider.INSTANCE, Block.class);
-        registration.registerEntityComponent(EntityNameProvider.INSTANCE, Entity.class);
+    public void register(IWailaCommonRegistration registration) {
+        registration.registerBlockDataProvider(BlockNameDataProvider.INSTANCE, BlockEntity.class);
+        registration.registerEntityDataProvider(EntityNameDataProvider.INSTANCE, Entity.class);
     }
 
-    private static class BlockNameProvider implements StreamServerDataProvider<BlockAccessor, Component>, IBlockComponentProvider {
+    @Override
+    public void registerClient(IWailaClientRegistration registration) {
+        registration.registerBlockComponent(BlockNameComponentProvider.INSTANCE, Block.class);
+        registration.registerEntityComponent(EntityNameComponentProvider.INSTANCE, Entity.class);
+    }
 
-        private static final BlockNameProvider INSTANCE = new BlockNameProvider();
+    private static void replaceObjectName(ITooltip tooltip, Component name) {
+        Component title = IThemeHelper.get().title(name);
+        if (!tooltip.replace(JadeIds.CORE_OBJECT_NAME, title)) tooltip.add(0, title, JadeIds.CORE_OBJECT_NAME);
+    }
+
+    private static class BlockNameDataProvider implements StreamServerDataProvider<BlockAccessor, Component> {
+
+        private static final BlockNameDataProvider INSTANCE = new BlockNameDataProvider();
 
         @Override
         public Component streamData(BlockAccessor accessor) {
@@ -64,22 +76,45 @@ public class PatinaJadePlugin implements IWailaPlugin {
         }
 
         @Override
+        public boolean shouldRequestData(BlockAccessor accessor) {
+            BlockEntity blockEntity = accessor.getBlockEntity();
+            return blockEntity != null && (DynamicVariantRegistry.blockEntityVariantData(blockEntity) != null
+                || DynamicVariantRegistry.blockEntityChemistry(blockEntity) != null);
+        }
+
+        @Override
         public @NonNull Identifier getUid() {
             return BLOCK_NAME;
+        }
+
+    }
+
+    private static class BlockNameComponentProvider implements IBlockComponentProvider {
+
+        private static final BlockNameComponentProvider INSTANCE = new BlockNameComponentProvider();
+
+        @Override
+        public @NonNull Identifier getUid() {
+            return BLOCK_NAME;
+        }
+
+        @Override
+        public int getDefaultPriority() {
+            return TooltipPosition.HEAD - 50;
         }
 
         @ParametersAreNonnullByDefault
         @Override
         public void appendTooltip(ITooltip tooltip, BlockAccessor accessor, IPluginConfig config) {
-            Optional<Component> name = this.decodeFromData(accessor);
-            name.ifPresent(component -> tooltip.add(Component.translatable("jade.patina_pandemonium.systematic_name", component)));
+            Optional<Component> name = BlockNameDataProvider.INSTANCE.decodeFromData(accessor);
+            name.ifPresent(component -> replaceObjectName(tooltip, component));
         }
 
     }
 
-    private static class EntityNameProvider implements StreamServerDataProvider<EntityAccessor, Component>, IEntityComponentProvider {
+    private static class EntityNameDataProvider implements StreamServerDataProvider<EntityAccessor, Component> {
 
-        private static final EntityNameProvider INSTANCE = new EntityNameProvider();
+        private static final EntityNameDataProvider INSTANCE = new EntityNameDataProvider();
 
         @Override
         public Component streamData(EntityAccessor accessor) {
@@ -99,15 +134,39 @@ public class PatinaJadePlugin implements IWailaPlugin {
         }
 
         @Override
+        public boolean shouldRequestData(EntityAccessor accessor) {
+            Entity entity = accessor.getEntity();
+            return entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get()) != null
+                || entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_CHEMISTRY.get()) != null
+                || entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_GENETICS.get()) != null;
+        }
+
+        @Override
         public @NonNull Identifier getUid() {
             return ENTITY_NAME;
+        }
+
+    }
+
+    private static class EntityNameComponentProvider implements IEntityComponentProvider {
+
+        private static final EntityNameComponentProvider INSTANCE = new EntityNameComponentProvider();
+
+        @Override
+        public @NonNull Identifier getUid() {
+            return ENTITY_NAME;
+        }
+
+        @Override
+        public int getDefaultPriority() {
+            return TooltipPosition.HEAD - 50;
         }
 
         @ParametersAreNonnullByDefault
         @Override
         public void appendTooltip(ITooltip tooltip, EntityAccessor accessor, IPluginConfig config) {
-            Optional<Component> name = this.decodeFromData(accessor);
-            name.ifPresent(component -> tooltip.add(Component.translatable("jade.patina_pandemonium.systematic_name", component)));
+            Optional<Component> name = EntityNameDataProvider.INSTANCE.decodeFromData(accessor);
+            name.ifPresent(component -> replaceObjectName(tooltip, component));
         }
 
     }

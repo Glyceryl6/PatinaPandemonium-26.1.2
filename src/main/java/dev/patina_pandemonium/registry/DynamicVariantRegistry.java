@@ -559,10 +559,7 @@ public class DynamicVariantRegistry {
         CraftingChemistry.Data chemistry = input.get(CRAFTING_CHEMISTRY.get());
         if (chemistry != null) {
             output.set(CRAFTING_CHEMISTRY.get(), CraftingChemistry.retarget(chemistry, stage, waxed, dye, customColor));
-            return output;
         }
-        CraftingChemistry.Synthesis synthesis = CraftingChemistry.synthesize(CraftingInput.of(1, 1, List.of(output)));
-        if (synthesis != null) output.set(CRAFTING_CHEMISTRY.get(), synthesis.data());
         return output;
     }
 
@@ -1090,9 +1087,6 @@ public class DynamicVariantRegistry {
         if (chemistry != null) {
             result.set(CRAFTING_CHEMISTRY.get(), data == null ? chemistry
                 : CraftingChemistry.retarget(chemistry, data.stage(), data.waxed(), data.dyeColor(), data.customColor()));
-        } else if (data != null && result.get(CRAFTING_CHEMISTRY.get()) == null && initializeHistory) {
-            CraftingChemistry.Synthesis synthesis = CraftingChemistry.synthesize(CraftingInput.of(1, 1, List.of(result)));
-            if (synthesis != null) result.set(CRAFTING_CHEMISTRY.get(), synthesis.data());
         }
         VariantGenetics.Data genetics = entity.getExistingDataOrNull(ENTITY_GENETICS.get());
         if (genetics == null && initializeHistory) genetics = VariantGenetics.initialize(entity);
@@ -1132,19 +1126,6 @@ public class DynamicVariantRegistry {
 
     public static Component variantName(VariantData data, Component sourceName) {
         return variantName(data.stageKey(), colorName(data.dyeColor(), data.customColor()), sourceName, Component.translatable(data.formKey()));
-    }
-
-    public static Component copperStylePrefix(ItemStack stack) {
-        ItemVariantData data = peekItemData(stack);
-        if (data == null) {
-            VariantData blockData = stack.get(VARIANT_DATA.get());
-            if (blockData != null) data = PatinaGameplayEvents.itemVariantData(blockData.normalized(blockData.form()));
-        }
-        if (data == null || data.stage() == OxidationStage.FRESH && !data.waxed() && data.dyeColor() == null && data.customColor() == null) {
-            return Component.empty();
-        }
-        return Component.translatable("item.patina_pandemonium.variant_prefix", Component.translatable(data.stageKey()),
-            colorName(data.dyeColor(), data.customColor()));
     }
 
     private static Component variantName(String stageKey, Component colorName, Component sourceName, Component formName) {
