@@ -331,5 +331,12 @@
   "advancement.patina_pandemonium.genetic_color_divergence_64.title": "Genetic Color Drift 64",
   "advancement.patina_pandemonium.genetic_color_divergence_64.description": "Reach RGB Manhattan distance 64 between genotype and parental phenotype imprint.",
   "advancement.patina_pandemonium.genetic_color_divergence_192.title": "Genetic Color Drift 192",
-  "advancement.patina_pandemonium.genetic_color_divergence_192.description": "Reach RGB Manhattan distance 192 between genotype and parental phenotype imprint."
+  "advancement.patina_pandemonium.genetic_color_divergence_192.description": "Reach RGB Manhattan distance 192 between genotype and parental phenotype imprint.",
+  "key.category.patina_pandemonium.inspection": "Patina Pandemonium: Item Inspection",
+  "key.patina_pandemonium.copy_item_name": "Copy Inspected Item Name",
+  "key.patina_pandemonium.export_tooltip": "Export Full Tooltip Snapshot",
+  "message.patina_pandemonium.item_name_copied": "Copied %1$s characters to the clipboard",
+  "message.patina_pandemonium.tooltip_export_requires_hover": "Hover an item before exporting its full tooltip",
+  "message.patina_pandemonium.tooltip_exported": "Exported the full %1$s-character tooltip to %2$s image(s): %3$s",
+  "message.patina_pandemonium.tooltip_export_failed": "Tooltip export failed: %1$s"
 }

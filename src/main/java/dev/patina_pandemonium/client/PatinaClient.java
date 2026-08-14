@@ -1,6 +1,7 @@
 package dev.patina_pandemonium.client;
 
 import com.google.common.reflect.TypeToken;
+import com.mojang.blaze3d.platform.InputConstants;
 import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.block.PatinaOxidizable;
 import dev.patina_pandemonium.network.PatinaHudSync;
@@ -8,6 +9,7 @@ import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ItemVariantData;
 import dev.patina_pandemonium.registry.VariantForm;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.renderer.block.BlockModelRenderState;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
@@ -22,6 +24,7 @@ import net.minecraft.client.resources.model.geometry.QuadCollection;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.context.ContextKey;
 import net.minecraft.world.entity.Entity;
@@ -35,23 +38,39 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.attachment.AttachmentType;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.ModelEvent;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.client.model.quad.MutableQuad;
 import net.neoforged.neoforge.client.network.event.RegisterClientPayloadHandlersEvent;
+import net.neoforged.neoforge.client.settings.KeyConflictContext;
+import net.neoforged.neoforge.client.settings.KeyModifier;
 import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEvent;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
+
+import org.lwjgl.glfw.GLFW;
 
 /** Replaces carrier descriptors with shared model wrappers and exposes synchronized entity tint data to vanilla renderers. */
 @EventBusSubscriber(modid = PatinaPandemonium.MOD_ID, value = Dist.CLIENT)
 public class PatinaClient {
+
+    private static final KeyMapping.Category INSPECTION_CATEGORY = new KeyMapping.Category(PatinaPandemonium.id("inspection"));
+    private static final KeyMapping COPY_ITEM_NAME = new KeyMapping("key.patina_pandemonium.copy_item_name", KeyConflictContext.UNIVERSAL,
+        KeyModifier.CONTROL_OR_COMMAND, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_C, INSPECTION_CATEGORY);
+    private static final KeyMapping EXPORT_TOOLTIP = new KeyMapping("key.patina_pandemonium.export_tooltip", KeyConflictContext.UNIVERSAL,
+        KeyModifier.ALT, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_P, INSPECTION_CATEGORY);
 
     private static final ContextKey<Integer> ENTITY_TINT = new ContextKey<>(PatinaPandemonium.id("entity_tint"));
     private static final ContextKey<Integer> FIRE_TINT = new ContextKey<>(PatinaPandemonium.id("fire_tint"));
@@ -73,6 +92,78 @@ public class PatinaClient {
         VariantForm.BUTTON, Blocks.STONE_BUTTON,
         VariantForm.PRESSURE_PLATE, Blocks.STONE_PRESSURE_PLATE);
 
+
+    @SubscribeEvent
+    public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
+        event.registerCategory(INSPECTION_CATEGORY);
+        event.register(COPY_ITEM_NAME);
+        event.register(EXPORT_TOOLTIP);
+    }
+
+    @SubscribeEvent
+    public static void onClientTick(ClientTickEvent.Post event) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.screen != null) {
+            while (COPY_ITEM_NAME.consumeClick()) {}
+            while (EXPORT_TOOLTIP.consumeClick()) {}
+            return;
+        }
+        while (COPY_ITEM_NAME.consumeClick()) copyInspectedItemName(true);
+        while (EXPORT_TOOLTIP.consumeClick()) exportInspectedTooltip();
+    }
+
+    @SubscribeEvent
+    public static void onScreenKeyPressed(ScreenEvent.KeyPressed.Pre event) {
+        InputConstants.Key key = InputConstants.getKey(event.getKeyEvent());
+        if (COPY_ITEM_NAME.isActiveAndMatches(key) && copyInspectedItemName(false)) event.setCanceled(true);
+        else if (EXPORT_TOOLTIP.isActiveAndMatches(key) && exportInspectedTooltip()) event.setCanceled(true);
+    }
+
+    private static boolean copyInspectedItemName(boolean allowHeldItem) {
+        Minecraft minecraft = Minecraft.getInstance();
+        ItemStack stack = inspectedStack(allowHeldItem);
+        if (stack.isEmpty()) return false;
+        String name = stack.getHoverName().getString();
+        minecraft.keyboardHandler.setClipboard(name);
+        int characters = name.codePointCount(0, name.length());
+        minecraft.gui.getChat().addClientSystemMessage(
+                Component.translatable("message.patina_pandemonium.item_name_copied",
+                        String.format(Locale.ROOT, "%,d", characters)));
+        return true;
+    }
+
+    private static boolean exportInspectedTooltip() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!TooltipSnapshotExporter.hasCurrentHover()) {
+            minecraft.gui.getChat().addClientSystemMessage(Component.translatable("message.patina_pandemonium.tooltip_export_requires_hover"));
+            return minecraft.screen != null;
+        }
+        try {
+            TooltipSnapshotExporter.ExportResult result = TooltipSnapshotExporter.exportCurrentTooltip();
+            if (result == null) return false;
+            Path first = result.files().getFirst();
+            String relative = minecraft.gameDirectory.toPath().relativize(first).toString();
+            minecraft.gui.getChat().addClientSystemMessage(
+                    Component.translatable("message.patina_pandemonium.tooltip_exported",
+                            String.format(Locale.ROOT, "%,d", result.characters()),
+                            result.files().size(), relative));
+        } catch (IOException | RuntimeException exception) {
+            minecraft.gui.getChat().addClientSystemMessage(
+                    Component.translatable("message.patina_pandemonium.tooltip_export_failed",
+                            exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage()));
+        }
+
+        return true;
+    }
+
+    private static ItemStack inspectedStack(boolean allowHeldItem) {
+        ItemStack hovered = TooltipSnapshotExporter.hoveredStack();
+        if (!hovered.isEmpty() || !allowHeldItem) return hovered;
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) return ItemStack.EMPTY;
+        ItemStack mainHand = minecraft.player.getMainHandItem();
+        return mainHand.isEmpty() ? minecraft.player.getOffhandItem() : mainHand;
+    }
 
     @SubscribeEvent
     public static void registerPayloadHandlers(RegisterClientPayloadHandlersEvent event) {

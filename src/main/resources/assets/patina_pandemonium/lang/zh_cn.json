@@ -331,5 +331,12 @@
   "advancement.patina_pandemonium.genetic_color_divergence_64.title": "遗传色彩漂移 64",
   "advancement.patina_pandemonium.genetic_color_divergence_64.description": "让基因型 RGB 与亲代表型印记的曼哈顿距离达到 64。",
   "advancement.patina_pandemonium.genetic_color_divergence_192.title": "遗传色彩漂移 192",
-  "advancement.patina_pandemonium.genetic_color_divergence_192.description": "让基因型 RGB 与亲代表型印记的曼哈顿距离达到 192。"
+  "advancement.patina_pandemonium.genetic_color_divergence_192.description": "让基因型 RGB 与亲代表型印记的曼哈顿距离达到 192。",
+  "key.category.patina_pandemonium.inspection": "锈色狂欢：物品检查",
+  "key.patina_pandemonium.copy_item_name": "复制检查物品名称",
+  "key.patina_pandemonium.export_tooltip": "导出完整 Tooltip 截图",
+  "message.patina_pandemonium.item_name_copied": "已将 %1$s 个字符复制到剪贴板",
+  "message.patina_pandemonium.tooltip_export_requires_hover": "请先将鼠标悬停在一个物品上，再导出完整 Tooltip",
+  "message.patina_pandemonium.tooltip_exported": "已导出 %1$s 个字符的完整 Tooltip，共 %2$s 张：%3$s",
+  "message.patina_pandemonium.tooltip_export_failed": "Tooltip 导出失败：%1$s"
 }
