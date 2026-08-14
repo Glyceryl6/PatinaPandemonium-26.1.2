@@ -37,17 +37,20 @@ public class PatinaJadePlugin implements IWailaPlugin {
 
     private static final Identifier BLOCK_NAME = PatinaPandemonium.id("block_systematic_name");
     private static final Identifier ENTITY_NAME = PatinaPandemonium.id("entity_systematic_name");
+    private static final Identifier ENTITY_GENETICS_NAME = PatinaPandemonium.id("entity_genetics_systematic_name");
 
     @Override
     public void register(IWailaCommonRegistration registration) {
         registration.registerBlockDataProvider(BlockNameDataProvider.INSTANCE, BlockEntity.class);
         registration.registerEntityDataProvider(EntityNameDataProvider.INSTANCE, Entity.class);
+        registration.registerEntityDataProvider(EntityGeneticsDataProvider.INSTANCE, Entity.class);
     }
 
     @Override
     public void registerClient(IWailaClientRegistration registration) {
         registration.addTooltipCollectedCallback(Integer.MAX_VALUE, ClientTitle::replaceBlockObjectName);
         registration.registerEntityComponent(EntityNameComponentProvider.INSTANCE, Entity.class);
+        registration.registerEntityComponent(EntityGeneticsComponentProvider.INSTANCE, Entity.class);
     }
 
     private static class BlockNameDataProvider implements StreamServerDataProvider<BlockAccessor, Component> {
@@ -111,7 +114,6 @@ public class PatinaJadePlugin implements IWailaPlugin {
                     : CraftingChemistry.retarget(chemistry, variant.stage(), variant.waxed(), variant.dyeColor(), variant.customColor());
                 return CraftingChemistry.name(displayChemistry, sourceName);
             }
-            if (genetics != null && PatinaRules.INSTANCE.showGeneticNames) return VariantGenetics.systematicName(genetics, sourceName);
             if (variant != null) return DynamicVariantRegistry.variantName(variant, sourceName);
             return sourceName;
         }
@@ -132,6 +134,35 @@ public class PatinaJadePlugin implements IWailaPlugin {
         @Override
         public @NonNull Identifier getUid() {
             return ENTITY_NAME;
+        }
+
+    }
+
+    private static class EntityGeneticsDataProvider implements StreamServerDataProvider<EntityAccessor, Component> {
+
+        private static final EntityGeneticsDataProvider INSTANCE = new EntityGeneticsDataProvider();
+
+        @Override
+        public Component streamData(EntityAccessor accessor) {
+            Entity entity = accessor.getEntity();
+            VariantGenetics.Data genetics = entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_GENETICS.get());
+            if (genetics == null || !PatinaRules.INSTANCE.showGeneticNames) return null;
+            return VariantGenetics.systematicName(genetics, entity.getName());
+        }
+
+        @Override
+        public @NonNull StreamCodec<RegistryFriendlyByteBuf, Component> streamCodec() {
+            return ComponentSerialization.STREAM_CODEC;
+        }
+
+        @Override
+        public boolean shouldRequestData(EntityAccessor accessor) {
+            return PatinaRules.INSTANCE.showGeneticNames && accessor.getEntity().getExistingDataOrNull(DynamicVariantRegistry.ENTITY_GENETICS.get()) != null;
+        }
+
+        @Override
+        public @NonNull Identifier getUid() {
+            return ENTITY_GENETICS_NAME;
         }
 
     }
@@ -159,6 +190,31 @@ public class PatinaJadePlugin implements IWailaPlugin {
 
     }
 
+    private static class EntityGeneticsComponentProvider implements IEntityComponentProvider {
+
+        private static final EntityGeneticsComponentProvider INSTANCE = new EntityGeneticsComponentProvider();
+
+        @Override
+        public @NonNull Identifier getUid() {
+            return ENTITY_GENETICS_NAME;
+        }
+
+        @Override
+        public int getDefaultPriority() {
+            return TooltipPosition.HEAD - 49;
+        }
+
+        @ParametersAreNonnullByDefault
+        @Override
+        public void appendTooltip(ITooltip tooltip, EntityAccessor accessor, IPluginConfig config) {
+            EntityGeneticsDataProvider.INSTANCE.decodeFromData(accessor).ifPresent(name -> {
+                MutableComponent line = IThemeHelper.get().info(Component.translatable("jade.patina_pandemonium.genetics_name", name));
+                for (Component wrapped : ClientTitle.wrap(line)) tooltip.add(wrapped, ENTITY_GENETICS_NAME);
+            });
+        }
+
+    }
+
     private static class ClientTitle {
 
         private static void replaceBlockObjectName(BoxElement rootElement, Accessor<?> accessor) {
@@ -171,6 +227,7 @@ public class PatinaJadePlugin implements IWailaPlugin {
                 return picked.isEmpty() ? blockAccessor.getBlock().getName() : picked.getHoverName();
             });
             replaceObjectName(tooltip, name);
+            rootElement.updateSize();
         }
 
         private static void replaceObjectName(ITooltip tooltip, Component name) {
@@ -187,7 +244,8 @@ public class PatinaJadePlugin implements IWailaPlugin {
         private static List<Component> wrap(MutableComponent title) {
             Minecraft minecraft = Minecraft.getInstance();
             Font font = minecraft.font;
-            int maximumWidth = Math.clamp(minecraft.getWindow().getGuiScaledWidth() * 2 / 5, 128, 280);
+            int guiWidth = minecraft.getWindow().getGuiScaledWidth();
+            int maximumWidth = Math.min(Math.max(96, guiWidth - 24), Math.max(220, guiWidth * 2 / 3));
             if (font.width(title) <= maximumWidth) return List.of(title);
             String text = title.getString();
             ArrayList<Component> lines = new ArrayList<>();

@@ -8,10 +8,12 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.*;
+import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.item.*;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.living.BabyEntitySpawnEvent;
+import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
 import java.util.*;
 
@@ -20,6 +22,8 @@ import static dev.patina_pandemonium.event.PatinaGameplayEvents.*;
 /** Event handlers grouped by gameplay responsibility. */
 @EventBusSubscriber(modid = PatinaPandemonium.MOD_ID)
 public class VariantBreedingEvents {
+
+    private static final Map<AgeableMob, LifecycleAdjustment> PENDING_LIFECYCLE = new WeakHashMap<>();
 
     @SubscribeEvent
     public static void onBabyEntitySpawn(BabyEntitySpawnEvent event) {
@@ -54,6 +58,9 @@ public class VariantBreedingEvents {
         child.setData(DynamicVariantRegistry.ENTITY_GENETICS.get(), genetics);
         setEntityVariant(child, phenotype);
         VariantGenetics.applyGeneticEffects(child);
+        if (parentAlpha instanceof Animal animalAlpha) PENDING_LIFECYCLE.put(animalAlpha, LifecycleAdjustment.PARENT_COOLDOWN);
+        if (parentBeta instanceof Animal animalBeta) PENDING_LIFECYCLE.put(animalBeta, LifecycleAdjustment.PARENT_COOLDOWN);
+        PENDING_LIFECYCLE.put(child, LifecycleAdjustment.CHILD_GROWTH);
         if (event.getCausedByPlayer() instanceof ServerPlayer player) {
             VariantAdvancements.evaluateGenetics(player, genetics);
         }
@@ -61,6 +68,19 @@ public class VariantBreedingEvents {
         CraftingChemistry.Data chemistry = breedChemistry(parentAlpha, parentBeta, childPick, phenotype);
         if (chemistry != null) child.setData(DynamicVariantRegistry.ENTITY_CHEMISTRY.get(), chemistry);
         child.setData(DynamicVariantRegistry.ENTITY_PROVENANCE.get(), VariantProvenance.breed(alphaProvenance, betaProvenance, child, genetics));
+    }
+
+    @SubscribeEvent
+    public static void onLifecycleTick(EntityTickEvent.Post event) {
+        if (PENDING_LIFECYCLE.isEmpty() || !(event.getEntity() instanceof AgeableMob ageable)) return;
+        LifecycleAdjustment adjustment = PENDING_LIFECYCLE.remove(ageable);
+        if (adjustment == LifecycleAdjustment.PARENT_COOLDOWN) VariantGenetics.adjustBreedingCooldown(ageable);
+        else if (adjustment == LifecycleAdjustment.CHILD_GROWTH) VariantGenetics.adjustGrowthDuration(ageable);
+    }
+
+    private enum LifecycleAdjustment {
+        PARENT_COOLDOWN,
+        CHILD_GROWTH
     }
 
 }

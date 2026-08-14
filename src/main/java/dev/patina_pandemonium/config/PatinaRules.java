@@ -23,7 +23,7 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 21;
+    public int schemaVersion = 22;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
     public Set<String> excludedItems = new HashSet<>();
@@ -90,6 +90,7 @@ public class PatinaRules {
     public double geneticRecessivePenalty = 0.24D;
     public double geneticHeterosisBonus = 0.35D;
     public double geneticOverdominanceBonus = 0.05D;
+    public double geneticLifecycleEffect = 1.0D;
     public boolean enableAdvancements = true;
     public int advancementScanInterval = 20;
     public JsonObject textureOverrides = new JsonObject();
@@ -164,7 +165,8 @@ public class PatinaRules {
                 rules.enableAdvancements = true;
                 rules.advancementScanInterval = 20;
             }
-            rules.schemaVersion = 21;
+            if (previousSchema < 22) rules.geneticLifecycleEffect = 1.0D;
+            rules.schemaVersion = 22;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
             if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
             if (rules.excludedItems == null) rules.excludedItems = new HashSet<>();
@@ -191,6 +193,7 @@ public class PatinaRules {
             rules.geneticRecessivePenalty = Math.clamp(rules.geneticRecessivePenalty, 0.0D, 0.75D);
             rules.geneticHeterosisBonus = Math.clamp(rules.geneticHeterosisBonus, 0.0D, 0.75D);
             rules.geneticOverdominanceBonus = Math.clamp(rules.geneticOverdominanceBonus, 0.0D, 0.25D);
+            rules.geneticLifecycleEffect = Math.clamp(rules.geneticLifecycleEffect, 0.0D, 2.0D);
             rules.maximumGeneticAncestors = Math.clamp(rules.maximumGeneticAncestors, 4, 256);
             rules.treeScanHorizontalRadius = Math.clamp(rules.treeScanHorizontalRadius, 4, 32);
             rules.treeScanBelow = Math.clamp(rules.treeScanBelow, 0, 8);

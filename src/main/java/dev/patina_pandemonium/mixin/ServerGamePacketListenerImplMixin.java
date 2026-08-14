@@ -1,6 +1,7 @@
 package dev.patina_pandemonium.mixin;
 
 import com.llamalad7.mixinextras.sugar.Local;
+import com.llamalad7.mixinextras.sugar.ref.LocalRef;
 import dev.patina_pandemonium.block.PatinaOxidizable;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import net.minecraft.network.protocol.game.ServerboundPickItemFromBlockPacket;
@@ -8,8 +9,6 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
-
-
 import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -26,9 +25,9 @@ public class ServerGamePacketListenerImplMixin {
             ServerboundPickItemFromBlockPacket packet, CallbackInfo ci,
             @Local(name = "level") ServerLevel level,
             @Local(name = "blockState") BlockState blockState,
-            @Local(name = "itemStack") ItemStack itemStack) {
-        if (blockState.getBlock() instanceof PatinaOxidizable) {
-            ServerGamePacketListenerImpl.addBlockDataToItem(blockState, level, packet.pos(), itemStack);
+            @Local(name = "itemStack") LocalRef<ItemStack> itemStack) {
+        if (blockState.getBlock() instanceof PatinaOxidizable oxidizable) {
+            itemStack.set(oxidizable.patinaCloneItemStack(level, packet.pos(), blockState));
         }
     }
 

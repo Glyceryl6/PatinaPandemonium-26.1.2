@@ -12,8 +12,10 @@ import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.Identifier;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.entity.AgeableMob;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.ai.attributes.Attribute;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -295,7 +297,7 @@ public class VariantGenetics {
         for (int locus = 15; locus <= 17; locus++) if (allele(data, locus, false) != allele(data, locus, true)) overdominantHeterozygotes++;
         int heterosis = Math.clamp(Math.max(0, data.heterozygosityPermille() - 300) / 2 + overdominantHeterozygotes * 55
             - data.inbreedingPermille() / 4, 0, 350);
-        int depression = Math.clamp(data.inbreedingPermille() * 3 / 10 + recessiveHomozygotes * 140, 0, 750);
+        int depression = Math.clamp(data.inbreedingPermille() * 3L / 10 + recessiveHomozygotes * 140, 0, 750);
         return new TraitSummary(recessiveHomozygotes, recessiveCarriers, overdominantHeterozygotes, heterosis, depression,
             homozygous(data, 12, 1), homozygous(data, 13, 1), homozygous(data, 14, 1), heterozygous(data, 15),
             heterozygous(data, 16), heterozygous(data, 17));
@@ -319,6 +321,38 @@ public class VariantGenetics {
             - (traits.attackRiskExposed() ? rules.geneticRecessivePenalty * 0.33D : 0.0D);
         return new FitnessEffects(Math.clamp(health, -0.60D, 0.30D), Math.clamp(movement, -0.45D, 0.22D),
             Math.clamp(attack, -0.45D, 0.25D), Math.clamp(armor * 4.0D, -3.0D, 2.0D));
+    }
+
+    public static LifecycleEffects lifecycleEffects(Data data) {
+        FitnessEffects fitness = fitnessEffects(data);
+        double vigor = fitness.healthMultiplier() * 0.45D + fitness.movementMultiplier() * 0.25D
+            + fitness.attackMultiplier() * 0.20D + fitness.armorDelta() * 0.025D;
+        vigor = Math.clamp(vigor * PatinaRules.INSTANCE.geneticLifecycleEffect, -0.50D, 0.25D);
+        return new LifecycleEffects(Math.clamp(1.0D + vigor, 0.50D, 1.25D),
+            Math.clamp(1.0D - vigor, 0.75D, 1.50D), Math.clamp(1.0D - vigor * 0.80D, 0.80D, 1.40D));
+    }
+
+    public static void adjustLoveDuration(Animal animal) {
+        Data data = animal.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_GENETICS.get());
+        if (data == null || !PatinaRules.INSTANCE.applyGeneticFitnessEffects) return;
+        int current = animal.getInLoveTime();
+        if (current > 0) animal.setInLoveTime(scaleTicks(current, lifecycleEffects(data).loveDurationMultiplier()));
+    }
+
+    public static void adjustBreedingCooldown(AgeableMob animal) {
+        Data data = animal.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_GENETICS.get());
+        if (data == null || !PatinaRules.INSTANCE.applyGeneticFitnessEffects || animal.getAge() <= 0) return;
+        animal.setAge(scaleTicks(animal.getAge(), lifecycleEffects(data).breedingCooldownMultiplier()));
+    }
+
+    public static void adjustGrowthDuration(AgeableMob child) {
+        Data data = child.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_GENETICS.get());
+        if (data == null || !PatinaRules.INSTANCE.applyGeneticFitnessEffects || child.getAge() >= 0) return;
+        child.setAge(-scaleTicks(-child.getAge(), lifecycleEffects(data).growthDurationMultiplier()));
+    }
+
+    private static int scaleTicks(int ticks, double multiplier) {
+        return Math.max(1, (int) Math.min(Integer.MAX_VALUE, Math.round(ticks * multiplier)));
     }
 
     public static void applyGeneticEffects(LivingEntity entity) {
@@ -481,6 +515,8 @@ public class VariantGenetics {
                                boolean attackOverdominant) {}
 
     public record FitnessEffects(double healthMultiplier, double movementMultiplier, double attackMultiplier, double armorDelta) {}
+
+    public record LifecycleEffects(double loveDurationMultiplier, double breedingCooldownMultiplier, double growthDurationMultiplier) {}
 
     private record Gamete(List<Integer> alleles, int recombinations, int mutations) {}
 

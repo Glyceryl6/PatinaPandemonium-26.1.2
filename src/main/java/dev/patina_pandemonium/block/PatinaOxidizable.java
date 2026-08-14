@@ -40,14 +40,18 @@ public interface PatinaOxidizable extends EntityBlock, IBlockExtension {
 
     @Override
     default ItemStack getCloneItemStack(LevelReader level, BlockPos pos, BlockState state, boolean includeData, Player player) {
+        return this.patinaCloneItemStack(level, pos, state);
+    }
+
+    default ItemStack patinaCloneItemStack(LevelReader level, BlockPos pos, BlockState state) {
         PatinaVariantBlockEntity blockEntity = level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity variantBlockEntity ? variantBlockEntity : null;
         VariantData data = blockEntity == null ? VariantData.defaultFor(this.patinaForm()) : blockEntity.data();
         ItemStack stack = DynamicVariantRegistry.stack(data.normalized(this.patinaForm()));
         if (blockEntity == null) return stack;
-        var chemistry = DynamicVariantRegistry.blockEntityChemistry(blockEntity);
+        CraftingChemistry.Data chemistry = DynamicVariantRegistry.blockEntityChemistry(blockEntity);
         if (chemistry != null) stack.set(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get(), CraftingChemistry.retarget(
             chemistry, data.stage(), data.waxed(), data.dyeColor(), data.customColor()));
-        var provenance = DynamicVariantRegistry.blockEntityProvenance(blockEntity);
+        VariantProvenance.Data provenance = DynamicVariantRegistry.blockEntityProvenance(blockEntity);
         if (provenance != null) stack.set(DynamicVariantRegistry.PROVENANCE.get(), provenance);
         return stack;
     }

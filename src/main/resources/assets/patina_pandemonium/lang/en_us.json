@@ -234,5 +234,7 @@
   "advancement.patina_pandemonium.heterosis_250.title": "Heterosis 250‰",
   "advancement.patina_pandemonium.heterosis_250.description": "Reach a heterosis score of 250‰.",
   "advancement.patina_pandemonium.heterosis_500.title": "Heterosis 500‰",
-  "advancement.patina_pandemonium.heterosis_500.description": "Reach a heterosis score of 500‰."
+  "advancement.patina_pandemonium.heterosis_500.description": "Reach a heterosis score of 500‰.",
+  "jade.patina_pandemonium.genetics_name": "Genetic systematic name: %1$s",
+  "tooltip.patina_pandemonium.genetics.lifecycle": "Genetic reproductive cycle: love duration %1$s · breeding cooldown %2$s · juvenile growth duration %3$s"
 }

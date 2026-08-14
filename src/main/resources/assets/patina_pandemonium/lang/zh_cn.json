@@ -234,5 +234,7 @@
   "advancement.patina_pandemonium.heterosis_250.title": "杂种优势 250‰",
   "advancement.patina_pandemonium.heterosis_250.description": "让后代的杂种优势指标达到 250‰。",
   "advancement.patina_pandemonium.heterosis_500.title": "杂种优势 500‰",
-  "advancement.patina_pandemonium.heterosis_500.description": "让后代的杂种优势指标达到 500‰。"
+  "advancement.patina_pandemonium.heterosis_500.description": "让后代的杂种优势指标达到 500‰。",
+  "jade.patina_pandemonium.genetics_name": "遗传系统名：%1$s",
+  "tooltip.patina_pandemonium.genetics.lifecycle": "遗传繁殖周期：求爱持续 %1$s · 繁殖冷却 %2$s · 幼体成长时长 %3$s"
 }

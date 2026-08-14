@@ -27,6 +27,9 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.FireBlock;
 import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
@@ -257,7 +260,6 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
         }
 
         this.restoreAround(level, pos, data);
-        if (this.source instanceof FireBlock && level.getBlockState(pos).is(this)) level.scheduleTick(pos, this, fireTickDelay(level.getRandom()));
     }
 
     @Override
@@ -294,9 +296,6 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
         }
 
         this.restore(level, pos, data);
-        if (this.source instanceof FireBlock && level.getBlockState(pos).is(this)) {
-            level.scheduleTick(pos, this, fireTickDelay(random));
-        }
     }
 
     @Override
@@ -410,8 +409,31 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
         level.gameEvent(sourceEntity, open ? GameEvent.BLOCK_OPEN : GameEvent.BLOCK_CLOSE, pos);
     }
 
-    private static int fireTickDelay(RandomSource random) {
-        return 30 + random.nextInt(10);
+    @Override
+    @Nullable
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
+        if (level.isClientSide() || !(this.source instanceof FireBlock) || !type.equals(DynamicVariantRegistry.VARIANT_BLOCK_ENTITY.get())) return null;
+        return (tickerLevel, pos, tickerState, blockEntity) -> {
+            if (!(tickerLevel instanceof ServerLevel serverLevel) || !tickerState.is(this)) return;
+            int interval = 30 + Math.floorMod(Long.hashCode(pos.asLong()), 10);
+            if (Math.floorMod(serverLevel.getGameTime() + pos.asLong(), interval) != 0) return;
+            this.tickVariantFire(tickerState, serverLevel, pos, serverLevel.getRandom());
+        };
+    }
+
+    private void tickVariantFire(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
+        VariantData data = this.data(level, pos);
+        if (data == null || !(this.source instanceof FireBlock)) return;
+        PatinaGameplayEvents.beginVariantUse(data);
+        beginSourceView();
+        try {
+            this.sourceState(state).tick(level, pos, random);
+        } finally {
+            endSourceView();
+            PatinaGameplayEvents.endVariantUse();
+        }
+
+        this.restoreAround(level, pos, data);
     }
 
     @Nullable
