@@ -2,6 +2,9 @@ package dev.patina_pandemonium.event;
 
 import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.advancement.VariantAdvancements;
+import dev.patina_pandemonium.block.PatinaDelegatingBlock;
+import dev.patina_pandemonium.block.PatinaOxidizable;
+import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
 import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.registry.*;
 import net.minecraft.core.BlockPos;
@@ -13,6 +16,7 @@ import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.player.Player;
@@ -120,6 +124,50 @@ public class VariantInteractionEvents {
             }
         }
         event.setCancellationResult(InteractionResult.SUCCESS_SERVER);
+        event.setCanceled(true);
+    }
+
+    @SubscribeEvent(priority = EventPriority.LOW)
+    public static void onVariantSourceInteraction(PlayerInteractEvent.RightClickBlock event) {
+        Player player = event.getEntity();
+        Level level = player.level();
+        if (level.isClientSide() || event.isCanceled()) return;
+        BlockPos pos = event.getPos();
+        BlockState carrierState = level.getBlockState(pos);
+        if (!(carrierState.getBlock() instanceof PatinaOxidizable oxidizable) || oxidizable.patinaForm() == VariantForm.FULL) return;
+        if (!(level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity)) return;
+        VariantData data = blockEntity.data();
+        Block source = BuiltInRegistries.BLOCK.getValue(data.sourceId());
+        if (source == Blocks.AIR || source == carrierState.getBlock()) return;
+        BlockState sourceState = source.withPropertiesOf(carrierState);
+        ItemStack held = player.getItemInHand(event.getHand());
+        InteractionResult result = InteractionResult.PASS;
+        PatinaGameplayEvents.beginVariantUse(data);
+        PatinaDelegatingBlock.beginExternalSourceView(pos, sourceState, carrierState);
+        try {
+            if (!player.isSecondaryUseActive()) {
+                result = sourceState.useItemOn(held, level, player, event.getHand(), event.getHitVec());
+                if (result == InteractionResult.TRY_WITH_EMPTY_HAND && event.getHand() == InteractionHand.MAIN_HAND) {
+                    result = sourceState.useWithoutItem(level, player, event.getHitVec());
+                }
+                if (result != InteractionResult.PASS && result != InteractionResult.TRY_WITH_EMPTY_HAND) {
+                    event.setCancellationResult(result);
+                    event.setCanceled(true);
+                    return;
+                }
+            }
+
+            if (!held.canPerformAction(ItemAbilities.AXE_STRIP) && !held.canPerformAction(ItemAbilities.AXE_SCRAPE)
+                && !held.canPerformAction(ItemAbilities.AXE_WAX_OFF)) {
+                result = held.useOn(new UseOnContext(player, event.getHand(), event.getHitVec()));
+            }
+        } finally {
+            PatinaDelegatingBlock.endExternalSourceView();
+            PatinaGameplayEvents.endVariantUse();
+        }
+
+        if (result == InteractionResult.PASS || result == InteractionResult.TRY_WITH_EMPTY_HAND) return;
+        event.setCancellationResult(result);
         event.setCanceled(true);
     }
 

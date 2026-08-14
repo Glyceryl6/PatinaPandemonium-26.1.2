@@ -20,7 +20,7 @@ public class LevelMixin {
     @Inject(method = "getBlockState", at = @At("RETURN"), cancellable = true)
     private void patina$useSourceStateDuringDelegation(BlockPos pos, CallbackInfoReturnable<BlockState> callback) {
         BlockState state = callback.getReturnValue();
-        BlockState sourceState = PatinaDelegatingBlock.sourceView(state);
+        BlockState sourceState = PatinaDelegatingBlock.sourceView(pos, state);
         if (sourceState != state) callback.setReturnValue(sourceState);
     }
 

@@ -45,11 +45,14 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayDeque;
+
 /** State-preserving carrier for delegated and stateful full source blocks. */
 public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
 
     private static final ThreadLocal<Block> CONSTRUCTION_SOURCE = new ThreadLocal<>();
     private static final ThreadLocal<Integer> SOURCE_VIEW_DEPTH = new ThreadLocal<>();
+    private static final ThreadLocal<ArrayDeque<SourceView>> EXTERNAL_SOURCE_VIEWS = new ThreadLocal<>();
     private final Block source;
 
     public static PatinaDelegatingBlock create(Block source, BlockBehaviour.Properties properties) {
@@ -85,7 +88,40 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
             ? delegated.sourceState(state) : state;
     }
 
+    public static BlockState sourceView(BlockPos pos, BlockState state) {
+        ArrayDeque<SourceView> views = EXTERNAL_SOURCE_VIEWS.get();
+        if (views != null) {
+            for (SourceView view : views) {
+                if (view.pos().equals(pos) && state.is(view.carrierState().getBlock())) return view.sourceState();
+            }
+        }
+        return sourceView(state);
+    }
+
+    public static void beginExternalSourceView(BlockPos pos, BlockState sourceState, BlockState carrierState) {
+        ArrayDeque<SourceView> views = EXTERNAL_SOURCE_VIEWS.get();
+        if (views == null) {
+            views = new ArrayDeque<>();
+            EXTERNAL_SOURCE_VIEWS.set(views);
+        }
+        views.push(new SourceView(pos.immutable(), sourceState, carrierState));
+    }
+
+    public static void endExternalSourceView() {
+        ArrayDeque<SourceView> views = EXTERNAL_SOURCE_VIEWS.get();
+        if (views == null) return;
+        if (!views.isEmpty()) views.pop();
+        if (views.isEmpty()) EXTERNAL_SOURCE_VIEWS.remove();
+    }
+
     public static BlockState preserveSourceWrite(Level level, BlockPos pos, BlockState state) {
+        ArrayDeque<SourceView> views = EXTERNAL_SOURCE_VIEWS.get();
+        if (views != null) {
+            for (SourceView view : views) {
+                if (view.pos().equals(pos) && state.is(view.sourceState().getBlock())) return view.carrierState();
+            }
+        }
+
         Integer depth = SOURCE_VIEW_DEPTH.get();
         if (depth == null || depth <= 0) return state;
         BlockState current = level.getChunkAt(pos).getBlockState(pos);
@@ -454,5 +490,7 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
         level.setBlock(pos, this.carrierState(state), Block.UPDATE_ALL | Block.UPDATE_KNOWN_SHAPE);
         if (data != null && level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity) blockEntity.setData(data);
     }
+
+    private record SourceView(BlockPos pos, BlockState sourceState, BlockState carrierState) {}
 
 }

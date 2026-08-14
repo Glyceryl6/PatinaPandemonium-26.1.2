@@ -7,6 +7,7 @@ import dev.patina_pandemonium.block.PatinaOxidizable;
 import dev.patina_pandemonium.network.PatinaHudSync;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ItemVariantData;
+import dev.patina_pandemonium.registry.VariantData;
 import dev.patina_pandemonium.registry.VariantForm;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
@@ -26,6 +27,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.util.RandomSource;
 import net.minecraft.util.context.ContextKey;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
@@ -75,6 +77,7 @@ public class PatinaClient {
     private static final ContextKey<Integer> ENTITY_TINT = new ContextKey<>(PatinaPandemonium.id("entity_tint"));
     private static final ContextKey<Integer> FIRE_TINT = new ContextKey<>(PatinaPandemonium.id("fire_tint"));
     private static final ThreadLocal<ArrayDeque<Integer>> MODEL_TINTS = new ThreadLocal<>();
+    private static final EnumMap<VariantForm, PatinaBlockStateModel> VARIANT_BLOCK_MODELS = new EnumMap<>(VariantForm.class);
     private static final long SELECTED_NAME_VISIBLE_MILLIS = 2_500L;
     private static final long SELECTED_NAME_FADE_MILLIS = 500L;
     private static int selectedItemKey = Integer.MIN_VALUE;
@@ -273,6 +276,18 @@ public class PatinaClient {
         parts.replaceAll(part -> tintedPart(part, tint));
     }
 
+    public static void applyBlockVariantModel(BlockModelRenderState renderState, VariantData data) {
+        List<BlockStateModelPart> parts = renderState.modelParts;
+        PatinaBlockStateModel model = VARIANT_BLOCK_MODELS.get(data.form());
+        Block carrier = DynamicVariantRegistry.variantCarrier(data.sourceId(), data.form());
+        if (parts == null || model == null || carrier == null) {
+            applyBlockModelTint(renderState, data.tint());
+            return;
+        }
+        parts.clear();
+        model.collectVariantParts(data, carrier.defaultBlockState(), null, null, RandomSource.create(0L), parts);
+    }
+
     private static BlockStateModelPart tintedPart(BlockStateModelPart part, int tint) {
         QuadCollection.Builder builder = new QuadCollection.Builder();
         for (Direction direction : Direction.values()) {
@@ -307,13 +322,16 @@ public class PatinaClient {
         ItemModel fallbackItem = itemModels.get(BuiltInRegistries.ITEM.getKey(Items.STONE));
         PatinaBlockStateModel.clearCache();
         PatinaItemModel.clearCache();
+        VARIANT_BLOCK_MODELS.clear();
         if (fallbackBlock == null || fallbackItem == null) return;
-        EnumMap<VariantForm, BlockStateModel> sharedBlockModels = new EnumMap<>(VariantForm.class);
+        EnumMap<VariantForm, PatinaBlockStateModel> sharedBlockModels = new EnumMap<>(VariantForm.class);
         EnumMap<VariantForm, ItemModel> sharedItemModels = new EnumMap<>(VariantForm.class);
         for (VariantForm form : VariantForm.values()) {
             Block template = TEMPLATES.get(form);
             BlockStateModel templateModel = blockModels.getOrDefault(template.defaultBlockState(), fallbackBlock);
-            sharedBlockModels.put(form, new PatinaBlockStateModel(originalBlockModels, template, form, templateModel));
+            PatinaBlockStateModel blockModel = new PatinaBlockStateModel(originalBlockModels, template, form, templateModel);
+            sharedBlockModels.put(form, blockModel);
+            VARIANT_BLOCK_MODELS.put(form, blockModel);
             sharedItemModels.put(form, new PatinaItemModel(originalBlockModels, originalItemModels, template, form, fallbackItem, fallbackBlock));
         }
 

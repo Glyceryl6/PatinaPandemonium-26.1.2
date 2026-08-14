@@ -14,6 +14,7 @@ import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.entity.projectile.ItemSupplier;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
@@ -58,14 +59,16 @@ public class VariantEntityEvents {
         ItemStack sourceStack = entity instanceof AbstractArrow arrow ? arrow.getPickupItemStackOrigin()
             : entity instanceof ItemSupplier supplier ? supplier.getItem() : ItemStack.EMPTY;
         ItemVariantData data = DynamicVariantRegistry.variantUseData(sourceStack);
+        VariantData blockData = sourceStack.get(DynamicVariantRegistry.VARIANT_DATA.get());
         CraftingChemistry.Data chemistry = sourceStack.get(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get());
         VariantProvenance.Data provenance = VariantProvenance.get(sourceStack);
         VariantGenetics.Data genetics = VariantGenetics.get(sourceStack);
         if (data == null) data = currentVariantUse();
+        if (blockData == null) blockData = currentBlockVariantUse();
         if (chemistry == null) chemistry = currentChemistryUse();
         if (provenance == null) provenance = currentProvenance();
         if (genetics == null) genetics = currentGeneticsUse();
-        if (data == null && chemistry == null && provenance == null && genetics == null) return;
+        if (data == null && blockData == null && chemistry == null && provenance == null && genetics == null) return;
         if (entity instanceof ItemEntity itemEntity) {
             if (data == null) return;
             ItemStack transformed = DynamicVariantRegistry.transform(itemEntity.getItem(), data.stage(), data.waxed(), data.dyeColor(), data.customColor());
@@ -73,6 +76,10 @@ public class VariantEntityEvents {
             return;
         }
         if (data != null && entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_VARIANT_DATA.get()) == null) setEntityVariant(entity, data);
+        if (blockData != null && blockData.form() != VariantForm.FULL && entity instanceof PrimedTnt
+            && entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_BLOCK_VARIANT_DATA.get()) == null) {
+            entity.setData(DynamicVariantRegistry.ENTITY_BLOCK_VARIANT_DATA.get(), blockData);
+        }
         if (chemistry != null && entity.getExistingDataOrNull(DynamicVariantRegistry.ENTITY_CHEMISTRY.get()) == null) {
             CraftingChemistry.Data attached = data == null ? chemistry
                 : CraftingChemistry.retarget(chemistry, data.stage(), data.waxed(), data.dyeColor(), data.customColor());

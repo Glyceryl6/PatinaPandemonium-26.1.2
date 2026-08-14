@@ -2,6 +2,7 @@ package dev.patina_pandemonium.block;
 
 import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
 import dev.patina_pandemonium.config.PatinaRules;
+import dev.patina_pandemonium.event.PatinaGameplayEvents;
 import dev.patina_pandemonium.registry.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -68,7 +69,16 @@ public interface PatinaOxidizable extends EntityBlock, IBlockExtension {
 
     @Override
     default boolean onCaughtFire(BlockState state, Level level, BlockPos pos, @Nullable Direction direction, @Nullable LivingEntity igniter) {
-        return patinaSourceState(state).onCaughtFire(level, pos, direction, igniter);
+        BlockState sourceState = patinaSourceState(state);
+        VariantData data = level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity ? blockEntity.data() : null;
+        PatinaGameplayEvents.beginVariantUse(data);
+        PatinaDelegatingBlock.beginExternalSourceView(pos, sourceState, state);
+        try {
+            return sourceState.onCaughtFire(level, pos, direction, igniter);
+        } finally {
+            PatinaDelegatingBlock.endExternalSourceView();
+            PatinaGameplayEvents.endVariantUse();
+        }
     }
 
     @Override

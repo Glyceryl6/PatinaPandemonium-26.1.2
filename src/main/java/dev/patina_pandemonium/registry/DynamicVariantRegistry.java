@@ -103,6 +103,9 @@ public class DynamicVariantRegistry {
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<ItemVariantData>> ENTITY_VARIANT_DATA = ATTACHMENTS.register(
         "entity_variant_data", () -> AttachmentType.builder(ItemVariantData::defaultData)
             .serialize(ItemVariantData.CODEC.fieldOf("variant")).sync(ItemVariantData.STREAM_CODEC).build());
+    public static final DeferredHolder<AttachmentType<?>, AttachmentType<VariantData>> ENTITY_BLOCK_VARIANT_DATA = ATTACHMENTS.register(
+        "entity_block_variant_data", () -> AttachmentType.builder(() -> VariantData.defaultFor(VariantForm.FULL))
+            .serialize(VariantData.CODEC.fieldOf("variant")).sync(VariantData.STREAM_CODEC).build());
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<CraftingChemistry.Data>> ENTITY_CHEMISTRY = ATTACHMENTS.register(
         "entity_crafting_chemistry", () -> AttachmentType.builder(CraftingChemistry::emptyData)
             .serialize(CraftingChemistry.CODEC.fieldOf("chemistry")).build());

@@ -44,12 +44,12 @@ public class PatinaGameplayEvents {
     static final ThreadLocal<ArrayDeque<VariantUseFrame>> VARIANT_USE_CONTEXT = new ThreadLocal<>();
 
     public static void beginVariantUse(ItemStack stack) {
-        pushVariantUse(DynamicVariantRegistry.variantUseData(stack), VariantProvenance.get(stack),
+        pushVariantUse(DynamicVariantRegistry.variantUseData(stack), stack.get(DynamicVariantRegistry.VARIANT_DATA.get()), VariantProvenance.get(stack),
             stack.get(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get()), VariantGenetics.get(stack));
     }
 
     public static void beginVariantUse(@Nullable VariantData data) {
-        pushVariantUse(data == null ? null : itemVariantData(data), null, null, null);
+        pushVariantUse(data == null ? null : itemVariantData(data), data, null, null, null);
     }
 
     public static void beginDispenserUse(BlockSource source, ItemStack stack) {
@@ -57,7 +57,7 @@ public class PatinaGameplayEvents {
         VariantData dispenserData = data == null ? DynamicVariantRegistry.blockEntityVariantData(source.blockEntity()) : null;
         VariantProvenance.Data provenance = VariantProvenance.get(stack);
         if (provenance == null) provenance = DynamicVariantRegistry.blockEntityProvenance(source.blockEntity());
-        pushVariantUse(data != null ? data : dispenserData == null ? null : itemVariantData(dispenserData), provenance,
+        pushVariantUse(data != null ? data : dispenserData == null ? null : itemVariantData(dispenserData), stack.get(DynamicVariantRegistry.VARIANT_DATA.get()), provenance,
             stack.get(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get()), VariantGenetics.get(stack));
     }
 
@@ -75,15 +75,15 @@ public class PatinaGameplayEvents {
             ? null : data.forBlock(BuiltInRegistries.BLOCK.getKey(source));
     }
 
-    static void pushVariantUse(@Nullable ItemVariantData data, VariantProvenance.@Nullable Data provenance,
-                                       CraftingChemistry.@Nullable Data chemistry, VariantGenetics.@Nullable Data genetics) {
+    static void pushVariantUse(@Nullable ItemVariantData data, @Nullable VariantData blockData, VariantProvenance.@Nullable Data provenance,
+                               CraftingChemistry.@Nullable Data chemistry, VariantGenetics.@Nullable Data genetics) {
         ArrayDeque<VariantUseFrame> contexts = VARIANT_USE_CONTEXT.get();
         if (contexts == null) {
             contexts = new ArrayDeque<>();
             VARIANT_USE_CONTEXT.set(contexts);
         }
 
-        contexts.push(new VariantUseFrame(data, provenance, chemistry, genetics));
+        contexts.push(new VariantUseFrame(data, blockData, provenance, chemistry, genetics));
     }
 
     public static void endVariantUse() {
@@ -380,6 +380,16 @@ public class PatinaGameplayEvents {
         return null;
     }
 
+    @Nullable
+    static VariantData currentBlockVariantUse() {
+        ArrayDeque<VariantUseFrame> contexts = VARIANT_USE_CONTEXT.get();
+        if (contexts == null) return null;
+        for (VariantUseFrame frame : contexts) {
+            if (frame.blockData() != null) return frame.blockData();
+        }
+        return null;
+    }
+
     static VariantProvenance.@Nullable Data currentProvenance() {
         ArrayDeque<VariantUseFrame> contexts = VARIANT_USE_CONTEXT.get();
         if (contexts == null) return null;
@@ -537,7 +547,8 @@ public class PatinaGameplayEvents {
         return first.waxed() && !second.waxed() ? second : first;
     }
 
-    record VariantUseFrame(@Nullable ItemVariantData data, VariantProvenance.@Nullable Data provenance, CraftingChemistry.@Nullable Data chemistry, VariantGenetics.@Nullable Data genetics) {}
+    record VariantUseFrame(@Nullable ItemVariantData data, @Nullable VariantData blockData, VariantProvenance.@Nullable Data provenance,
+                           CraftingChemistry.@Nullable Data chemistry, VariantGenetics.@Nullable Data genetics) {}
 
     record PendingVariantUse(long gameTime, Item sourceItem, @Nullable ItemVariantData data, VariantProvenance.@Nullable Data provenance,
                              CraftingChemistry.@Nullable Data chemistry) {}

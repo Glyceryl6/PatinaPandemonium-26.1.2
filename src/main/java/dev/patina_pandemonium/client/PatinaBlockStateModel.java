@@ -69,7 +69,7 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
             this.delegate.collectParts(random, parts);
             return;
         }
-        this.collectParts(VariantData.defaultFor(this.form), Blocks.AIR.defaultBlockState(), null, null, random, parts);
+        this.collectVariantParts(VariantData.defaultFor(this.form), Blocks.AIR.defaultBlockState(), null, null, random, parts);
     }
 
     @Override
@@ -79,7 +79,7 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
             this.delegate.collectParts(level, pos, state, random, parts);
             return;
         }
-        this.collectParts(data == null ? this.fallbackData(state) : data.normalized(this.form), state, level, pos, random, parts);
+        this.collectVariantParts(data == null ? this.fallbackData(state) : data.normalized(this.form), state, level, pos, random, parts);
     }
 
     @Override
@@ -103,9 +103,8 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
             : new VariantData(sourceId, OxidationStage.FRESH, false, this.form, null);
     }
 
-    private void collectParts(VariantData data, BlockState carrierState,
-                              @Nullable BlockAndTintGetter level, @Nullable BlockPos pos,
-                              RandomSource random, List<BlockStateModelPart> output) {
+    void collectVariantParts(VariantData data, BlockState carrierState, @Nullable BlockAndTintGetter level, @Nullable BlockPos pos,
+                             RandomSource random, List<BlockStateModelPart> output) {
         RenderContext context = this.context(data, carrierState, level, pos);
         BlockState renderState = this.form == VariantForm.FULL ? context.sourceState() : this.template.withPropertiesOf(carrierState);
         BlockStateModel model = this.models.getOrDefault(renderState, this.delegate);
