@@ -112,6 +112,14 @@ public class VariantInventoryEvents {
             }
         }
 
+        SeededBrewData brew = event.getItemStack().get(DynamicVariantRegistry.SEEDED_BREW_DATA.get());
+        if (brew != null) {
+            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.seed", Long.toUnsignedString(brew.seed(), 16))
+                .withStyle(ChatFormatting.DARK_PURPLE));
+            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.ingredients", brew.ingredientCount())
+                .withStyle(ChatFormatting.DARK_GRAY));
+        }
+
         if (!PatinaRules.INSTANCE.showProvenanceTooltip) return;
         VariantProvenance.Data data = VariantProvenance.get(event.getItemStack());
         if (data == null) return;

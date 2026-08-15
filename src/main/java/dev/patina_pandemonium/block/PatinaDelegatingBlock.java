@@ -18,6 +18,7 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
@@ -26,6 +27,7 @@ import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.FireBlock;
+import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
@@ -46,6 +48,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayDeque;
+import java.util.Optional;
+import java.util.function.BiFunction;
 
 /** State-preserving carrier for delegated and stateful full source blocks. */
 public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
@@ -95,7 +99,31 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
                 if (view.pos().equals(pos) && state.is(view.carrierState().getBlock())) return view.sourceState();
             }
         }
+
         return sourceView(state);
+    }
+
+    @Nullable
+    public static ContainerLevelAccess captureMenuAccess(Level level, BlockPos pos) {
+        ArrayDeque<SourceView> views = EXTERNAL_SOURCE_VIEWS.get();
+        if (views == null) return null;
+        for (SourceView view : views) {
+            if (!view.pos().equals(pos) || view.sourceState().getBlock() instanceof EntityBlock) continue;
+            SourceView captured = new SourceView(view.pos(), view.sourceState(), view.carrierState());
+            return new ContainerLevelAccess() {
+                @Override
+                public <T> Optional<T> evaluate(BiFunction<Level, BlockPos, T> evaluator) {
+                    PatinaDelegatingBlock.beginExternalSourceView(captured.pos(), captured.sourceState(), captured.carrierState());
+                    try {
+                        return Optional.ofNullable(evaluator.apply(level, captured.pos()));
+                    } finally {
+                        PatinaDelegatingBlock.endExternalSourceView();
+                    }
+                }
+            };
+        }
+
+        return null;
     }
 
     public static void beginExternalSourceView(BlockPos pos, BlockState sourceState, BlockState carrierState) {
@@ -449,7 +477,7 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
     @Nullable
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
         if (level.isClientSide() || !(this.source instanceof FireBlock) || !type.equals(DynamicVariantRegistry.VARIANT_BLOCK_ENTITY.get())) return null;
-        return (tickerLevel, pos, tickerState, blockEntity) -> {
+        return (tickerLevel, pos, tickerState, _) -> {
             if (!(tickerLevel instanceof ServerLevel serverLevel) || !tickerState.is(this)) return;
             int interval = 30 + Math.floorMod(Long.hashCode(pos.asLong()), 10);
             if (Math.floorMod(serverLevel.getGameTime() + pos.asLong(), interval) != 0) return;

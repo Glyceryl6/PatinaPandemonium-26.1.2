@@ -8,8 +8,10 @@ import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.block.GeneratedBlockFactory;
 import dev.patina_pandemonium.block.PatinaDelegatingBlock;
 import dev.patina_pandemonium.block.PatinaOxidizable;
+import dev.patina_pandemonium.block.SeededBrewingCauldronBlock;
 import dev.patina_pandemonium.block.VariantFabricatorBlock;
 import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
+import dev.patina_pandemonium.block.entity.SeededBrewingCauldronBlockEntity;
 import dev.patina_pandemonium.block.entity.VariantFabricatorBlockEntity;
 import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.effect.TetanusMobEffect;
@@ -100,6 +102,9 @@ public class DynamicVariantRegistry {
             .networkSynchronized(VariantGenetics.STREAM_CODEC));
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<Integer>> ORIGINAL_MAX_DAMAGE =
         COMPONENTS.registerComponentType("original_max_damage", builder -> builder.persistent(Codec.INT));
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<SeededBrewData>> SEEDED_BREW_DATA =
+        COMPONENTS.registerComponentType("seeded_brew", builder -> builder.persistent(SeededBrewData.CODEC)
+            .networkSynchronized(SeededBrewData.STREAM_CODEC));
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<ItemVariantData>> ENTITY_VARIANT_DATA = ATTACHMENTS.register(
         "entity_variant_data", () -> AttachmentType.builder(ItemVariantData::defaultData)
             .serialize(ItemVariantData.CODEC.fieldOf("variant")).sync(ItemVariantData.STREAM_CODEC).build());
@@ -141,6 +146,13 @@ public class DynamicVariantRegistry {
                     .setId(ResourceKey.create(Registries.BLOCK, id))));
     public static final DeferredItem<BlockItem> VARIANT_FABRICATOR_ITEM = ITEMS.registerItem(
         "variant_fabricator", properties -> new BlockItem(VARIANT_FABRICATOR.get(), properties.useBlockDescriptionPrefix()));
+
+    public static final DeferredBlock<SeededBrewingCauldronBlock> SEEDED_BREWING_CAULDRON = BLOCKS.register(
+        "seeded_brewing_cauldron", id -> new SeededBrewingCauldronBlock(BlockBehaviour.Properties.of()
+            .strength(2.0F, 6.0F).sound(SoundType.METAL).requiresCorrectToolForDrops()
+            .setId(ResourceKey.create(Registries.BLOCK, id))));
+    public static final DeferredItem<BlockItem> SEEDED_BREWING_CAULDRON_ITEM = ITEMS.registerItem(
+        "seeded_brewing_cauldron", properties -> new BlockItem(SEEDED_BREWING_CAULDRON.get(), properties.useBlockDescriptionPrefix()));
 
     public static final DeferredBlock<Block> FULL = carrier("virtual_full", VariantForm.FULL);
     public static final DeferredBlock<Block> SLAB = carrier("virtual_slab", VariantForm.SLAB);
@@ -217,6 +229,9 @@ public class DynamicVariantRegistry {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<VariantFabricatorBlockEntity>> VARIANT_FABRICATOR_BLOCK_ENTITY =
         BLOCK_ENTITY_TYPES.register("variant_fabricator", () -> new BlockEntityType<>(
             VariantFabricatorBlockEntity::new, false, VARIANT_FABRICATOR.get()));
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<SeededBrewingCauldronBlockEntity>> SEEDED_BREWING_CAULDRON_BLOCK_ENTITY =
+        BLOCK_ENTITY_TYPES.register("seeded_brewing_cauldron", () -> new BlockEntityType<>(
+            SeededBrewingCauldronBlockEntity::new, false, SEEDED_BREWING_CAULDRON.get()));
     public static final DeferredHolder<MenuType<?>, MenuType<VariantFabricatorMenu>> VARIANT_FABRICATOR_MENU = MENUS.register(
         "variant_fabricator", () -> new MenuType<>(VariantFabricatorMenu::new, FeatureFlags.VANILLA_SET));
 

@@ -62,6 +62,7 @@ public class ModCreativeTab {
                 .displayItems((_, output) -> {
                     addFullBlocks(output, false, new int[2]);
                     output.accept(DynamicVariantRegistry.VARIANT_FABRICATOR_ITEM.get());
+                    output.accept(DynamicVariantRegistry.SEEDED_BREWING_CAULDRON_ITEM.get());
                 }).build();
     }
 

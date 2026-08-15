@@ -21,6 +21,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
@@ -109,6 +110,26 @@ public class VariantAdvancements {
 
     public static void interaction(ServerPlayer player, Metric metric) {
         if (PatinaRules.INSTANCE.enableAdvancements) trigger(player, metric, 1);
+    }
+
+    public static void evaluateBrewing(ServerPlayer player, int ingredientCount, List<MobEffectInstance> effects, boolean variantIngredient) {
+        if (!PatinaRules.INSTANCE.enableAdvancements) return;
+        trigger(player, Metric.BREWING_BOTTLED, 1);
+        trigger(player, Metric.BREWING_INGREDIENT_COUNT, ingredientCount);
+        trigger(player, Metric.BREWING_EFFECT_COUNT, effects.size());
+        int maximumAmplifier = 0;
+        int maximumDuration = 0;
+        boolean foreign = false;
+        for (MobEffectInstance effect : effects) {
+            maximumAmplifier = Math.max(maximumAmplifier, effect.getAmplifier());
+            maximumDuration = Math.max(maximumDuration, effect.getDuration());
+            Identifier id = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
+            if (id != null && !id.getNamespace().equals("minecraft") && !id.getNamespace().equals(PatinaPandemonium.MOD_ID)) foreign = true;
+        }
+        trigger(player, Metric.BREWING_MAX_AMPLIFIER, maximumAmplifier);
+        trigger(player, Metric.BREWING_MAX_DURATION, maximumDuration);
+        if (variantIngredient) trigger(player, Metric.BREWING_VARIANT_INGREDIENT, 1);
+        if (foreign) trigger(player, Metric.BREWING_FOREIGN_EFFECT, 1);
     }
 
     private static void evaluateProvenance(ServerPlayer player, VariantProvenance.Data provenance) {
@@ -250,11 +271,24 @@ public class VariantAdvancements {
         addChain(resources, random, "heterosis", "recombination", Metric.HETEROSIS, HETEROSIS_THRESHOLDS, "minecraft:golden_carrot");
         addChain(resources, random, "heterozygosity", "recombination", Metric.HETEROZYGOSITY, HETEROZYGOSITY_THRESHOLDS, "minecraft:rabbit_foot");
         addChain(resources, random, "genetic_color_divergence", "recombination", Metric.GENETIC_COLOR_DIVERGENCE, COLOR_DIVERGENCE_THRESHOLDS, "minecraft:magenta_dye");
+        add(resources, random, "brewing_cauldron", "root", Metric.BREWING_PRIMED, 1, PatinaPandemonium.MOD_ID + ":seeded_brewing_cauldron", "task", true, false, false);
+        add(resources, random, "seeded_brew", "brewing_cauldron", Metric.BREWING_BOTTLED, 1, "minecraft:potion", "goal", true, false, false);
+        add(resources, random, "variant_reagent", "seeded_brew", Metric.BREWING_VARIANT_INGREDIENT, 1, "minecraft:oxidized_copper", "goal", true, false, false);
+        add(resources, random, "mixed_potion_2", "seeded_brew", Metric.BREWING_EFFECT_COUNT, 2, "minecraft:potion", "goal", true, false, false);
+        add(resources, random, "mixed_potion_4", "mixed_potion_2", Metric.BREWING_EFFECT_COUNT, 4, "minecraft:potion", "challenge", true, false, false);
+        add(resources, random, "potion_power_4", "mixed_potion_2", Metric.BREWING_MAX_AMPLIFIER, 3, "minecraft:glowstone_dust", "challenge", true, false, false);
+        add(resources, random, "long_potion", "seeded_brew", Metric.BREWING_MAX_DURATION, 18_000, "minecraft:redstone", "challenge", true, false, false);
+        add(resources, random, "foreign_pharmacology", "mixed_potion_2", Metric.BREWING_FOREIGN_EFFECT, 1, "minecraft:knowledge_book", "challenge", true, false, false);
+        add(resources, random, "reagent_chain_16", "seeded_brew", Metric.BREWING_INGREDIENT_COUNT, 16, "minecraft:nether_wart", "challenge", true, false, false);
         addAbsurd(resources, random, "almost_there", Metric.GENETIC_GENERATION, 1_000_000, "minecraft:clock");
         addAbsurd(resources, random, "million_character_name", Metric.NAME_COMPLEXITY, 1_000_000, "minecraft:name_tag");
         addAbsurd(resources, random, "maximal_provenance", Metric.PROVENANCE_NODES, 65_536, "minecraft:enchanted_book");
         addAbsurd(resources, random, "almost_cloned", Metric.INBREEDING, 999, "minecraft:totem_of_undying");
         addAbsurd(resources, random, "impossible_heterosis", Metric.HETEROSIS, 500, "minecraft:nether_star");
+        addAbsurd(resources, random, "all_effects_one_bottle", Metric.BREWING_EFFECT_COUNT, 64, "minecraft:dragon_breath");
+        addAbsurd(resources, random, "amplifier_255", Metric.BREWING_MAX_AMPLIFIER, 255, "minecraft:glowstone_dust");
+        addAbsurd(resources, random, "million_reagents", Metric.BREWING_INGREDIENT_COUNT, 1_000_000, "minecraft:nether_wart");
+        addAbsurd(resources, random, "year_long_potion", Metric.BREWING_MAX_DURATION, 630_720_000, "minecraft:clock");
         return resources;
     }
 
@@ -412,7 +446,15 @@ public class VariantAdvancements {
         INBREEDING("inbreeding"),
         HETEROSIS("heterosis"),
         HETEROZYGOSITY("heterozygosity"),
-        GENETIC_COLOR_DIVERGENCE("genetic_color_divergence");
+        GENETIC_COLOR_DIVERGENCE("genetic_color_divergence"),
+        BREWING_PRIMED("brewing_primed"),
+        BREWING_BOTTLED("brewing_bottled"),
+        BREWING_INGREDIENT_COUNT("brewing_ingredient_count"),
+        BREWING_EFFECT_COUNT("brewing_effect_count"),
+        BREWING_MAX_AMPLIFIER("brewing_max_amplifier"),
+        BREWING_MAX_DURATION("brewing_max_duration"),
+        BREWING_VARIANT_INGREDIENT("brewing_variant_ingredient"),
+        BREWING_FOREIGN_EFFECT("brewing_foreign_effect");
 
         private final String id;
 

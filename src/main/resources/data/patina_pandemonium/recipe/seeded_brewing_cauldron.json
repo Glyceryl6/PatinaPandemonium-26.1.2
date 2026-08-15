@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "minecraft:cauldron",
+    "minecraft:brewing_stand"
+  ],
+  "result": {
+    "count": 1,
+    "id": "patina_pandemonium:seeded_brewing_cauldron"
+  }
+}

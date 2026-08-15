@@ -4,6 +4,7 @@ import com.google.common.reflect.TypeToken;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.block.PatinaOxidizable;
+import dev.patina_pandemonium.block.entity.SeededBrewingCauldronBlockEntity;
 import dev.patina_pandemonium.network.PatinaHudSync;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ItemVariantData;
@@ -12,6 +13,8 @@ import dev.patina_pandemonium.registry.VariantForm;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.color.block.BlockTintSource;
+import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.client.renderer.block.BlockModelRenderState;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModelPart;
@@ -22,6 +25,7 @@ import net.minecraft.client.resources.model.ModelBakery;
 import net.minecraft.client.resources.model.SimpleModelWrapper;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.client.resources.model.geometry.QuadCollection;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -42,6 +46,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.attachment.AttachmentType;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.ModelEvent;
+import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
 import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
@@ -213,6 +218,22 @@ public class PatinaClient {
             y += lineHeight;
         }
         return true;
+    }
+
+    @SubscribeEvent
+    public static void registerBlockTintSources(RegisterColorHandlersEvent.BlockTintSources event) {
+        event.register(List.of(new BlockTintSource() {
+            @Override
+            public int color(BlockState state) {
+                return 0xFF3F76E4;
+            }
+
+            @Override
+            public int colorInWorld(BlockState state, BlockAndTintGetter level, BlockPos pos) {
+                return level.getBlockEntity(pos) instanceof SeededBrewingCauldronBlockEntity blockEntity
+                    ? 0xFF000000 | blockEntity.previewColor() : this.color(state);
+            }
+        }), DynamicVariantRegistry.SEEDED_BREWING_CAULDRON.get());
     }
 
     @SubscribeEvent

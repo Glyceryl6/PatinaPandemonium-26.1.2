@@ -16,6 +16,7 @@ import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.Explosion;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.EntityBlock;
@@ -75,6 +76,20 @@ public interface PatinaOxidizable extends EntityBlock, IBlockExtension {
         PatinaDelegatingBlock.beginExternalSourceView(pos, sourceState, state);
         try {
             return sourceState.onCaughtFire(level, pos, direction, igniter);
+        } finally {
+            PatinaDelegatingBlock.endExternalSourceView();
+            PatinaGameplayEvents.endVariantUse();
+        }
+    }
+
+    @Override
+    default void onBlockExploded(BlockState state, ServerLevel level, BlockPos pos, Explosion explosion) {
+        BlockState sourceState = patinaSourceState(state);
+        VariantData data = level.getBlockEntity(pos) instanceof PatinaVariantBlockEntity blockEntity ? blockEntity.data() : null;
+        PatinaGameplayEvents.beginVariantUse(data);
+        PatinaDelegatingBlock.beginExternalSourceView(pos, sourceState, state);
+        try {
+            sourceState.onBlockExploded(level, pos, explosion);
         } finally {
             PatinaDelegatingBlock.endExternalSourceView();
             PatinaGameplayEvents.endVariantUse();

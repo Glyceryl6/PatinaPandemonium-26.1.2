@@ -16,7 +16,8 @@
     "ServerLevelMixin",
     "SingleItemRecipeMixin",
     "StonecutterMenuMixin",
-    "VillagerMixin"
+    "VillagerMixin",
+    "ContainerLevelAccessMixin"
   ],
   "injectors": {
     "defaultRequire": 1
