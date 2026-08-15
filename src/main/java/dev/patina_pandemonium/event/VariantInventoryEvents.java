@@ -12,6 +12,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.*;
+import net.minecraft.world.level.Level;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
@@ -33,8 +34,9 @@ public class VariantInventoryEvents {
     @SubscribeEvent
     public static void onPlayerTick(PlayerTickEvent.Post event) {
         Player player = event.getEntity();
+        Level level = player.level();
         PatinaRules rules = PatinaRules.INSTANCE;
-        if (!(player instanceof ServerPlayer serverPlayer) || !(player.level() instanceof ServerLevel level)) return;
+        if (!(player instanceof ServerPlayer serverPlayer) || !(level instanceof ServerLevel)) return;
         if (rules.enableAdvancements && Math.floorMod(player.tickCount + player.getId(), rules.advancementScanInterval) == 0) {
             int inventorySize = player.getInventory().getContainerSize();
             if (inventorySize > 0) {
@@ -107,34 +109,32 @@ public class VariantInventoryEvents {
             if (event.getFlags().isAdvanced()) {
                 event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.genetics.meiosis", genetics.recombinations(),
                     genetics.mutations(), genetics.heterozygosityPermille(), genetics.inbreedingPermille()).withStyle(ChatFormatting.DARK_GRAY));
-                event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.genetics.overdominance",
-                    traits.overdominantHeterozygotes()).withStyle(ChatFormatting.DARK_GRAY));
+                event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.genetics.overdominance", traits.overdominantHeterozygotes()).withStyle(ChatFormatting.DARK_GRAY));
             }
         }
 
         SeededBrewData brew = event.getItemStack().get(DynamicVariantRegistry.SEEDED_BREW_DATA.get());
         if (brew != null) {
-            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.seed", Long.toUnsignedString(brew.seed(), 16))
-                .withStyle(ChatFormatting.DARK_PURPLE));
-            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.ingredients", brew.ingredientCount())
-                .withStyle(ChatFormatting.DARK_GRAY));
+            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.seed", Long.toUnsignedString(brew.seed(), 16)).withStyle(ChatFormatting.DARK_PURPLE));
+            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.ingredients", brew.ingredientCount()).withStyle(ChatFormatting.DARK_GRAY));
+            if (brew.redstoneCount() > 0 || brew.glowstoneCount() > 0) {
+                event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.modifiers", brew.redstoneCount(), brew.glowstoneCount()).withStyle(ChatFormatting.DARK_GRAY));
+            }
         }
 
         if (!PatinaRules.INSTANCE.showProvenanceTooltip) return;
         VariantProvenance.Data data = VariantProvenance.get(event.getItemStack());
         if (data == null) return;
-        event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.summary",
-            data.generation(), data.nodes().size(), data.maximumDepth()).withStyle(ChatFormatting.DARK_GRAY));
-        event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.fingerprint",
-            VariantProvenance.shortFingerprint(data)).withStyle(ChatFormatting.DARK_GRAY));
-        if (data.truncated()) event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.truncated")
-            .withStyle(ChatFormatting.GOLD));
+        event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.summary", data.generation(), data.nodes().size(), data.maximumDepth()).withStyle(ChatFormatting.DARK_GRAY));
+        event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.fingerprint", VariantProvenance.shortFingerprint(data)).withStyle(ChatFormatting.DARK_GRAY));
+        if (data.truncated()) event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.truncated").withStyle(ChatFormatting.GOLD));
         if (!event.getFlags().isAdvanced()) return;
         int count = Math.min(PatinaRules.INSTANCE.maximumProvenanceTooltipNodes, data.nodes().size());
         for (int index = data.nodes().size() - count; index < data.nodes().size(); index++) {
             VariantProvenance.Node node = data.nodes().get(index);
-            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.operation", index, node.type().name().toLowerCase(Locale.ROOT),
-                node.operation()).withStyle(ChatFormatting.DARK_GRAY));
+            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.operation",
+                    index, node.type().name().toLowerCase(Locale.ROOT),
+                    node.operation()).withStyle(ChatFormatting.DARK_GRAY));
         }
     }
 

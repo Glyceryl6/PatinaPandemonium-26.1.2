@@ -374,5 +374,8 @@
   "advancement.patina_pandemonium.absurd.million_reagents.title": "The Prescription Is a Database",
   "advancement.patina_pandemonium.absurd.million_reagents.description": "Add one million reagents in sequence to a single batch. Technically possible, but no normal player should do this.",
   "advancement.patina_pandemonium.absurd.year_long_potion.title": "Shelf Life or Effect Duration?",
-  "advancement.patina_pandemonium.absurd.year_long_potion.description": "Bottle an effect lasting one real-time year. The current algorithm caps at 15 minutes, so normal gameplay cannot award this."
+  "advancement.patina_pandemonium.absurd.year_long_potion.description": "Bottle an effect lasting one real-time year. The current algorithm caps at 15 minutes, so normal gameplay cannot award this.",
+  "item.patina_pandemonium.seeded_splash_potion": "Seeded Compound Splash Potion",
+  "item.patina_pandemonium.seeded_lingering_potion": "Seeded Compound Lingering Potion",
+  "tooltip.patina_pandemonium.seeded_brew.modifiers": "Redstone duration: %1$s · Glowstone potency: %2$s"
 }

@@ -374,5 +374,8 @@
   "advancement.patina_pandemonium.absurd.million_reagents.title": "药方写成数据库了",
   "advancement.patina_pandemonium.absurd.million_reagents.description": "在同一锅药液中连续加入一百万份原料。理论上可达成，但没有正常玩家应该这么做。",
   "advancement.patina_pandemonium.absurd.year_long_potion.title": "保质期还是药效期？",
-  "advancement.patina_pandemonium.absurd.year_long_potion.description": "得到持续现实一年长度的药效。当前算法上限为 15 分钟，因此正常玩法不会授予。"
+  "advancement.patina_pandemonium.absurd.year_long_potion.description": "得到持续现实一年长度的药效。当前算法上限为 15 分钟，因此正常玩法不会授予。",
+  "item.patina_pandemonium.seeded_splash_potion": "种子复方喷溅药水",
+  "item.patina_pandemonium.seeded_lingering_potion": "种子复方滞留药水",
+  "tooltip.patina_pandemonium.seeded_brew.modifiers": "红石增时：%1$s · 萤石增幅：%2$s"
 }

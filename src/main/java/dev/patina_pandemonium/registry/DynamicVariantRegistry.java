@@ -1158,18 +1158,24 @@ public class DynamicVariantRegistry {
     }
 
     public static Component variantItemName(ItemStack stack, ItemVariantData data) {
-        Item source = BuiltInRegistries.ITEM.getValue(data.sourceId());
-        if (source == Items.AIR) source = stack.getItem();
-        ItemStack defaultStack = source.getDefaultInstance();
-        ItemStack namingStack = stack.transmuteCopy(source, 1);
-        namingStack.remove(ITEM_VARIANT_DATA.get());
-        namingStack.remove(VARIANT_DATA.get());
-        Component defaultName = defaultStack.get(DataComponents.ITEM_NAME);
-        namingStack.set(DataComponents.ITEM_NAME,
-            defaultName == null ? Component.translatable(source.getDescriptionId()) : defaultName);
-        namingStack.set(DataComponents.ITEM_MODEL, data.modelId() == null ? data.sourceId() : data.modelId());
-        Component sourceName = source.getName(namingStack);
-        if (sourceName.getString().isBlank()) sourceName = Component.translatable(source.getDescriptionId());
+        Component sourceName;
+        if (stack.has(SEEDED_BREW_DATA.get())) {
+            Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+            sourceName = Component.translatable("item." + PatinaPandemonium.MOD_ID + ".seeded_" + itemId.getPath());
+        } else {
+            Item source = BuiltInRegistries.ITEM.getValue(data.sourceId());
+            if (source == Items.AIR) source = stack.getItem();
+            ItemStack defaultStack = source.getDefaultInstance();
+            ItemStack namingStack = stack.transmuteCopy(source, 1);
+            namingStack.remove(ITEM_VARIANT_DATA.get());
+            namingStack.remove(VARIANT_DATA.get());
+            Component defaultName = defaultStack.get(DataComponents.ITEM_NAME);
+            namingStack.set(DataComponents.ITEM_NAME,
+                defaultName == null ? Component.translatable(source.getDescriptionId()) : defaultName);
+            namingStack.set(DataComponents.ITEM_MODEL, data.modelId() == null ? data.sourceId() : data.modelId());
+            sourceName = source.getName(namingStack);
+            if (sourceName.getString().isBlank()) sourceName = Component.translatable(source.getDescriptionId());
+        }
         return variantName(data.stageKey(), colorName(data.dyeColor(), data.customColor()), sourceName, Component.empty());
     }
 

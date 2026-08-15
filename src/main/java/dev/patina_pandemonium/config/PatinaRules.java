@@ -23,7 +23,7 @@ public class PatinaRules {
 
     public static final PatinaRules INSTANCE = load();
 
-    public int schemaVersion = 22;
+    public int schemaVersion = 23;
     public Set<String> excludedNamespaces = new HashSet<>();
     public Set<String> excludedBlocks = new HashSet<>();
     public Set<String> excludedItems = new HashSet<>();
@@ -95,6 +95,13 @@ public class PatinaRules {
     public double geneticLifecycleEffect = 1.0D;
     public boolean enableAdvancements = true;
     public int advancementScanInterval = 20;
+    public int brewingVanillaAffinityWeight = 32;
+    public int brewingBaseMaximumAmplifier = 2;
+    public int brewingMaximumAmplifier = 7;
+    public int brewingGlowstoneAmplifierBonus = 1;
+    public int brewingBaseMaximumDuration = 3_600;
+    public int brewingMaximumDuration = 18_000;
+    public double brewingRedstoneDurationBonus = 0.50D;
     public JsonObject textureOverrides = new JsonObject();
     public JsonObject existingFormOverrides = new JsonObject();
 
@@ -172,7 +179,16 @@ public class PatinaRules {
                 rules.geneticColorFounderVariation = 18;
                 rules.geneticLifecycleEffect = 1.0D;
             }
-            rules.schemaVersion = 22;
+            if (previousSchema < 23) {
+                rules.brewingVanillaAffinityWeight = 32;
+                rules.brewingBaseMaximumAmplifier = 2;
+                rules.brewingMaximumAmplifier = 7;
+                rules.brewingGlowstoneAmplifierBonus = 1;
+                rules.brewingBaseMaximumDuration = 3_600;
+                rules.brewingMaximumDuration = 18_000;
+                rules.brewingRedstoneDurationBonus = 0.50D;
+            }
+            rules.schemaVersion = 23;
             if (rules.excludedNamespaces == null) rules.excludedNamespaces = new HashSet<>();
             if (rules.excludedBlocks == null) rules.excludedBlocks = new HashSet<>();
             if (rules.excludedItems == null) rules.excludedItems = new HashSet<>();
@@ -190,6 +206,13 @@ public class PatinaRules {
             rules.maximumProvenanceContainerEntries = Math.clamp(rules.maximumProvenanceContainerEntries, 0, 4_096);
             rules.maximumProvenanceTooltipNodes = Math.clamp(rules.maximumProvenanceTooltipNodes, 0, 128);
             rules.advancementScanInterval = Math.clamp(rules.advancementScanInterval, 1, 1_200);
+            rules.brewingVanillaAffinityWeight = Math.clamp(rules.brewingVanillaAffinityWeight, 1, 4_096);
+            rules.brewingBaseMaximumAmplifier = Math.clamp(rules.brewingBaseMaximumAmplifier, 0, 7);
+            rules.brewingMaximumAmplifier = Math.clamp(rules.brewingMaximumAmplifier, rules.brewingBaseMaximumAmplifier, 7);
+            rules.brewingGlowstoneAmplifierBonus = Math.clamp(rules.brewingGlowstoneAmplifierBonus, 0, 32);
+            rules.brewingBaseMaximumDuration = Math.clamp(rules.brewingBaseMaximumDuration, 300, 18_000);
+            rules.brewingMaximumDuration = Math.clamp(rules.brewingMaximumDuration, rules.brewingBaseMaximumDuration, 18_000);
+            rules.brewingRedstoneDurationBonus = Math.clamp(rules.brewingRedstoneDurationBonus, 0.0D, 16.0D);
             rules.geneticCrossoverChance = chance(rules.geneticCrossoverChance);
             rules.geneticMutationChance = chance(rules.geneticMutationChance);
             rules.geneticPhenotypeImprintWeight = chance(rules.geneticPhenotypeImprintWeight);
