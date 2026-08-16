@@ -6,6 +6,7 @@ import dev.patina_pandemonium.registry.CraftingChemistry;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ItemVariantData;
 import dev.patina_pandemonium.registry.SeededBrewData;
+import dev.patina_pandemonium.registry.VariantData;
 import dev.patina_pandemonium.registry.VariantGenetics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
@@ -27,23 +28,18 @@ public class ItemStackMixin {
     @Inject(method = "getHoverName", at = @At("RETURN"), cancellable = true)
     private void patina$applyVariantName(CallbackInfoReturnable<Component> callback) {
         ItemStack stack = (ItemStack) (Object) this;
+        Component name = callback.getReturnValue();
         SeededBrewData brew = stack.get(DynamicVariantRegistry.SEEDED_BREW_DATA.get());
-        if (brew != null) {
-            callback.setReturnValue(brew.displayName(stack));
-            return;
-        }
         CraftingChemistry.Data chemistry = stack.get(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get());
-        if (chemistry != null && PatinaRules.INSTANCE.showChemicalNames) {
-            callback.setReturnValue(CraftingChemistry.name(stack, chemistry));
-            return;
-        }
         VariantGenetics.Data genetics = VariantGenetics.get(stack);
-        if (genetics != null && PatinaRules.INSTANCE.showGeneticNames) {
-            callback.setReturnValue(VariantGenetics.systematicName(stack, genetics));
-            return;
-        }
         ItemVariantData data = DynamicVariantRegistry.peekItemData(stack);
-        if (data != null) callback.setReturnValue(DynamicVariantRegistry.variantItemName(stack, data));
+        if (brew != null) name = brew.displayName(stack);
+        else if (chemistry != null && PatinaRules.INSTANCE.showChemicalNames) name = CraftingChemistry.name(stack, chemistry);
+        else if (genetics != null && PatinaRules.INSTANCE.showGeneticNames) name = VariantGenetics.systematicName(stack, genetics);
+        else if (data != null) name = DynamicVariantRegistry.variantItemName(stack, data);
+        VariantData workstation = stack.get(DynamicVariantRegistry.CRAFTING_WORKSTATION_VARIANT.get());
+        if (workstation != null) name = DynamicVariantRegistry.workstationResultName(name, workstation);
+        callback.setReturnValue(name);
     }
 
     @Inject(method = "useOn", at = @At("HEAD"))

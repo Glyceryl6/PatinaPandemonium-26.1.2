@@ -149,6 +149,7 @@ public class VariantInteractionEvents {
                 result = sourceState.useItemOn(held, level, player, event.getHand(), event.getHitVec());
                 if (result == InteractionResult.TRY_WITH_EMPTY_HAND && event.getHand() == InteractionHand.MAIN_HAND) {
                     result = sourceState.useWithoutItem(level, player, event.getHitVec());
+                    CraftingWorkstationContext.capture(player, level, pos, source);
                 }
                 if (result != InteractionResult.PASS && result != InteractionResult.TRY_WITH_EMPTY_HAND) {
                     event.setCancellationResult(result);

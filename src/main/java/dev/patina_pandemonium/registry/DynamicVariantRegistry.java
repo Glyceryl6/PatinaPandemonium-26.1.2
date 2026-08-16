@@ -10,12 +10,12 @@ import dev.patina_pandemonium.block.PatinaDelegatingBlock;
 import dev.patina_pandemonium.block.PatinaOxidizable;
 import dev.patina_pandemonium.block.SeededBrewingCauldronBlock;
 import dev.patina_pandemonium.block.VariantFabricatorBlock;
+import dev.patina_pandemonium.block.entity.LineageCraftingTableBlockEntity;
 import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
 import dev.patina_pandemonium.block.entity.SeededBrewingCauldronBlockEntity;
 import dev.patina_pandemonium.block.entity.VariantFabricatorBlockEntity;
 import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.effect.TetanusMobEffect;
-import dev.patina_pandemonium.event.PatinaGameplayEvents;
 import dev.patina_pandemonium.item.GeneratedBlockItem;
 import dev.patina_pandemonium.menu.VariantFabricatorMenu;
 import dev.patina_pandemonium.recipe.VariantFormRecipe;
@@ -105,6 +105,9 @@ public class DynamicVariantRegistry {
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<SeededBrewData>> SEEDED_BREW_DATA =
         COMPONENTS.registerComponentType("seeded_brew", builder -> builder.persistent(SeededBrewData.CODEC)
             .networkSynchronized(SeededBrewData.STREAM_CODEC));
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<VariantData>> CRAFTING_WORKSTATION_VARIANT =
+        COMPONENTS.registerComponentType("crafting_workstation_variant", builder -> builder.persistent(VariantData.CODEC)
+            .networkSynchronized(VariantData.STREAM_CODEC));
     public static final DeferredHolder<AttachmentType<?>, AttachmentType<ItemVariantData>> ENTITY_VARIANT_DATA = ATTACHMENTS.register(
         "entity_variant_data", () -> AttachmentType.builder(ItemVariantData::defaultData)
             .serialize(ItemVariantData.CODEC.fieldOf("variant")).sync(ItemVariantData.STREAM_CODEC).build());
@@ -226,6 +229,9 @@ public class DynamicVariantRegistry {
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<PatinaVariantBlockEntity>> VARIANT_BLOCK_ENTITY =
         BLOCK_ENTITY_TYPES.register("virtual_variant", () -> new BlockEntityType<>(
             PatinaVariantBlockEntity::new, false, legacyGenerated().toArray(Block[]::new)));
+    public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<LineageCraftingTableBlockEntity>> LINEAGE_CRAFTING_TABLE_BLOCK_ENTITY =
+        BLOCK_ENTITY_TYPES.register("lineage_crafting_table", () -> new BlockEntityType<>(
+            LineageCraftingTableBlockEntity::new, false));
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<VariantFabricatorBlockEntity>> VARIANT_FABRICATOR_BLOCK_ENTITY =
         BLOCK_ENTITY_TYPES.register("variant_fabricator", () -> new BlockEntityType<>(
             VariantFabricatorBlockEntity::new, false, VARIANT_FABRICATOR.get()));
@@ -351,14 +357,27 @@ public class DynamicVariantRegistry {
     }
 
     public static ItemStack inheritCraftingVariant(CraftingInput input, ItemStack output, String operation) {
-        ItemStack result = inheritCraftingVariantVisual(input, output);
-        return VariantProvenance.craft(input, result, operation);
+        return inheritCraftingVariant(input, output, operation, ItemStack.EMPTY);
+    }
+
+    public static ItemStack inheritCraftingVariant(CraftingInput input, ItemStack output, String operation, ItemStack workstation) {
+        ItemStack result = VariantProvenance.craft(input, inheritCraftingVariantVisual(input, output), operation);
+        if (workstation.isEmpty() || input.width() < 3 || input.height() < 3) return result;
+        VariantData workstationData = workstation.get(VARIANT_DATA.get());
+        if (workstationData == null) return result;
+        result.set(CRAFTING_WORKSTATION_VARIANT.get(), workstationData.normalized(workstationData.form()));
+        return VariantProvenance.craftingEquipment(result, workstation, operation);
     }
 
     private static ItemStack inheritCraftingVariantVisual(CraftingInput input, ItemStack output) {
         if (output.isEmpty()) return output;
         CraftingChemistry.Synthesis synthesis = CraftingChemistry.synthesize(input);
-        if (synthesis == null) return output;
+        boolean craftingTable = output.is(Items.CRAFTING_TABLE);
+        if (synthesis == null) {
+            if (!craftingTable) return output;
+            VariantData data = new VariantData(BuiltInRegistries.BLOCK.getKey(Blocks.CRAFTING_TABLE), OxidationStage.FRESH, false, VariantForm.FULL, null);
+            return mergeCraftingOutput(output, stack(data, output.getCount()));
+        }
 
         VariantData explicitBlockData = output.get(VARIANT_DATA.get());
         if (explicitBlockData != null) {
@@ -387,7 +406,9 @@ public class DynamicVariantRegistry {
         Identifier fullSource = fullSourceId(output);
         if (fullSource != null) {
             VariantData data = new VariantData(fullSource, stage, waxed, VariantForm.FULL, dye, customColor);
-            return withCraftingChemistry(mergeCraftingOutput(output, displayStack(data, output.getCount())), synthesis.data());
+            ItemStack target = fullSource.equals(BuiltInRegistries.BLOCK.getKey(Blocks.CRAFTING_TABLE))
+                ? stack(data, output.getCount()) : displayStack(data, output.getCount());
+            return withCraftingChemistry(mergeCraftingOutput(output, target), synthesis.data());
         }
 
         Identifier specialSource = specialSourceId(output);
@@ -501,6 +522,7 @@ public class DynamicVariantRegistry {
 
     public static ItemStack displayStack(VariantData data, int count) {
         VariantData normalized = data.normalized(data.form());
+        if (normalized.sourceId().equals(BuiltInRegistries.BLOCK.getKey(Blocks.CRAFTING_TABLE))) return stack(normalized, count);
         boolean flag = normalized.stage() == OxidationStage.FRESH
                 && !normalized.waxed()
                 && normalized.dyeColor() == null
@@ -763,6 +785,7 @@ public class DynamicVariantRegistry {
      * Keep this as the single extension point for future identity layers such as functional groups.
      */
     public static boolean canCollapseToExistingSource(@Nullable BlockEntity blockEntity, VariantData data) {
+        if (data.sourceId().equals(BuiltInRegistries.BLOCK.getKey(Blocks.CRAFTING_TABLE))) return false;
         if (data.stage() != OxidationStage.FRESH || data.waxed() || data.dyeColor() != null || data.customColor() != null) return false;
         return blockEntity == null || blockEntityChemistry(blockEntity) == null && blockEntityProvenance(blockEntity) == null;
     }
@@ -1204,6 +1227,12 @@ public class DynamicVariantRegistry {
         Component sourceName = DELEGATED_ITEM_SOURCES.containsKey(stack.getItem()) && source.asItem() != Items.AIR
             ? source.asItem().getName(source.asItem().getDefaultInstance()) : source.getName();
         return variantName(data, sourceName);
+    }
+
+    public static Component workstationResultName(Component resultName, VariantData workstation) {
+        ItemStack workstationStack = stack(workstation.normalized(workstation.form()), 1);
+        Component workstationName = generatedBlockName(workstationStack, workstation);
+        return Component.translatable("item.patina_pandemonium.workstation_result_name", workstationName, resultName);
     }
 
     public static Component variantName(VariantData data, Component sourceName) {

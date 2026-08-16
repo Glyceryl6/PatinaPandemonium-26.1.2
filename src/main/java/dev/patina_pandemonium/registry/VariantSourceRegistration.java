@@ -145,7 +145,13 @@ class VariantSourceRegistration {
     }
 
     static void onBlockEntityTypeAddBlocks(BlockEntityTypeAddBlocksEvent event) {
-        if (!SOURCE_CARRIERS.isEmpty()) event.modify(VARIANT_BLOCK_ENTITY.get(), SOURCE_CARRIERS.toArray(Block[]::new));
+        if (SOURCE_CARRIERS.isEmpty()) return;
+        Identifier craftingTableId = BuiltInRegistries.BLOCK.getKey(Blocks.CRAFTING_TABLE);
+        Block[] craftingTables = SOURCE_BINDINGS.stream().filter(binding -> binding.sourceId().equals(craftingTableId))
+            .map(CarrierBinding::block).toArray(Block[]::new);
+        Block[] generic = SOURCE_CARRIERS.stream().filter(block -> !craftingTableId.equals(BLOCK_SOURCES.get(block))).toArray(Block[]::new);
+        if (generic.length > 0) event.modify(VARIANT_BLOCK_ENTITY.get(), generic);
+        if (craftingTables.length > 0) event.modify(LINEAGE_CRAFTING_TABLE_BLOCK_ENTITY.get(), craftingTables);
     }
 
 }

@@ -1,5 +1,6 @@
 package dev.patina_pandemonium.block;
 
+import dev.patina_pandemonium.block.entity.LineageCraftingTableBlockEntity;
 import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
 import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.event.PatinaGameplayEvents;
@@ -7,6 +8,7 @@ import dev.patina_pandemonium.registry.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.LivingEntity;
@@ -37,7 +39,10 @@ public interface PatinaOxidizable extends EntityBlock, IBlockExtension {
 
     @Override
     default BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
-        return new PatinaVariantBlockEntity(pos, state);
+        Identifier sourceId = DynamicVariantRegistry.sourceId(state.getBlock());
+        return BuiltInRegistries.BLOCK.getKey(Blocks.CRAFTING_TABLE).equals(sourceId)
+            ? new LineageCraftingTableBlockEntity(pos, state)
+            : new PatinaVariantBlockEntity(pos, state);
     }
 
     @Override

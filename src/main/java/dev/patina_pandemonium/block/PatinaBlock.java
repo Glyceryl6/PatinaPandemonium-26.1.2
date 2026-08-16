@@ -2,6 +2,7 @@ package dev.patina_pandemonium.block;
 
 import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
 import dev.patina_pandemonium.event.PatinaGameplayEvents;
+import dev.patina_pandemonium.registry.CraftingWorkstationContext;
 import dev.patina_pandemonium.registry.VariantData;
 import dev.patina_pandemonium.registry.VariantForm;
 import net.minecraft.core.BlockPos;
@@ -118,6 +119,7 @@ public class PatinaBlock extends Block implements PatinaOxidizable {
             PatinaGameplayEvents.endVariantUse();
         }
 
+        CraftingWorkstationContext.capture(player, level, pos, this.source);
         this.restore(level, pos, data);
         return result;
     }

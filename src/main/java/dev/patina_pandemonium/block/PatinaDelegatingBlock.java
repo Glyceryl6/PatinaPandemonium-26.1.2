@@ -2,6 +2,7 @@ package dev.patina_pandemonium.block;
 
 import dev.patina_pandemonium.block.entity.PatinaVariantBlockEntity;
 import dev.patina_pandemonium.event.PatinaGameplayEvents;
+import dev.patina_pandemonium.registry.CraftingWorkstationContext;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.VariantData;
 import dev.patina_pandemonium.registry.VariantForm;
@@ -106,14 +107,14 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
         var sourceId = DynamicVariantRegistry.sourceId(state.getBlock());
         if (sourceId != null) {
             Block source = BuiltInRegistries.BLOCK.getValue(sourceId);
-            if (source != null) return source.withPropertiesOf(state);
+            return source.withPropertiesOf(state);
         }
 
         BlockEntity blockEntity = level.getBlockEntity(pos);
         VariantData data = blockEntity == null ? null : DynamicVariantRegistry.blockEntityVariantData(blockEntity);
         if (data == null) return null;
         Block source = BuiltInRegistries.BLOCK.getValue(data.sourceId());
-        return source == null ? null : source.defaultBlockState();
+        return source.defaultBlockState();
     }
 
     public static boolean validatesAsSource(Level level, BlockPos pos, Block expected) {
@@ -374,6 +375,7 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
             PatinaGameplayEvents.endVariantUse();
         }
 
+        CraftingWorkstationContext.capture(player, level, pos, this.source);
         this.restoreAround(level, pos, data);
         return result;
     }

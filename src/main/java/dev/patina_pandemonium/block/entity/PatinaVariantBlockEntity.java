@@ -16,6 +16,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
@@ -34,7 +35,11 @@ public class PatinaVariantBlockEntity extends BlockEntity {
     private ModelData modelData;
 
     public PatinaVariantBlockEntity(BlockPos pos, BlockState state) {
-        super(DynamicVariantRegistry.VARIANT_BLOCK_ENTITY.get(), pos, state);
+        this(DynamicVariantRegistry.VARIANT_BLOCK_ENTITY.get(), pos, state);
+    }
+
+    protected PatinaVariantBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+        super(type, pos, state);
         this.data = defaultData(state);
         this.refreshModelData();
     }

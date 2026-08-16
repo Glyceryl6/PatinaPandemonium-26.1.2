@@ -391,5 +391,6 @@
   "message.patina_pandemonium.isometric_export_requires_item": "Hold a block or item in either hand first.",
   "message.patina_pandemonium.isometric_exported": "Exported %1$s×%1$s transparent isometric PNG: %2$s",
   "message.patina_pandemonium.isometric_export_failed": "Isometric PNG export failed: %1$s",
-  "commands.patina.export_isometric.requested": "Requested a %1$s×%1$s held-item isometric export on the client."
+  "commands.patina.export_isometric.requested": "Requested a %1$s×%1$s held-item isometric export on the client.",
+  "item.patina_pandemonium.workstation_result_name": "%1$s-crafted %2$s"
 }

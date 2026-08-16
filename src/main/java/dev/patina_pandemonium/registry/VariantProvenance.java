@@ -294,6 +294,23 @@ public class VariantProvenance {
         output.set(DynamicVariantRegistry.PROVENANCE.get(), builder.build(root));
     }
 
+    public static ItemStack craftingEquipment(ItemStack output, ItemStack workstation, String operation) {
+        if (output.isEmpty() || workstation.isEmpty()) return output;
+        Builder builder = new Builder();
+        int outputRoot = builder.stackRoot(output, 0);
+        int equipmentRoot = builder.stackRoot(workstation, 1);
+        Data equipmentData = get(workstation);
+        int root = builder.node(NodeType.EQUIPMENT, "crafting_workstation", List.of(outputRoot, equipmentRoot), List.of(0, 1), 0, 0, attributes(
+            "equipment", itemId(workstation),
+            "operation", operation,
+            "equipment_fingerprint", equipmentData == null ? Long.toUnsignedString(builder.fingerprint(equipmentRoot), 16)
+                : Long.toUnsignedString(equipmentData.rootFingerprint(), 16),
+            "equipment_oxidation", oxidationSignature(workstation),
+            "equipment_color", colorSignature(workstation)));
+        output.set(DynamicVariantRegistry.PROVENANCE.get(), builder.build(root));
+        return output;
+    }
+
     public static List<String> attributes(Object... values) {
         ArrayList<String> result = new ArrayList<>(values.length / 2);
         for (int index = 0; index + 1 < values.length; index += 2) {
