@@ -830,6 +830,26 @@ public class DynamicVariantRegistry {
         return blockEntity.getExistingDataOrNull(BLOCK_ENTITY_VARIANT_DATA.get());
     }
 
+    public static ItemStack blockEntityCloneStack(BlockEntity blockEntity, ItemStack sourceStack) {
+        VariantData data = blockEntityVariantData(blockEntity);
+        if (data == null || sourceStack.isEmpty()) return sourceStack;
+        VariantData normalized = data.normalized(data.form());
+        ItemStack stack;
+        if (isNativeBlockEntityVariant(normalized.sourceId(), normalized.form())) {
+            stack = variantItemStack(sourceStack.copy(), normalized.stage(), normalized.waxed(), normalized.dyeColor(), normalized.customColor());
+        } else {
+            stack = stack(normalized, sourceStack.getCount());
+            if (stack.isEmpty()) return sourceStack;
+        }
+
+        CraftingChemistry.Data chemistry = blockEntityChemistry(blockEntity);
+        if (chemistry != null) stack.set(CRAFTING_CHEMISTRY.get(), CraftingChemistry.retarget(
+            chemistry, normalized.stage(), normalized.waxed(), normalized.dyeColor(), normalized.customColor()));
+        VariantProvenance.Data provenance = blockEntityProvenance(blockEntity);
+        if (provenance != null) stack.set(PROVENANCE.get(), provenance);
+        return stack;
+    }
+
     public static void setBlockEntityVariantData(BlockEntity blockEntity, VariantData data) {
         if (blockEntity instanceof PatinaVariantBlockEntity patina) {
             patina.setData(data);
@@ -1158,24 +1178,18 @@ public class DynamicVariantRegistry {
     }
 
     public static Component variantItemName(ItemStack stack, ItemVariantData data) {
-        Component sourceName;
-        if (stack.has(SEEDED_BREW_DATA.get())) {
-            Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
-            sourceName = Component.translatable("item." + PatinaPandemonium.MOD_ID + ".seeded_" + itemId.getPath());
-        } else {
-            Item source = BuiltInRegistries.ITEM.getValue(data.sourceId());
-            if (source == Items.AIR) source = stack.getItem();
-            ItemStack defaultStack = source.getDefaultInstance();
-            ItemStack namingStack = stack.transmuteCopy(source, 1);
-            namingStack.remove(ITEM_VARIANT_DATA.get());
-            namingStack.remove(VARIANT_DATA.get());
-            Component defaultName = defaultStack.get(DataComponents.ITEM_NAME);
-            namingStack.set(DataComponents.ITEM_NAME,
-                defaultName == null ? Component.translatable(source.getDescriptionId()) : defaultName);
-            namingStack.set(DataComponents.ITEM_MODEL, data.modelId() == null ? data.sourceId() : data.modelId());
-            sourceName = source.getName(namingStack);
-            if (sourceName.getString().isBlank()) sourceName = Component.translatable(source.getDescriptionId());
-        }
+        Item source = BuiltInRegistries.ITEM.getValue(data.sourceId());
+        if (source == Items.AIR) source = stack.getItem();
+        ItemStack defaultStack = source.getDefaultInstance();
+        ItemStack namingStack = stack.transmuteCopy(source, 1);
+        namingStack.remove(ITEM_VARIANT_DATA.get());
+        namingStack.remove(VARIANT_DATA.get());
+        Component defaultName = defaultStack.get(DataComponents.ITEM_NAME);
+        namingStack.set(DataComponents.ITEM_NAME,
+            defaultName == null ? Component.translatable(source.getDescriptionId()) : defaultName);
+        namingStack.set(DataComponents.ITEM_MODEL, data.modelId() == null ? data.sourceId() : data.modelId());
+        Component sourceName = source.getName(namingStack);
+        if (sourceName.getString().isBlank()) sourceName = Component.translatable(source.getDescriptionId());
         return variantName(data.stageKey(), colorName(data.dyeColor(), data.customColor()), sourceName, Component.empty());
     }
 

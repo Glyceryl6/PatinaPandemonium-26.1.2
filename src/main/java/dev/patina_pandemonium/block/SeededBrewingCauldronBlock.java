@@ -3,7 +3,11 @@ package dev.patina_pandemonium.block;
 import com.mojang.serialization.MapCodec;
 import dev.patina_pandemonium.block.entity.SeededBrewingCauldronBlockEntity;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
+import dev.patina_pandemonium.registry.ItemVariantData;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
@@ -60,23 +64,24 @@ public class SeededBrewingCauldronBlock extends BaseEntityBlock {
 
         if (stack.is(Items.WATER_BUCKET)) {
             if (cauldron.liquidLevel() != 0) return this.message(player, "message.patina_pandemonium.seeded_brewing.not_empty");
-            cauldron.fill(stack);
+            ItemStack water = stack.copyWithCount(1);
+            cauldron.fill(water);
             this.updateLevel(level, pos, state, cauldron.liquidLevel());
-            if (!player.getAbilities().instabuild) player.setItemInHand(hand, Items.BUCKET.getDefaultInstance());
+            if (!player.getAbilities().instabuild) player.setItemInHand(hand, this.emptyBucket(water));
             level.playSound(null, pos, SoundEvents.BUCKET_EMPTY, SoundSource.BLOCKS, 1.0F, 1.0F);
             return InteractionResult.SUCCESS_SERVER;
         }
 
         if (stack.is(Items.NETHER_WART)) {
             if (cauldron.liquidLevel() <= 0) return this.message(player, "message.patina_pandemonium.seeded_brewing.needs_water");
-            if (!cauldron.prime(serverPlayer, stack)) return this.message(player, "message.patina_pandemonium.seeded_brewing.already_primed");
+            if (!cauldron.prime(serverPlayer, stack.copyWithCount(1))) return this.message(player, "message.patina_pandemonium.seeded_brewing.already_primed");
             if (!player.getAbilities().instabuild) stack.shrink(1);
             level.playSound(null, pos, SoundEvents.BREWING_STAND_BREW, SoundSource.BLOCKS, 1.0F, 0.9F);
             return InteractionResult.SUCCESS_SERVER;
         }
 
         if (stack.is(Items.GLASS_BOTTLE)) {
-            ItemStack potion = cauldron.bottle(serverPlayer, stack);
+            ItemStack potion = cauldron.bottle(serverPlayer, stack.copyWithCount(1));
             if (potion.isEmpty()) {
                 String key = cauldron.primed() ? cauldron.brewing()
                     ? "message.patina_pandemonium.seeded_brewing.processing"
@@ -99,6 +104,17 @@ public class SeededBrewingCauldronBlock extends BaseEntityBlock {
         if (!player.getAbilities().instabuild) stack.shrink(1);
         level.playSound(null, pos, SoundEvents.BREWING_STAND_BREW, SoundSource.BLOCKS, 0.8F, 1.15F);
         return InteractionResult.SUCCESS_SERVER;
+    }
+
+    private ItemStack emptyBucket(ItemStack waterBucket) {
+        ItemStack result = new ItemStack(Items.BUCKET);
+        ItemVariantData variant = DynamicVariantRegistry.peekItemData(waterBucket);
+        if (variant == null) return result;
+        Identifier id = BuiltInRegistries.ITEM.getKey(Items.BUCKET);
+        result.set(DynamicVariantRegistry.ITEM_VARIANT_DATA.get(), new ItemVariantData(id, variant.stage(), variant.waxed(),
+            variant.dyeColor(), id, variant.customColor()));
+        result.set(DataComponents.ITEM_MODEL, DynamicVariantRegistry.VARIANT_ITEM_MODEL);
+        return result;
     }
 
     private InteractionResult message(Player player, String key) {

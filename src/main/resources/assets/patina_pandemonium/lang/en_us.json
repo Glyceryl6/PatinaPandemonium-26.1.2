@@ -377,5 +377,14 @@
   "advancement.patina_pandemonium.absurd.year_long_potion.description": "Bottle an effect lasting one real-time year. The current algorithm caps at 15 minutes, so normal gameplay cannot award this.",
   "item.patina_pandemonium.seeded_splash_potion": "Seeded Compound Splash Potion",
   "item.patina_pandemonium.seeded_lingering_potion": "Seeded Compound Lingering Potion",
-  "tooltip.patina_pandemonium.seeded_brew.modifiers": "Redstone duration: %1$s · Glowstone potency: %2$s"
+  "item.patina_pandemonium.seeded_potion.systematic": "%1$s-G%2$s-%3$s",
+  "item.patina_pandemonium.seeded_potion.generation": "G%1$s-%2$s",
+  "item.patina_pandemonium.seeded_potion.truncated_prefix": "%1$s-…%2$s more lineage steps",
+  "tooltip.patina_pandemonium.seeded_brew.generation": "Brewing generation: G%1$s · potency budget: %2$s",
+  "tooltip.patina_pandemonium.seeded_brew.lineage": "Cumulative brew lineage: %1$s steps · Potion ancestors: %2$s",
+  "tooltip.patina_pandemonium.seeded_brew.modifiers": "Redstone: %1$s · glowstone: %2$s · delivery: %3$s",
+  "tooltip.patina_pandemonium.seeded_brew.affinity": "Latent affinity: %1$s ×%2$s",
+  "tooltip.patina_pandemonium.seeded_brew.delivery.drinkable": "drinkable",
+  "tooltip.patina_pandemonium.seeded_brew.delivery.splash": "splash",
+  "tooltip.patina_pandemonium.seeded_brew.delivery.lingering": "lingering"
 }

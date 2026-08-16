@@ -137,6 +137,13 @@ class VariantSourceRegistration {
         SOURCE_BINDINGS.add(new CarrierBinding(sourceId, VariantForm.FULL, block, item));
     }
 
+    static void onStaticItemsRegistered(RegisterEvent event) {
+        if (!event.getRegistryKey().equals(Registries.ITEM)) return;
+        Item cauldron = SEEDED_BREWING_CAULDRON_ITEM.get();
+        STANDALONE_VARIANT_ITEMS.add(cauldron);
+        NATIVE_BLOCK_ENTITY_SOURCE_IDS.add(BuiltInRegistries.BLOCK.getKey(SEEDED_BREWING_CAULDRON.get()));
+    }
+
     static void onBlockEntityTypeAddBlocks(BlockEntityTypeAddBlocksEvent event) {
         if (!SOURCE_CARRIERS.isEmpty()) event.modify(VARIANT_BLOCK_ENTITY.get(), SOURCE_CARRIERS.toArray(Block[]::new));
     }

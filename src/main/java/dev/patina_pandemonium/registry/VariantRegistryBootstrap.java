@@ -18,6 +18,7 @@ public class VariantRegistryBootstrap {
         DynamicVariantRegistry.BLOCK_ENTITY_TYPES.register(modBus);
         DynamicVariantRegistry.MENUS.register(modBus);
         VariantAdvancements.TRIGGERS.register(modBus);
+        modBus.addListener(VariantSourceRegistration::onStaticItemsRegistered);
     }
 
 }

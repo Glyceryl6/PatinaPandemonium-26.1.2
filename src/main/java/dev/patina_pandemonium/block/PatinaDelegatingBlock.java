@@ -366,13 +366,16 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
     protected InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
         if (this.source instanceof DoorBlock door) return this.useDoor(state, level, pos, player, door);
         VariantData data = this.data(level, pos);
+        BlockState sourceState = this.sourceState(state);
         PatinaGameplayEvents.beginVariantUse(data);
+        beginExternalSourceView(pos, sourceState, state);
         beginSourceView();
         InteractionResult result;
         try {
-            result = this.sourceState(state).useWithoutItem(level, player, hit);
+            result = sourceState.useWithoutItem(level, player, hit);
         } finally {
             endSourceView();
+            endExternalSourceView();
             PatinaGameplayEvents.endVariantUse();
         }
 
@@ -383,13 +386,16 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
     @Override
     protected InteractionResult useItemOn(ItemStack stack, BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
         VariantData data = this.data(level, pos);
+        BlockState sourceState = this.sourceState(state);
         PatinaGameplayEvents.beginVariantUse(data);
+        beginExternalSourceView(pos, sourceState, state);
         beginSourceView();
         InteractionResult result;
         try {
-            result = this.sourceState(state).useItemOn(stack, level, player, hand, hit);
+            result = sourceState.useItemOn(stack, level, player, hand, hit);
         } finally {
             endSourceView();
+            endExternalSourceView();
             PatinaGameplayEvents.endVariantUse();
         }
 

@@ -109,32 +109,48 @@ public class VariantInventoryEvents {
             if (event.getFlags().isAdvanced()) {
                 event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.genetics.meiosis", genetics.recombinations(),
                     genetics.mutations(), genetics.heterozygosityPermille(), genetics.inbreedingPermille()).withStyle(ChatFormatting.DARK_GRAY));
-                event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.genetics.overdominance", traits.overdominantHeterozygotes()).withStyle(ChatFormatting.DARK_GRAY));
+                event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.genetics.overdominance",
+                    traits.overdominantHeterozygotes()).withStyle(ChatFormatting.DARK_GRAY));
             }
         }
 
         SeededBrewData brew = event.getItemStack().get(DynamicVariantRegistry.SEEDED_BREW_DATA.get());
         if (brew != null) {
-            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.seed", Long.toUnsignedString(brew.seed(), 16)).withStyle(ChatFormatting.DARK_PURPLE));
-            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.ingredients", brew.ingredientCount()).withStyle(ChatFormatting.DARK_GRAY));
-            if (brew.redstoneCount() > 0 || brew.glowstoneCount() > 0) {
-                event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.modifiers", brew.redstoneCount(), brew.glowstoneCount()).withStyle(ChatFormatting.DARK_GRAY));
+            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.seed", Long.toUnsignedString(brew.seed(), 16))
+                .withStyle(ChatFormatting.DARK_PURPLE));
+            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.ingredients", brew.ingredientCount())
+                .withStyle(ChatFormatting.DARK_GRAY));
+            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.generation", brew.generation(), brew.potencyBudget())
+                .withStyle(ChatFormatting.DARK_AQUA));
+            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.lineage", brew.lineageLength(), brew.parentCount())
+                .withStyle(ChatFormatting.DARK_GRAY));
+            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.modifiers", brew.redstoneCount(), brew.glowstoneCount(), brew.deliveryName())
+                .withStyle(ChatFormatting.DARK_GRAY));
+            if (event.getFlags().isAdvanced()) {
+                int count = Math.min(8, brew.affinities().size());
+                for (int index = 0; index < count; index++) {
+                    SeededBrewData.Affinity affinity = brew.affinities().get(index);
+                    event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.seeded_brew.affinity",
+                        affinity.effectId().toString(), affinity.weight()).withStyle(ChatFormatting.DARK_PURPLE));
+                }
             }
         }
 
         if (!PatinaRules.INSTANCE.showProvenanceTooltip) return;
         VariantProvenance.Data data = VariantProvenance.get(event.getItemStack());
         if (data == null) return;
-        event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.summary", data.generation(), data.nodes().size(), data.maximumDepth()).withStyle(ChatFormatting.DARK_GRAY));
-        event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.fingerprint", VariantProvenance.shortFingerprint(data)).withStyle(ChatFormatting.DARK_GRAY));
-        if (data.truncated()) event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.truncated").withStyle(ChatFormatting.GOLD));
+        event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.summary",
+            data.generation(), data.nodes().size(), data.maximumDepth()).withStyle(ChatFormatting.DARK_GRAY));
+        event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.fingerprint",
+            VariantProvenance.shortFingerprint(data)).withStyle(ChatFormatting.DARK_GRAY));
+        if (data.truncated()) event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.truncated")
+            .withStyle(ChatFormatting.GOLD));
         if (!event.getFlags().isAdvanced()) return;
         int count = Math.min(PatinaRules.INSTANCE.maximumProvenanceTooltipNodes, data.nodes().size());
         for (int index = data.nodes().size() - count; index < data.nodes().size(); index++) {
             VariantProvenance.Node node = data.nodes().get(index);
-            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.operation",
-                    index, node.type().name().toLowerCase(Locale.ROOT),
-                    node.operation()).withStyle(ChatFormatting.DARK_GRAY));
+            event.getToolTip().add(Component.translatable("tooltip.patina_pandemonium.provenance.operation", index, node.type().name().toLowerCase(Locale.ROOT),
+                node.operation()).withStyle(ChatFormatting.DARK_GRAY));
         }
     }
 

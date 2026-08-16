@@ -377,5 +377,14 @@
   "advancement.patina_pandemonium.absurd.year_long_potion.description": "得到持续现实一年长度的药效。当前算法上限为 15 分钟，因此正常玩法不会授予。",
   "item.patina_pandemonium.seeded_splash_potion": "种子复方喷溅药水",
   "item.patina_pandemonium.seeded_lingering_potion": "种子复方滞留药水",
-  "tooltip.patina_pandemonium.seeded_brew.modifiers": "红石增时：%1$s · 萤石增幅：%2$s"
+  "item.patina_pandemonium.seeded_potion.systematic": "%1$s-G%2$s-%3$s",
+  "item.patina_pandemonium.seeded_potion.generation": "G%1$s-%2$s",
+  "item.patina_pandemonium.seeded_potion.truncated_prefix": "%1$s-……另有%2$s步谱系",
+  "tooltip.patina_pandemonium.seeded_brew.generation": "炼药代数：G%1$s · 强度预算：%2$s",
+  "tooltip.patina_pandemonium.seeded_brew.lineage": "累计酿造谱系步数：%1$s · 药水祖先：%2$s",
+  "tooltip.patina_pandemonium.seeded_brew.modifiers": "红石：%1$s · 萤石：%2$s · 形态：%3$s",
+  "tooltip.patina_pandemonium.seeded_brew.affinity": "潜在亲和：%1$s ×%2$s",
+  "tooltip.patina_pandemonium.seeded_brew.delivery.drinkable": "饮用",
+  "tooltip.patina_pandemonium.seeded_brew.delivery.splash": "喷溅",
+  "tooltip.patina_pandemonium.seeded_brew.delivery.lingering": "滞留"
 }

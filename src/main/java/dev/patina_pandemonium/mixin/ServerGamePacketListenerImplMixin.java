@@ -9,6 +9,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -28,7 +29,11 @@ public class ServerGamePacketListenerImplMixin {
             @Local(name = "itemStack") LocalRef<ItemStack> itemStack) {
         if (blockState.getBlock() instanceof PatinaOxidizable oxidizable) {
             itemStack.set(oxidizable.patinaCloneItemStack(level, packet.pos(), blockState));
+            return;
         }
+
+        BlockEntity blockEntity = level.getBlockEntity(packet.pos());
+        if (blockEntity != null) itemStack.set(DynamicVariantRegistry.blockEntityCloneStack(blockEntity, itemStack.get()));
     }
 
     @Redirect(method = "handlePickItemFromEntity", at = @At(value = "INVOKE",

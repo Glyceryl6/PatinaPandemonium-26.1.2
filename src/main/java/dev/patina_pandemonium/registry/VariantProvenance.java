@@ -163,6 +163,34 @@ public class VariantProvenance {
         return output;
     }
 
+    /** Starts a brewing lineage with the physical cauldron and the actual water container as ordered inputs. */
+    public static Data brewStart(ItemStack cauldron, ItemStack water, List<String> extraAttributes) {
+        Builder builder = new Builder();
+        ArrayList<Integer> roots = new ArrayList<>(2);
+        roots.add(builder.stackRoot(cauldron, 0));
+        roots.add(builder.stackRoot(water, 0));
+        return builder.build(builder.node(NodeType.BREW, "brew_fill", roots, List.of(0, 1), 2, 1, extraAttributes));
+    }
+
+    /** Adds one ordered reagent or modifier to an existing brew without flattening its previous brewing graph. */
+    public static Data brewStep(Data batch, ItemStack reagent, String operation, List<String> extraAttributes) {
+        Builder builder = new Builder();
+        int previous = builder.importData(batch);
+        int ingredient = builder.stackRoot(reagent, 0);
+        return builder.build(builder.node(NodeType.BREW, operation, List.of(previous, ingredient), List.of(0, 1), 2, 1, extraAttributes));
+    }
+
+    /** Finalizes one bottle while leaving the cauldron batch lineage untouched for the remaining liquid. */
+    public static ItemStack brewBottle(Data batch, ItemStack bottle, ItemStack output, List<String> extraAttributes) {
+        if (output.isEmpty()) return output;
+        Builder builder = new Builder();
+        int previous = builder.importData(batch);
+        int container = builder.stackRoot(bottle, 0);
+        int root = builder.node(NodeType.BREW, "brew_bottle", List.of(previous, container), List.of(0, 1), 2, 1, extraAttributes);
+        output.set(DynamicVariantRegistry.PROVENANCE.get(), builder.build(root));
+        return output;
+    }
+
     public static ItemStack process(ItemStack input, ItemStack output, NodeType type, String operation, List<ItemStack> catalysts, List<String> extraAttributes) {
         if (input.isEmpty() || output.isEmpty()) return output;
         Builder builder = new Builder();
@@ -354,6 +382,11 @@ public class VariantProvenance {
         return BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
     }
 
+    private static String brewSignature(ItemStack stack) {
+        SeededBrewData brew = stack.get(DynamicVariantRegistry.SEEDED_BREW_DATA.get());
+        return brew == null ? "none" : Long.toUnsignedString(brew.seed(), 16) + "/g" + brew.generation() + "/i" + brew.ingredientCount();
+    }
+
     private static String stageName(@Nullable OxidationStage stage) {
         return stage == null ? "none" : stage.name().toLowerCase(Locale.ROOT);
     }
@@ -427,6 +460,7 @@ public class VariantProvenance {
         CONTAINER,
         SPLIT_MERGE,
         BREED,
+        BREW,
         SUMMARY
     }
 
@@ -467,7 +501,8 @@ public class VariantProvenance {
                 "oxidation", oxidationSignature(stack),
                 "color", colorSignature(stack),
                 "enchantments", enchantmentSignature(stack),
-                "damage", stack.getOrDefault(DataComponents.DAMAGE, 0))) : this.importData(existing);
+                "damage", stack.getOrDefault(DataComponents.DAMAGE, 0),
+                "brew", brewSignature(stack))) : this.importData(existing);
             if (!PatinaRules.INSTANCE.trackContainerProvenance || containerDepth >= PatinaRules.INSTANCE.maximumProvenanceContainerDepth) return root;
             ItemContainerContents contents = stack.get(DataComponents.CONTAINER);
             if (contents == null) return root;
