@@ -9,6 +9,7 @@ import com.mojang.brigadier.exceptions.DynamicCommandExceptionType;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.config.PatinaRules;
+import dev.patina_pandemonium.network.PatinaClientSync;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.OxidationStage;
 import dev.patina_pandemonium.registry.VariantData;
@@ -57,8 +58,12 @@ public class PatinaCommands {
     @SubscribeEvent
     public static void onRegisterCommands(RegisterCommandsEvent event) {
         event.getDispatcher().register(Commands.literal("patina")
-            .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+            .then(Commands.literal("export_isometric")
+                .executes(context -> exportIsometric(context, PatinaClientSync.DEFAULT_ISOMETRIC_SIZE))
+                .then(Commands.argument("size", IntegerArgumentType.integer(PatinaClientSync.MIN_ISOMETRIC_SIZE, PatinaClientSync.MAX_ISOMETRIC_SIZE))
+                    .executes(context -> exportIsometric(context, IntegerArgumentType.getInteger(context, "size")))))
             .then(Commands.literal("give")
+                .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                 .then(Commands.argument(SOURCE_ARGUMENT, ResourceArgument.resource(event.getBuildContext(), Registries.BLOCK))
                     .suggests((_, builder) -> SharedSuggestionProvider.suggestResource(
                         DynamicVariantRegistry.sourceIds().stream(), builder))
@@ -75,6 +80,13 @@ public class PatinaCommands {
                                     .executes(context -> give(context, 1))
                                     .then(Commands.argument(COUNT_ARGUMENT, IntegerArgumentType.integer(1, 6_400))
                                         .executes(context -> give(context, IntegerArgumentType.getInteger(context, COUNT_ARGUMENT)))))))))));
+    }
+
+    private static int exportIsometric(CommandContext<CommandSourceStack> context, int size) throws CommandSyntaxException {
+        ServerPlayer player = context.getSource().getPlayerOrException();
+        PatinaClientSync.sendIsometricExport(player, size);
+        context.getSource().sendSuccess(() -> Component.translatable("commands.patina.export_isometric.requested", size), false);
+        return 1;
     }
 
     private static int give(CommandContext<CommandSourceStack> context, int count) throws CommandSyntaxException {

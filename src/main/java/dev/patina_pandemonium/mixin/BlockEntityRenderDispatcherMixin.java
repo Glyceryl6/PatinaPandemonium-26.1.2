@@ -2,7 +2,6 @@ package dev.patina_pandemonium.mixin;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.patina_pandemonium.client.PatinaClient;
-import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.VariantData;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -26,7 +25,8 @@ public class BlockEntityRenderDispatcherMixin {
             CameraRenderState camera, CallbackInfo ci) {
         ClientLevel level = Minecraft.getInstance().level;
         BlockEntity blockEntity = level == null ? null : level.getBlockEntity(state.blockPos);
-        VariantData data = blockEntity == null ? null : DynamicVariantRegistry.blockEntityVariantData(blockEntity);
+        VariantData data = blockEntity == null ? PatinaClient.cachedBlockVariant(state.blockPos)
+            : PatinaClient.blockVariantForParticle(state.blockPos, blockEntity.getBlockState());
         PatinaClient.beginModelTint(data == null ? -1 : data.tint());
     }
 

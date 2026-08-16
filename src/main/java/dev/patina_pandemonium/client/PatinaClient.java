@@ -5,6 +5,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.block.PatinaOxidizable;
 import dev.patina_pandemonium.block.entity.SeededBrewingCauldronBlockEntity;
+import dev.patina_pandemonium.network.PatinaClientSync;
 import dev.patina_pandemonium.network.PatinaHudSync;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ItemVariantData;
@@ -39,6 +40,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -63,10 +65,13 @@ import java.nio.file.Path;
 import java.util.ArrayDeque;
 import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
 
+import org.jspecify.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 
 /** Replaces carrier descriptors with shared model wrappers and exposes synchronized entity tint data to vanilla renderers. */
@@ -78,11 +83,16 @@ public class PatinaClient {
         KeyModifier.CONTROL_OR_COMMAND, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_C, INSPECTION_CATEGORY);
     private static final KeyMapping EXPORT_TOOLTIP = new KeyMapping("key.patina_pandemonium.export_tooltip", KeyConflictContext.UNIVERSAL,
         KeyModifier.ALT, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_P, INSPECTION_CATEGORY);
+    private static final KeyMapping EXPORT_ISOMETRIC = new KeyMapping("key.patina_pandemonium.export_isometric", KeyConflictContext.IN_GAME,
+        KeyModifier.ALT, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_I, INSPECTION_CATEGORY);
 
     private static final ContextKey<Integer> ENTITY_TINT = new ContextKey<>(PatinaPandemonium.id("entity_tint"));
     private static final ContextKey<Integer> FIRE_TINT = new ContextKey<>(PatinaPandemonium.id("fire_tint"));
     private static final ThreadLocal<ArrayDeque<Integer>> MODEL_TINTS = new ThreadLocal<>();
     private static final EnumMap<VariantForm, PatinaBlockStateModel> VARIANT_BLOCK_MODELS = new EnumMap<>(VariantForm.class);
+    private static final int BLOCK_VARIANT_CACHE_LIMIT = 2_048;
+    private static final long BLOCK_VARIANT_CACHE_MILLIS = 5_000L;
+    private static final Map<Long, CachedBlockVariant> BLOCK_VARIANT_CACHE = new LinkedHashMap<>(128, 0.75F, true);
     private static final long SELECTED_NAME_VISIBLE_MILLIS = 2_500L;
     private static final long SELECTED_NAME_FADE_MILLIS = 500L;
     private static int selectedItemKey = Integer.MIN_VALUE;
@@ -106,6 +116,7 @@ public class PatinaClient {
         event.registerCategory(INSPECTION_CATEGORY);
         event.register(COPY_ITEM_NAME);
         event.register(EXPORT_TOOLTIP);
+        event.register(EXPORT_ISOMETRIC);
     }
 
     @SubscribeEvent
@@ -114,10 +125,12 @@ public class PatinaClient {
         if (minecraft.screen != null) {
             while (COPY_ITEM_NAME.consumeClick()) {}
             while (EXPORT_TOOLTIP.consumeClick()) {}
+            while (EXPORT_ISOMETRIC.consumeClick()) {}
             return;
         }
         while (COPY_ITEM_NAME.consumeClick()) copyInspectedItemName(true);
         while (EXPORT_TOOLTIP.consumeClick()) exportInspectedTooltip();
+        while (EXPORT_ISOMETRIC.consumeClick()) exportHeldIsometric(PatinaClientSync.DEFAULT_ISOMETRIC_SIZE);
     }
 
     @SubscribeEvent
@@ -173,10 +186,79 @@ public class PatinaClient {
         return mainHand.isEmpty() ? minecraft.player.getOffhandItem() : mainHand;
     }
 
+    public static void rememberBlockVariant(BlockPos pos, VariantData data) {
+        synchronized (BLOCK_VARIANT_CACHE) {
+            BLOCK_VARIANT_CACHE.put(pos.asLong(), new CachedBlockVariant(data, System.currentTimeMillis() + BLOCK_VARIANT_CACHE_MILLIS));
+            Iterator<Long> iterator = BLOCK_VARIANT_CACHE.keySet().iterator();
+            while (BLOCK_VARIANT_CACHE.size() > BLOCK_VARIANT_CACHE_LIMIT && iterator.hasNext()) {
+                iterator.next();
+                iterator.remove();
+            }
+        }
+    }
+
+    @Nullable
+    public static VariantData cachedBlockVariant(BlockPos pos) {
+        synchronized (BLOCK_VARIANT_CACHE) {
+            CachedBlockVariant cached = BLOCK_VARIANT_CACHE.get(pos.asLong());
+            if (cached == null) return null;
+            if (cached.expiresAt() >= System.currentTimeMillis()) return cached.data();
+            BLOCK_VARIANT_CACHE.remove(pos.asLong());
+            return null;
+        }
+    }
+
+    public static void forgetBlockVariant(BlockPos pos) {
+        synchronized (BLOCK_VARIANT_CACHE) {
+            BLOCK_VARIANT_CACHE.remove(pos.asLong());
+        }
+    }
+
+    @Nullable
+    public static VariantData blockVariantForParticle(BlockPos pos, BlockState state) {
+        Minecraft minecraft = Minecraft.getInstance();
+        VariantData data = null;
+        boolean hasBlockEntity = false;
+        if (minecraft.level != null) {
+            BlockEntity blockEntity = minecraft.level.getBlockEntity(pos);
+            hasBlockEntity = blockEntity != null;
+            if (blockEntity != null) data = DynamicVariantRegistry.blockEntityVariantData(blockEntity);
+        }
+        if (data != null) rememberBlockVariant(pos, data);
+        else if (!hasBlockEntity) data = cachedBlockVariant(pos);
+        if (data == null) return null;
+        if (state.getBlock() instanceof PatinaOxidizable oxidizable) return data.form() == oxidizable.patinaForm() ? data : null;
+        return BuiltInRegistries.BLOCK.getKey(state.getBlock()).equals(data.sourceId()) ? data : null;
+    }
+
+    private static boolean exportHeldIsometric(int requestedSize) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) return false;
+        ItemStack stack = minecraft.player.getMainHandItem();
+        if (stack.isEmpty()) stack = minecraft.player.getOffhandItem();
+        if (stack.isEmpty()) {
+            minecraft.gui.getChat().addClientSystemMessage(Component.translatable("message.patina_pandemonium.isometric_export_requires_item"));
+            return true;
+        }
+
+        int size = Math.clamp(requestedSize, PatinaClientSync.MIN_ISOMETRIC_SIZE, PatinaClientSync.MAX_ISOMETRIC_SIZE);
+        try {
+            Path path = IsometricSnapshotExporter.exportHeld(stack, size);
+            String relative = minecraft.gameDirectory.toPath().relativize(path).toString();
+            minecraft.gui.getChat().addClientSystemMessage(Component.translatable("message.patina_pandemonium.isometric_exported", size, relative));
+        } catch (IOException | RuntimeException exception) {
+            minecraft.gui.getChat().addClientSystemMessage(Component.translatable("message.patina_pandemonium.isometric_export_failed",
+                    exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage()));
+        }
+
+        return true;
+    }
+
     @SubscribeEvent
     public static void registerPayloadHandlers(RegisterClientPayloadHandlersEvent event) {
         event.register(PatinaHudSync.BlockHudPayload.TYPE, (payload, _) -> PatinaHudSync.receive(payload));
         event.register(PatinaHudSync.EntityHudPayload.TYPE, (payload, _) -> PatinaHudSync.receive(payload));
+        event.register(PatinaClientSync.ExportIsometricPayload.TYPE, (payload, _) -> exportHeldIsometric(payload.size()));
     }
 
     @SubscribeEvent
@@ -375,5 +457,7 @@ public class PatinaClient {
 
         itemModels.put(DynamicVariantRegistry.VARIANT_ITEM_MODEL, new PatinaItemModel(originalItemModels, fallbackItem, fallbackBlock));
     }
+
+    private record CachedBlockVariant(VariantData data, long expiresAt) {}
 
 }

@@ -29,6 +29,7 @@ import static dev.patina_pandemonium.event.PatinaGameplayEvents.*;
 /** Event handlers grouped by gameplay responsibility. */
 @EventBusSubscriber(modid = PatinaPandemonium.MOD_ID)
 public class VariantInventoryEvents {
+
     private static final Map<ServerPlayer, Integer> ADVANCEMENT_SCAN_CURSORS = new WeakHashMap<>();
 
     @SubscribeEvent

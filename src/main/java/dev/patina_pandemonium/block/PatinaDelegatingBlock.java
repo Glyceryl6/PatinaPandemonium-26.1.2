@@ -7,6 +7,7 @@ import dev.patina_pandemonium.registry.VariantData;
 import dev.patina_pandemonium.registry.VariantForm;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
@@ -18,7 +19,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
-import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
@@ -27,7 +27,6 @@ import net.minecraft.world.level.block.BaseFireBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.DoorBlock;
 import net.minecraft.world.level.block.FireBlock;
-import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
@@ -48,8 +47,6 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayDeque;
-import java.util.Optional;
-import java.util.function.BiFunction;
 
 /** State-preserving carrier for delegated and stateful full source blocks. */
 public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
@@ -104,26 +101,24 @@ public class PatinaDelegatingBlock extends Block implements PatinaOxidizable {
     }
 
     @Nullable
-    public static ContainerLevelAccess captureMenuAccess(Level level, BlockPos pos) {
-        ArrayDeque<SourceView> views = EXTERNAL_SOURCE_VIEWS.get();
-        if (views == null) return null;
-        for (SourceView view : views) {
-            if (!view.pos().equals(pos) || view.sourceState().getBlock() instanceof EntityBlock) continue;
-            SourceView captured = new SourceView(view.pos(), view.sourceState(), view.carrierState());
-            return new ContainerLevelAccess() {
-                @Override
-                public <T> Optional<T> evaluate(BiFunction<Level, BlockPos, T> evaluator) {
-                    PatinaDelegatingBlock.beginExternalSourceView(captured.pos(), captured.sourceState(), captured.carrierState());
-                    try {
-                        return Optional.ofNullable(evaluator.apply(level, captured.pos()));
-                    } finally {
-                        PatinaDelegatingBlock.endExternalSourceView();
-                    }
-                }
-            };
+    public static BlockState validationSourceState(Level level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        var sourceId = DynamicVariantRegistry.sourceId(state.getBlock());
+        if (sourceId != null) {
+            Block source = BuiltInRegistries.BLOCK.getValue(sourceId);
+            if (source != null) return source.withPropertiesOf(state);
         }
 
-        return null;
+        BlockEntity blockEntity = level.getBlockEntity(pos);
+        VariantData data = blockEntity == null ? null : DynamicVariantRegistry.blockEntityVariantData(blockEntity);
+        if (data == null) return null;
+        Block source = BuiltInRegistries.BLOCK.getValue(data.sourceId());
+        return source == null ? null : source.defaultBlockState();
+    }
+
+    public static boolean validatesAsSource(Level level, BlockPos pos, Block expected) {
+        BlockState sourceState = validationSourceState(level, pos);
+        return sourceState != null && sourceState.is(expected);
     }
 
     public static void beginExternalSourceView(BlockPos pos, BlockState sourceState, BlockState carrierState) {

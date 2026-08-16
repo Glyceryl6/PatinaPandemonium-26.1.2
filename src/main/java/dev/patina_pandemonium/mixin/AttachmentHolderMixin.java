@@ -1,8 +1,9 @@
 package dev.patina_pandemonium.mixin;
 
+import dev.patina_pandemonium.client.PatinaClient;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
+import dev.patina_pandemonium.registry.VariantData;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.attachment.AttachmentHolder;
@@ -19,11 +20,12 @@ public class AttachmentHolderMixin {
     private <T> void patina$refreshVariantModelData(AttachmentType<T> type, T data, CallbackInfoReturnable<T> callback) {
         if (type == DynamicVariantRegistry.BLOCK_ENTITY_VARIANT_DATA.get()) {
             if ((Object) this instanceof BlockEntity blockEntity) {
-                Level level = blockEntity.getLevel();
-                if (level == null || !level.isClientSide()) return;
-                blockEntity.requestModelDataUpdate();
-                BlockState state = blockEntity.getBlockState();
-                level.sendBlockUpdated(blockEntity.getBlockPos(), state, state, Block.UPDATE_IMMEDIATE);
+                if (blockEntity.getLevel() instanceof ClientLevel level && data instanceof VariantData variant){
+                    PatinaClient.rememberBlockVariant(blockEntity.getBlockPos(), variant);
+                    blockEntity.requestModelDataUpdate();
+                    BlockState state = blockEntity.getBlockState();
+                    level.setBlocksDirty(blockEntity.getBlockPos(), state, state);
+                }
             }
         }
     }

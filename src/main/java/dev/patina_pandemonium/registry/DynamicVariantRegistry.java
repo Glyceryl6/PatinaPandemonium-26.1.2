@@ -856,7 +856,8 @@ public class DynamicVariantRegistry {
             return;
         }
 
-        blockEntity.setData(BLOCK_ENTITY_VARIANT_DATA.get(), data.normalized(VariantForm.FULL));
+        VariantData normalized = data.normalized(VariantForm.FULL);
+        blockEntity.setData(BLOCK_ENTITY_VARIANT_DATA.get(), normalized);
         blockEntity.setChanged();
     }
 

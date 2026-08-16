@@ -74,11 +74,12 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
 
     @Override
     public void collectParts(BlockAndTintGetter level, BlockPos pos, BlockState state, RandomSource random, List<BlockStateModelPart> parts) {
-        VariantData data = level.getModelData(pos).get(PatinaVariantBlockEntity.MODEL_DATA);
+        VariantData data = this.worldData(level, pos, state);
         if (data == null && this.nativeSource != null) {
             this.delegate.collectParts(level, pos, state, random, parts);
             return;
         }
+
         this.collectVariantParts(data == null ? this.fallbackData(state) : data.normalized(this.form), state, level, pos, random, parts);
     }
 
@@ -92,9 +93,16 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
 
     @Override
     public Material.Baked particleMaterial(BlockAndTintGetter level, BlockPos pos, BlockState state) {
-        VariantData data = level.getModelData(pos).get(PatinaVariantBlockEntity.MODEL_DATA);
+        VariantData data = this.worldData(level, pos, state);
         if (data == null && this.nativeSource != null) return this.delegate.particleMaterial(level, pos, state);
         return this.context(data == null ? this.fallbackData(state) : data.normalized(this.form), state, level, pos).sourceMaterial();
+    }
+
+    @Nullable
+    private VariantData worldData(BlockAndTintGetter level, BlockPos pos, BlockState state) {
+        VariantData data = level.getModelData(pos).get(PatinaVariantBlockEntity.MODEL_DATA);
+        if (data != null) PatinaClient.rememberBlockVariant(pos, data);
+        return data;
     }
 
     private VariantData fallbackData(BlockState state) {

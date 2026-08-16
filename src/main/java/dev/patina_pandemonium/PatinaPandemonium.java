@@ -1,5 +1,6 @@
 package dev.patina_pandemonium;
 
+import dev.patina_pandemonium.network.PatinaClientSync;
 import dev.patina_pandemonium.network.PatinaHudSync;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ModCreativeTab;
@@ -16,6 +17,7 @@ public class PatinaPandemonium {
     public PatinaPandemonium(IEventBus modBus) {
         RuntimePack.register(modBus);
         modBus.addListener(PatinaHudSync::register);
+        modBus.addListener(PatinaClientSync::register);
         DynamicVariantRegistry.register(modBus);
         ModCreativeTab.register(modBus);
     }
