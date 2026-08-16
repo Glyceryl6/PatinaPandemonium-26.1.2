@@ -21,6 +21,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.client.model.DelegateBlockStateModel;
 import net.neoforged.neoforge.client.model.quad.MutableQuad;
@@ -101,6 +102,10 @@ public class PatinaBlockStateModel extends DelegateBlockStateModel {
     @Nullable
     private VariantData worldData(BlockAndTintGetter level, BlockPos pos, BlockState state) {
         VariantData data = level.getModelData(pos).get(PatinaVariantBlockEntity.MODEL_DATA);
+        if (data == null) {
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (blockEntity != null) data = DynamicVariantRegistry.blockEntityVariantData(blockEntity);
+        }
         if (data != null) PatinaClient.rememberBlockVariant(pos, data);
         return data;
     }

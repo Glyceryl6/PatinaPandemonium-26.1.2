@@ -40,3 +40,4 @@ repo/
 !**/src/**/repo/
 docs/
 /patches/
+/.proxyai/

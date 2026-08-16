@@ -6,7 +6,6 @@ import dev.patina_pandemonium.registry.CraftingChemistry;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ItemVariantData;
 import dev.patina_pandemonium.registry.SeededBrewData;
-import dev.patina_pandemonium.registry.VariantData;
 import dev.patina_pandemonium.registry.VariantGenetics;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
@@ -37,8 +36,6 @@ public class ItemStackMixin {
         else if (chemistry != null && PatinaRules.INSTANCE.showChemicalNames) name = CraftingChemistry.name(stack, chemistry);
         else if (genetics != null && PatinaRules.INSTANCE.showGeneticNames) name = VariantGenetics.systematicName(stack, genetics);
         else if (data != null) name = DynamicVariantRegistry.variantItemName(stack, data);
-        VariantData workstation = stack.get(DynamicVariantRegistry.CRAFTING_WORKSTATION_VARIANT.get());
-        if (workstation != null) name = DynamicVariantRegistry.workstationResultName(name, workstation);
         callback.setReturnValue(name);
     }
 

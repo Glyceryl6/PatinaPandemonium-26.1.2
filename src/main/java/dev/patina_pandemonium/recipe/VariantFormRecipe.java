@@ -77,7 +77,6 @@ public class VariantFormRecipe extends CustomRecipe {
         OxidationStage stage = OxidationStage.FRESH;
         boolean waxed = true;
         boolean foundMaterial = false;
-        boolean foundVariant = false;
         DyeColor dyeColor = null;
         boolean dyeInitialized = false;
 
@@ -99,7 +98,6 @@ public class VariantFormRecipe extends CustomRecipe {
                 sourceId = current.sourceId();
                 if (material.isEmpty()) material = stack;
                 foundMaterial = true;
-                foundVariant |= current.variant();
                 if (current.stage().ordinal() > stage.ordinal()) stage = current.stage();
                 waxed &= current.waxed();
                 if (!dyeInitialized) {
@@ -111,7 +109,7 @@ public class VariantFormRecipe extends CustomRecipe {
             }
         }
 
-        if (!foundMaterial || !foundVariant || sourceId == null || DynamicVariantRegistry.hasExistingForm(sourceId, pattern.form())) return null;
+        if (!foundMaterial || sourceId == null || DynamicVariantRegistry.hasExistingForm(sourceId, pattern.form())) return null;
         return new Match(pattern, material, stage, waxed, dyeColor);
     }
 
@@ -124,13 +122,12 @@ public class VariantFormRecipe extends CustomRecipe {
         Identifier sourceId = DynamicVariantRegistry.fullSourceId(stack);
         if (sourceId == null) return null;
         ItemVariantData itemData = DynamicVariantRegistry.variantUseData(stack);
-        if (itemData == null) return new MaterialState(sourceId, OxidationStage.FRESH, false, null, false);
-        boolean variant = stack.has(DynamicVariantRegistry.VARIANT_DATA.get()) || stack.has(DynamicVariantRegistry.ITEM_VARIANT_DATA.get());
-        return new MaterialState(sourceId, itemData.stage(), itemData.waxed(), itemData.dyeColor(), variant);
+        if (itemData == null) return new MaterialState(sourceId, OxidationStage.FRESH, false, null);
+        return new MaterialState(sourceId, itemData.stage(), itemData.waxed(), itemData.dyeColor());
     }
 
     private boolean isPlainMarker(ItemStack stack, char marker) {
-        if (stack.isEmpty() || stack.has(DynamicVariantRegistry.VARIANT_DATA.get()) || stack.has(DynamicVariantRegistry.ITEM_VARIANT_DATA.get())) return false;
+        if (stack.isEmpty()) return false;
         return marker == 'S' ? stack.is(Items.STICK) : stack.is(Items.STRING);
     }
 
@@ -148,7 +145,7 @@ public class VariantFormRecipe extends CustomRecipe {
         }
     }
 
-    private record MaterialState(Identifier sourceId, OxidationStage stage, boolean waxed, @Nullable DyeColor dyeColor, boolean variant) {
+    private record MaterialState(Identifier sourceId, OxidationStage stage, boolean waxed, @Nullable DyeColor dyeColor) {
     }
 
     private record Match(FormPattern pattern, ItemStack material, OxidationStage stage, boolean waxed, @Nullable DyeColor dyeColor) {

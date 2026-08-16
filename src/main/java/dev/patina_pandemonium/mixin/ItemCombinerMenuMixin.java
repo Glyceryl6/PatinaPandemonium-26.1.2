@@ -1,9 +1,12 @@
 package dev.patina_pandemonium.mixin;
 
 import dev.patina_pandemonium.block.PatinaDelegatingBlock;
+import dev.patina_pandemonium.block.PatinaOxidizable;
+import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.ItemCombinerMenu;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
@@ -22,11 +25,15 @@ public abstract class ItemCombinerMenuMixin {
 
     @Inject(method = "stillValid", at = @At("HEAD"), cancellable = true)
     private void patina$acceptVariantSource(Player player, CallbackInfoReturnable<Boolean> callback) {
-        this.access.evaluate((level, pos) -> {
+        this.access.execute((level, pos) -> {
+            BlockState state = level.getBlockState(pos);
+            BlockEntity blockEntity = level.getBlockEntity(pos);
+            if (!(state.getBlock() instanceof PatinaOxidizable) && (blockEntity == null || DynamicVariantRegistry.blockEntityVariantData(blockEntity) == null)) return;
             BlockState sourceState = PatinaDelegatingBlock.validationSourceState(level, pos);
-            return sourceState != null && this.isValidBlock(sourceState)
+            boolean valid = sourceState != null && this.isValidBlock(sourceState)
                     && player.distanceToSqr(pos.getX() + 0.5D, pos.getY() + 0.5D, pos.getZ() + 0.5D) <= 64.0D;
-        }).ifPresent(callback::setReturnValue);
+            callback.setReturnValue(valid);
+        });
     }
 
 }

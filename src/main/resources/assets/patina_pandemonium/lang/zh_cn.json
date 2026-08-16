@@ -391,6 +391,5 @@
   "message.patina_pandemonium.isometric_export_requires_item": "需要在主手或副手持有一个方块或物品。",
   "message.patina_pandemonium.isometric_exported": "已导出 %1$s×%1$s 等轴透明贴图：%2$s",
   "message.patina_pandemonium.isometric_export_failed": "等轴贴图导出失败：%1$s",
-  "commands.patina.export_isometric.requested": "已请求客户端导出 %1$s×%1$s 的手持物等轴贴图。",
-  "item.patina_pandemonium.workstation_result_name": "由%1$s制得的%2$s"
+  "commands.patina.export_isometric.requested": "已请求客户端导出 %1$s×%1$s 的手持物等轴贴图。"
 }

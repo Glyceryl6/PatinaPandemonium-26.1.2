@@ -107,8 +107,9 @@ public class PatinaHudSync {
         public Type<? extends CustomPacketPayload> type() {
             return TYPE;
         }
+
     }
 
-    private record SentHud(int targetType, long targetId, long revision) {
-    }
+    private record SentHud(int targetType, long targetId, long revision) { }
+
 }

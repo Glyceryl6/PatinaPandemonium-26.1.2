@@ -34,9 +34,11 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.flag.FeatureFlags;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraft.world.item.*;
+import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.item.crafting.CraftingInput;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.level.EmptyBlockGetter;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.*;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -227,17 +229,13 @@ public class DynamicVariantRegistry {
     static final ArrayList<Block> SOURCE_CARRIERS = new ArrayList<>();
 
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<PatinaVariantBlockEntity>> VARIANT_BLOCK_ENTITY =
-        BLOCK_ENTITY_TYPES.register("virtual_variant", () -> new BlockEntityType<>(
-            PatinaVariantBlockEntity::new, false, legacyGenerated().toArray(Block[]::new)));
+        BLOCK_ENTITY_TYPES.register("virtual_variant", () -> new BlockEntityType<>(PatinaVariantBlockEntity::new, false, legacyGenerated().toArray(Block[]::new)));
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<LineageCraftingTableBlockEntity>> LINEAGE_CRAFTING_TABLE_BLOCK_ENTITY =
-        BLOCK_ENTITY_TYPES.register("lineage_crafting_table", () -> new BlockEntityType<>(
-            LineageCraftingTableBlockEntity::new, false));
+        BLOCK_ENTITY_TYPES.register("lineage_crafting_table", () -> new BlockEntityType<>(LineageCraftingTableBlockEntity::new, Set.of(), false));
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<VariantFabricatorBlockEntity>> VARIANT_FABRICATOR_BLOCK_ENTITY =
-        BLOCK_ENTITY_TYPES.register("variant_fabricator", () -> new BlockEntityType<>(
-            VariantFabricatorBlockEntity::new, false, VARIANT_FABRICATOR.get()));
+        BLOCK_ENTITY_TYPES.register("variant_fabricator", () -> new BlockEntityType<>(VariantFabricatorBlockEntity::new, false, VARIANT_FABRICATOR.get()));
     public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<SeededBrewingCauldronBlockEntity>> SEEDED_BREWING_CAULDRON_BLOCK_ENTITY =
-        BLOCK_ENTITY_TYPES.register("seeded_brewing_cauldron", () -> new BlockEntityType<>(
-            SeededBrewingCauldronBlockEntity::new, false, SEEDED_BREWING_CAULDRON.get()));
+        BLOCK_ENTITY_TYPES.register("seeded_brewing_cauldron", () -> new BlockEntityType<>(SeededBrewingCauldronBlockEntity::new, false, SEEDED_BREWING_CAULDRON.get()));
     public static final DeferredHolder<MenuType<?>, MenuType<VariantFabricatorMenu>> VARIANT_FABRICATOR_MENU = MENUS.register(
         "variant_fabricator", () -> new MenuType<>(VariantFabricatorMenu::new, FeatureFlags.VANILLA_SET));
 
@@ -361,11 +359,11 @@ public class DynamicVariantRegistry {
     }
 
     public static ItemStack inheritCraftingVariant(CraftingInput input, ItemStack output, String operation, ItemStack workstation) {
-        ItemStack result = VariantProvenance.craft(input, inheritCraftingVariantVisual(input, output), operation);
+        ItemStack result = VariantProvenance.craft(input, inheritCraftingVariantVisual(synthesisInput(input, workstation), output), operation);
+        preserveCraftingContainerContents(input, result);
         if (workstation.isEmpty() || input.width() < 3 || input.height() < 3) return result;
         VariantData workstationData = workstation.get(VARIANT_DATA.get());
         if (workstationData == null) return result;
-        result.set(CRAFTING_WORKSTATION_VARIANT.get(), workstationData.normalized(workstationData.form()));
         return VariantProvenance.craftingEquipment(result, workstation, operation);
     }
 
@@ -596,9 +594,14 @@ public class DynamicVariantRegistry {
         }
 
         if (output.isEmpty()) return output;
+        preserveContainerContents(input, output);
         CraftingChemistry.Data chemistry = input.get(CRAFTING_CHEMISTRY.get());
         if (chemistry != null) {
             output.set(CRAFTING_CHEMISTRY.get(), CraftingChemistry.retarget(chemistry, stage, waxed, dye, customColor));
+        } else if (PatinaRules.INSTANCE.trackContainerProvenance && input.get(DataComponents.CONTAINER) != null) {
+            CraftingInput expanded = containerSynthesisInput(input);
+            CraftingChemistry.Synthesis synthesis = expanded == null ? null : CraftingChemistry.synthesize(expanded);
+            if (synthesis != null) output.set(CRAFTING_CHEMISTRY.get(), synthesis.data());
         }
         return output;
     }
@@ -882,6 +885,9 @@ public class DynamicVariantRegistry {
         VariantData normalized = data.normalized(VariantForm.FULL);
         blockEntity.setData(BLOCK_ENTITY_VARIANT_DATA.get(), normalized);
         blockEntity.setChanged();
+        Level level = blockEntity.getLevel();
+        if (level == null) return;
+        level.sendBlockUpdated(blockEntity.getBlockPos(), blockEntity.getBlockState(), blockEntity.getBlockState(), Block.UPDATE_ALL);
     }
 
     public static VariantProvenance.@Nullable Data blockEntityProvenance(BlockEntity blockEntity) {
@@ -1076,6 +1082,79 @@ public class DynamicVariantRegistry {
         return stack;
     }
 
+    /**
+     * Widens the crafting input with the physical workstation and any container contents so the systematic name inherits
+     * their lineage. The workstation only joins 3x3 crafts; container contents follow the configured recursion budget.
+     */
+    private static CraftingInput synthesisInput(CraftingInput input, ItemStack workstation) {
+        int width = Math.max(1, input.width());
+        int height = Math.max(1, input.height());
+        ArrayList<ItemStack> extra = new ArrayList<>();
+        if (!workstation.isEmpty() && input.width() >= 3 && input.height() >= 3 && workstation.get(VARIANT_DATA.get()) != null) extra.add(workstation);
+        if (PatinaRules.INSTANCE.trackContainerProvenance) {
+            for (ItemStack ingredient : input.items()) collectContainerContents(ingredient, extra, 0);
+        }
+        if (extra.isEmpty()) return input;
+        int extraRows = (extra.size() + width - 1) / width;
+        ArrayList<ItemStack> items = new ArrayList<>(width * (height + extraRows));
+        items.addAll(input.items());
+        while (items.size() < width * height) items.add(ItemStack.EMPTY);
+        while (items.size() < width * (height + extraRows)) items.add(ItemStack.EMPTY);
+        for (int index = 0; index < extra.size(); index++) items.set(width * height + index, extra.get(index));
+        return CraftingInput.of(width, height + extraRows, items);
+    }
+
+    @Nullable
+    private static CraftingInput containerSynthesisInput(ItemStack input) {
+        ArrayList<ItemStack> items = new ArrayList<>();
+        items.add(input);
+        collectContainerContents(input, items, 0);
+        return items.size() <= 1 ? null : CraftingInput.of(1, items.size(), items);
+    }
+
+    private static void collectContainerContents(ItemStack stack, List<ItemStack> target, int depth) {
+        if (depth >= PatinaRules.INSTANCE.maximumProvenanceContainerDepth || target.size() >= PatinaRules.INSTANCE.maximumProvenanceContainerEntries) return;
+        ItemContainerContents contents = stack.get(DataComponents.CONTAINER);
+        if (contents == null || contents.getSlots() == 0) return;
+        for (ItemStack child : contents.allItemsCopyStream().toList()) {
+            if (child.isEmpty() || target.size() >= PatinaRules.INSTANCE.maximumProvenanceContainerEntries) return;
+            target.add(child);
+            collectContainerContents(child, target, depth + 1);
+        }
+    }
+
+    private static void preserveCraftingContainerContents(CraftingInput input, ItemStack output) {
+        if (output.isEmpty() || output.getCount() != 1) return;
+        for (ItemStack ingredient : input.items()) {
+            if (ingredient.isEmpty()) continue;
+            preserveContainerContents(ingredient, output);
+            if (output.get(DataComponents.CONTAINER) != null) return;
+        }
+    }
+
+    /** Keeps container contents alive only when the output is the same openable full source, never for generated form carriers. */
+    private static void preserveContainerContents(ItemStack input, ItemStack output) {
+        if (output.isEmpty() || output.getCount() != 1 || !(output.getItem() instanceof GeneratedBlockItem blockItem) || blockItem.form() != VariantForm.FULL) return;
+        ItemContainerContents contents = input.get(DataComponents.CONTAINER);
+        if (contents == null || contents.getSlots() == 0 || !isSameVariantSource(input, output)) return;
+        output.set(DataComponents.CONTAINER, contents);
+    }
+
+    private static boolean isSameVariantSource(ItemStack first, ItemStack second) {
+        Identifier firstSource = variantSourceIdentity(first);
+        return firstSource != null && firstSource.equals(variantSourceIdentity(second));
+    }
+
+    @Nullable
+    private static Identifier variantSourceIdentity(ItemStack stack) {
+        Identifier full = fullSourceId(stack);
+        if (full != null) return full;
+        Identifier special = specialSourceId(stack);
+        if (special != null) return special;
+        Item item = stack.getItem();
+        return item == Items.AIR ? null : BuiltInRegistries.ITEM.getKey(item);
+    }
+
     private static ItemStack mergeCraftingOutput(ItemStack output, ItemStack target) {
         if (target.isEmpty()) return output;
         ItemStack result = output.transmuteCopy(target.getItem(), output.getCount());
@@ -1227,12 +1306,6 @@ public class DynamicVariantRegistry {
         Component sourceName = DELEGATED_ITEM_SOURCES.containsKey(stack.getItem()) && source.asItem() != Items.AIR
             ? source.asItem().getName(source.asItem().getDefaultInstance()) : source.getName();
         return variantName(data, sourceName);
-    }
-
-    public static Component workstationResultName(Component resultName, VariantData workstation) {
-        ItemStack workstationStack = stack(workstation.normalized(workstation.form()), 1);
-        Component workstationName = generatedBlockName(workstationStack, workstation);
-        return Component.translatable("item.patina_pandemonium.workstation_result_name", workstationName, resultName);
     }
 
     public static Component variantName(VariantData data, Component sourceName) {

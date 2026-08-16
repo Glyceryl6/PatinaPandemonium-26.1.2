@@ -30,13 +30,13 @@ public class PatinaClientSync {
 
         public static final Type<ExportIsometricPayload> TYPE = new Type<>(PatinaPandemonium.id("export_isometric"));
         public static final StreamCodec<RegistryFriendlyByteBuf, ExportIsometricPayload> STREAM_CODEC = StreamCodec.composite(
-            ByteBufCodecs.VAR_INT, ExportIsometricPayload::size,
-            ExportIsometricPayload::new);
+            ByteBufCodecs.VAR_INT, ExportIsometricPayload::size, ExportIsometricPayload::new);
 
         @Override
         public Type<? extends CustomPacketPayload> type() {
             return TYPE;
         }
+
     }
 
 }
