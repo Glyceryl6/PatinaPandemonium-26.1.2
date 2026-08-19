@@ -7,10 +7,12 @@ import dev.patina_pandemonium.registry.OxidationStage;
 import dev.patina_pandemonium.registry.VariantData;
 import dev.patina_pandemonium.registry.VariantForm;
 import java.util.List;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.crafting.CraftingInput;
@@ -29,13 +31,12 @@ public class VariantFormRecipe extends CustomRecipe {
             new FormPattern(VariantForm.SLAB, 6, "MMM"),
             new FormPattern(VariantForm.STAIRS, 4, "M  ", "MM ", "MMM"),
             new FormPattern(VariantForm.STAIRS, 4, "  M", " MM", "MMM"),
-            new FormPattern(VariantForm.WALL, 6, "MMM", "MSM"),
+            new FormPattern(VariantForm.WALL, 6, "MMM", "MMM"),
             new FormPattern(VariantForm.FENCE, 3, "MSM", "MSM"),
             new FormPattern(VariantForm.FENCE_GATE, 1, "SMS", "SMS"),
-            new FormPattern(VariantForm.CARPET, 3, "MM", "T "),
-            new FormPattern(VariantForm.CARPET, 3, "MM", " T"),
-            new FormPattern(VariantForm.BUTTON, 1, "M", "S"),
-            new FormPattern(VariantForm.PRESSURE_PLATE, 1, "MM", "SS"));
+            new FormPattern(VariantForm.CARPET, 3, "MM"),
+            new FormPattern(VariantForm.BUTTON, 1, "M"),
+            new FormPattern(VariantForm.PRESSURE_PLATE, 1, "MM"));
 
     @Override
     public boolean matches(CraftingInput input, Level level) {
@@ -88,8 +89,8 @@ public class VariantFormRecipe extends CustomRecipe {
                     if (!stack.isEmpty()) return null;
                     continue;
                 }
-                if (expected == 'S' || expected == 'T') {
-                    if (!this.isPlainMarker(stack, expected)) return null;
+                if (expected == 'S') {
+                    if (!this.isMarker(stack, Items.STICK)) return null;
                     continue;
                 }
 
@@ -126,9 +127,11 @@ public class VariantFormRecipe extends CustomRecipe {
         return new MaterialState(sourceId, itemData.stage(), itemData.waxed(), itemData.dyeColor());
     }
 
-    private boolean isPlainMarker(ItemStack stack, char marker) {
+    private boolean isMarker(ItemStack stack, Item marker) {
         if (stack.isEmpty()) return false;
-        return marker == 'S' ? stack.is(Items.STICK) : stack.is(Items.STRING);
+        if (stack.is(marker)) return true;
+        ItemVariantData itemData = DynamicVariantRegistry.peekItemData(stack);
+        return itemData != null && itemData.sourceId().equals(BuiltInRegistries.ITEM.getKey(marker));
     }
 
     private record FormPattern(VariantForm form, int count, String... rows) {

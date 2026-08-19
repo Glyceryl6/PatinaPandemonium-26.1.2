@@ -115,7 +115,7 @@ public class PatinaClient {
     /** Replaces an Alt-left-click on a crafting result with one validated server-side bulk-craft request. */
     @SubscribeEvent
     public static void onScreenMouseButtonPressed(ScreenEvent.MouseButtonPressed.Pre event) {
-        if (event.getButton() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !BULK_CRAFT.isDown()) return;
+        if (event.getButton() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !bulkCraftKeyDown(event)) return;
         if (!(event.getScreen() instanceof AbstractContainerScreen<?> screen) || !(screen.getMenu() instanceof AbstractCraftingMenu menu)) return;
         if (menu.getInputGridSlots().isEmpty()) return;
         Slot resultSlot = menu.getResultSlot();
@@ -123,6 +123,14 @@ public class PatinaClient {
         if (!(resultSlot.container instanceof ResultContainer) || !(menu.getInputGridSlots().getFirst().container instanceof CraftingContainer)) return;
         ClientPacketDistributor.sendToServer(new BulkCrafting.BulkCraftPayload(menu.containerId));
         event.setCanceled(true);
+    }
+
+    private static boolean bulkCraftKeyDown(ScreenEvent.MouseButtonPressed.Pre event) {
+        if (BULK_CRAFT.isDefault() && event.getMouseButtonEvent().hasAltDown()) return true;
+        if (BULK_CRAFT.isDown()) return true;
+        InputConstants.Key key = BULK_CRAFT.getKey();
+        return key.getType() == InputConstants.Type.KEYSYM
+            && InputConstants.isKeyDown(Minecraft.getInstance().getWindow(), key.getValue());
     }
 
     @SubscribeEvent
