@@ -7,15 +7,17 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.*;
+import net.minecraft.world.entity.AgeableMob;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.animal.Animal;
-import net.minecraft.world.item.*;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.living.BabyEntitySpawnEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
-import java.util.*;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 import static dev.patina_pandemonium.event.PatinaGameplayEvents.*;
 

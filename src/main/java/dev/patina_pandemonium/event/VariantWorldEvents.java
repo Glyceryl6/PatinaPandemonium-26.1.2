@@ -8,9 +8,10 @@ import dev.patina_pandemonium.registry.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.item.*;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SlabBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -22,7 +23,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.level.BlockDropsEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
-import java.util.*;
+import java.util.List;
 
 import static dev.patina_pandemonium.event.PatinaGameplayEvents.*;
 

@@ -2,11 +2,7 @@ package dev.patina_pandemonium.mixin;
 
 import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.event.PatinaGameplayEvents;
-import dev.patina_pandemonium.registry.CraftingChemistry;
-import dev.patina_pandemonium.registry.DynamicVariantRegistry;
-import dev.patina_pandemonium.registry.ItemVariantData;
-import dev.patina_pandemonium.registry.SeededBrewData;
-import dev.patina_pandemonium.registry.VariantGenetics;
+import dev.patina_pandemonium.registry.*;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;

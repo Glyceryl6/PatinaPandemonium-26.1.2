@@ -16,12 +16,7 @@ import net.neoforged.neoforge.client.event.RenderTooltipEvent;
 import org.jspecify.annotations.Nullable;
 
 import javax.imageio.ImageIO;
-import java.awt.Color;
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics2D;
-import java.awt.GraphicsEnvironment;
-import java.awt.RenderingHints;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;

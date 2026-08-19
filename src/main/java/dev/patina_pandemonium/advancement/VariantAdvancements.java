@@ -6,13 +6,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.config.PatinaRules;
-import dev.patina_pandemonium.registry.CraftingChemistry;
-import dev.patina_pandemonium.registry.DynamicVariantRegistry;
-import dev.patina_pandemonium.registry.ItemVariantData;
-import dev.patina_pandemonium.registry.OxidationStage;
-import dev.patina_pandemonium.registry.VariantData;
-import dev.patina_pandemonium.registry.VariantGenetics;
-import dev.patina_pandemonium.registry.VariantProvenance;
+import dev.patina_pandemonium.registry.*;
 import net.minecraft.advancements.CriterionTrigger;
 import net.minecraft.advancements.criterion.ContextAwarePredicate;
 import net.minecraft.advancements.criterion.EntityPredicate;
@@ -29,12 +23,7 @@ import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
 import java.nio.charset.StandardCharsets;
-import java.util.EnumSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Random;
+import java.util.*;
 
 /**
  * Compact, parameterized advancement system. The advancement count follows gameplay categories and logarithmic

@@ -3,15 +3,17 @@ package dev.patina_pandemonium.event;
 import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.advancement.VariantAdvancements;
 import dev.patina_pandemonium.config.PatinaRules;
-import dev.patina_pandemonium.registry.*;
+import dev.patina_pandemonium.registry.DynamicVariantRegistry;
+import dev.patina_pandemonium.registry.SeededBrewData;
+import dev.patina_pandemonium.registry.VariantGenetics;
+import dev.patina_pandemonium.registry.VariantProvenance;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.*;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -22,9 +24,11 @@ import net.neoforged.neoforge.event.entity.player.PlayerEnchantItemEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.tick.PlayerTickEvent;
 
-import java.util.*;
+import java.util.Locale;
+import java.util.Map;
+import java.util.WeakHashMap;
 
-import static dev.patina_pandemonium.event.PatinaGameplayEvents.*;
+import static dev.patina_pandemonium.event.PatinaGameplayEvents.INVENTORY_OXIDATION_CURSORS;
 
 /** Event handlers grouped by gameplay responsibility. */
 @EventBusSubscriber(modid = PatinaPandemonium.MOD_ID)

@@ -8,11 +8,11 @@ import dev.patina_pandemonium.block.entity.SeededBrewingCauldronBlockEntity;
 import dev.patina_pandemonium.network.PatinaClientSync;
 import dev.patina_pandemonium.network.PatinaHudSync;
 import dev.patina_pandemonium.registry.*;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.color.block.BlockTintSource;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.client.color.block.BlockTintSource;
 import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.client.renderer.block.BlockModelRenderState;
 import net.minecraft.client.renderer.block.dispatch.BlockStateModel;
@@ -27,8 +27,8 @@ import net.minecraft.client.resources.model.geometry.QuadCollection;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.RandomSource;
 import net.minecraft.util.context.ContextKey;
@@ -53,16 +53,15 @@ import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.client.model.quad.MutableQuad;
 import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import net.neoforged.neoforge.client.network.event.RegisterClientPayloadHandlersEvent;
+import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEvent;
 import net.neoforged.neoforge.client.settings.KeyConflictContext;
 import net.neoforged.neoforge.client.settings.KeyModifier;
-import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEvent;
+import org.jspecify.annotations.Nullable;
+import org.lwjgl.glfw.GLFW;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
-
-import org.jspecify.annotations.Nullable;
-import org.lwjgl.glfw.GLFW;
 
 /** Replaces carrier descriptors with shared model wrappers and exposes synchronized entity tint data to vanilla renderers. */
 @EventBusSubscriber(modid = PatinaPandemonium.MOD_ID, value = Dist.CLIENT)

@@ -1,12 +1,7 @@
 package dev.patina_pandemonium.recipe;
 
 import com.mojang.serialization.MapCodec;
-import dev.patina_pandemonium.registry.DynamicVariantRegistry;
-import dev.patina_pandemonium.registry.ItemVariantData;
-import dev.patina_pandemonium.registry.OxidationStage;
-import dev.patina_pandemonium.registry.VariantData;
-import dev.patina_pandemonium.registry.VariantForm;
-import java.util.List;
+import dev.patina_pandemonium.registry.*;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
@@ -20,6 +15,8 @@ import net.minecraft.world.item.crafting.CustomRecipe;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.level.Level;
 import org.jspecify.annotations.Nullable;
+
+import java.util.List;
 
 /** Runtime crafting rules for forms that do not exist on the original source block. */
 public class VariantFormRecipe extends CustomRecipe {

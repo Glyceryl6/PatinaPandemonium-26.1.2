@@ -15,13 +15,7 @@ import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.item.crafting.CraftingInput;
 import org.jspecify.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Compact manufacturing provenance stored as a flat DAG. The graph is the identity source; names, colors and

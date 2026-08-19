@@ -1,7 +1,7 @@
 package dev.patina_pandemonium.event;
 
-import dev.patina_pandemonium.advancement.VariantAdvancements;
 import dev.patina_pandemonium.PatinaPandemonium;
+import dev.patina_pandemonium.advancement.VariantAdvancements;
 import dev.patina_pandemonium.config.PatinaRules;
 import dev.patina_pandemonium.registry.*;
 import net.minecraft.core.BlockPos;
@@ -15,23 +15,19 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.*;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.item.PrimedTnt;
-import net.minecraft.world.entity.projectile.ItemSupplier;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.ItemSupplier;
 import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
-import net.minecraft.world.item.*;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityStruckByLightningEvent;
-import net.neoforged.neoforge.event.entity.living.LivingDamageEvent;
-import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
-import net.neoforged.neoforge.event.entity.living.LivingDropsEvent;
-import net.neoforged.neoforge.event.entity.living.LivingEntityUseItemEvent;
-import net.neoforged.neoforge.event.entity.living.MobSpawnEvent;
+import net.neoforged.neoforge.event.entity.living.*;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
-import java.util.*;
+import java.util.ArrayList;
 
 import static dev.patina_pandemonium.event.PatinaGameplayEvents.*;
 

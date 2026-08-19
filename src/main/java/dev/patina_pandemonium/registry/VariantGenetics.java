@@ -22,11 +22,7 @@ import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Compact diploid genome for breedable variants. Six linkage groups are used instead of independent random traits,

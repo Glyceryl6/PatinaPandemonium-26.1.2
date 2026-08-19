@@ -3,12 +3,7 @@ package dev.patina_pandemonium.block.entity;
 import dev.patina_pandemonium.PatinaPandemonium;
 import dev.patina_pandemonium.advancement.VariantAdvancements;
 import dev.patina_pandemonium.config.PatinaRules;
-import dev.patina_pandemonium.registry.CraftingChemistry;
-import dev.patina_pandemonium.registry.DynamicVariantRegistry;
-import dev.patina_pandemonium.registry.ItemVariantData;
-import dev.patina_pandemonium.registry.SeededBrewData;
-import dev.patina_pandemonium.registry.VariantData;
-import dev.patina_pandemonium.registry.VariantProvenance;
+import dev.patina_pandemonium.registry.*;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderLookup;
@@ -37,13 +32,9 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
+import org.jspecify.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 public class SeededBrewingCauldronBlockEntity extends BlockEntity {
 
@@ -153,11 +144,11 @@ public class SeededBrewingCauldronBlockEntity extends BlockEntity {
             lineageLength = saturatedIncrement(lineageLength);
             this.applyTaggedAffinities(stack, affinities);
         }
+
         if (stack.is(Items.REDSTONE)) redstone = saturatedIncrement(redstone);
         if (stack.is(Items.GLOWSTONE_DUST)) glowstone = saturatedIncrement(glowstone);
         if (stack.is(Items.GUNPOWDER)) delivery = Math.max(delivery, SeededBrewData.DELIVERY_SPLASH);
         if (stack.is(Items.DRAGON_BREATH)) delivery = SeededBrewData.DELIVERY_LINGERING;
-
         ArrayList<String> names = new ArrayList<>(previous.nameSegments());
         appendName(names, stack.getHoverName().getString());
         SeededBrewData next = this.withBudget(new SeededBrewData(seed, saturatedIncrement(previous.ingredientCount()), generation, 0,
@@ -186,7 +177,6 @@ public class SeededBrewingCauldronBlockEntity extends BlockEntity {
             batch.parentCount(), batch.affinities(), names));
         PotionContents contents = this.computeContents(finalData);
         finalData = this.expressAffinities(finalData, contents.customEffects());
-
         ItemStack result = finalData.outputStack();
         this.applyBottleVariant(bottle, result);
         result.set(DataComponents.POTION_CONTENTS, contents);
@@ -252,7 +242,7 @@ public class SeededBrewingCauldronBlockEntity extends BlockEntity {
 
         int budget = Math.max(1, data.potencyBudget());
         int share = Math.max(1, budget / Math.max(1, candidates.size()));
-        int amplifierCap = Math.min(rules.brewingMaximumAmplifier, Math.max(0, (tier - 1) / 2));
+        int amplifierCap = Math.clamp((tier - 1) / 2, 0, rules.brewingMaximumAmplifier);
         int durationCap = durationCap(tier);
         ArrayList<MobEffectInstance> effects = new ArrayList<>(candidates.size());
         for (int index = 0; index < candidates.size(); index++) {
@@ -265,8 +255,7 @@ public class SeededBrewingCauldronBlockEntity extends BlockEntity {
             while (amplifier > 0 && amplifierCost > amplifierBudget) amplifierCost = amplifierCost(--amplifier);
             int durationBudget = Math.max(1, share - amplifierCost);
             double redstoneMultiplier = 1.0D + data.redstoneCount() * rules.brewingRedstoneDurationBonus;
-            int duration = (int) Math.min(durationCap,
-                Math.max(20L, Math.round((200L + (long) durationBudget * DURATION_PER_BUDGET) * redstoneMultiplier)));
+            int duration = (int) Math.clamp(Math.round((200L + (long) durationBudget * DURATION_PER_BUDGET) * redstoneMultiplier), 20L, durationCap);
             if (candidate.effect().value().isInstantenous()) duration = 1;
             effects.add(new MobEffectInstance(candidate.effect(), duration, amplifier));
         }
@@ -327,8 +316,8 @@ public class SeededBrewingCauldronBlockEntity extends BlockEntity {
     private static int durationCap(int tier) {
         PatinaRules rules = PatinaRules.INSTANCE;
         long cap = rules.brewingBaseDuration;
-        cap <<= Math.min(20, Math.max(0, tier - 1));
-        return (int) Math.min(rules.brewingMaximumDuration, Math.max(20L, cap));
+        cap <<= Math.clamp(tier - 1, 0, 20);
+        return (int) Math.clamp(cap, 20L, rules.brewingMaximumDuration);
     }
 
     private static int generationTier(int generation) {
@@ -336,7 +325,7 @@ public class SeededBrewingCauldronBlockEntity extends BlockEntity {
     }
 
     private static int amplifierCost(int amplifier) {
-        return BASE_EFFECT_COST * (1 << Math.min(20, Math.max(0, amplifier)));
+        return BASE_EFFECT_COST * (1 << Math.clamp(amplifier, 0, 20));
     }
 
     private static TagKey<Item> affinityTag(Identifier effectId) {
@@ -358,7 +347,7 @@ public class SeededBrewingCauldronBlockEntity extends BlockEntity {
             .map(entry -> new SeededBrewData.Affinity(entry.getKey(), entry.getValue())).toList();
     }
 
-    private static String operation(ItemStack stack, SeededBrewData parent) {
+    private static String operation(ItemStack stack, @Nullable SeededBrewData parent) {
         if (parent != null) return "brew_parent";
         if (stack.is(Items.REDSTONE)) return "brew_redstone";
         if (stack.is(Items.GLOWSTONE_DUST)) return "brew_glowstone";
@@ -453,7 +442,7 @@ public class SeededBrewingCauldronBlockEntity extends BlockEntity {
         return red << 16 | green << 8 | blue;
     }
 
-    private static void appendName(List<String> names, String segment) {
+    private static void appendName(List<String> names, @Nullable String segment) {
         if (segment == null || segment.isBlank()) return;
         int maximum = PatinaRules.INSTANCE.brewingMaximumNameCharacters;
         int used = names.stream().mapToInt(String::length).sum() + Math.max(0, names.size() - 1);
@@ -465,18 +454,20 @@ public class SeededBrewingCauldronBlockEntity extends BlockEntity {
     private static long ingredientIdentity(ItemStack stack) {
         long hash = hashString(BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
         VariantData blockData = stack.get(DynamicVariantRegistry.VARIANT_DATA.get());
-        if (blockData != null) {
+        if (blockData != null && blockData.customColor() != null) {
             hash = mix64(hash ^ hashString(blockData.sourceId().toString()));
             hash = mix64(hash ^ blockData.stage().ordinal() * 31L ^ (blockData.waxed() ? 1L : 0L) ^ blockData.form().ordinal() * 131L);
             hash = mix64(hash ^ blockData.dyeId() * 257L ^ optionalColorIdentity(blockData.customColor()));
         }
+
         ItemVariantData itemData = DynamicVariantRegistry.peekItemData(stack);
-        if (itemData != null) {
+        if (itemData != null && itemData.customColor() != null) {
             hash = mix64(hash ^ hashString(itemData.sourceId().toString()));
             hash = mix64(hash ^ itemData.stage().ordinal() * 31L ^ (itemData.waxed() ? 1L : 0L));
             hash = mix64(hash ^ itemData.dyeId() * 257L ^ optionalColorIdentity(itemData.customColor()));
             if (itemData.modelId() != null) hash = mix64(hash ^ hashString(itemData.modelId().toString()));
         }
+
         CraftingChemistry.Data chemistry = stack.get(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get());
         if (chemistry != null) hash = mix64(hash ^ chemistry.signature() ^ (long) chemistry.generation() << 32 ^ chemistry.topology());
         VariantProvenance.Data provenance = VariantProvenance.get(stack);
@@ -495,7 +486,7 @@ public class SeededBrewingCauldronBlockEntity extends BlockEntity {
             || stack.has(DynamicVariantRegistry.SEEDED_BREW_DATA.get());
     }
 
-    private static long optionalColorIdentity(Integer color) {
+    private static long optionalColorIdentity(@Nullable Integer color) {
         return color == null ? 0xD6E8FEB86659FD93L : 0x1000000L | color.longValue();
     }
 

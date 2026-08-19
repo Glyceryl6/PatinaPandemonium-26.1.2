@@ -1,14 +1,10 @@
 package dev.patina_pandemonium.menu;
 
 import dev.patina_pandemonium.advancement.VariantAdvancements;
-import dev.patina_pandemonium.registry.DynamicVariantRegistry;
-import dev.patina_pandemonium.registry.OxidationStage;
-import dev.patina_pandemonium.registry.VariantData;
-import dev.patina_pandemonium.registry.VariantForm;
-import dev.patina_pandemonium.registry.VariantProvenance;
+import dev.patina_pandemonium.registry.*;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
-import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.*;
