@@ -7,13 +7,11 @@ import dev.patina_pandemonium.block.PatinaOxidizable;
 import dev.patina_pandemonium.block.entity.SeededBrewingCauldronBlockEntity;
 import dev.patina_pandemonium.network.PatinaClientSync;
 import dev.patina_pandemonium.network.PatinaHudSync;
-import dev.patina_pandemonium.registry.DynamicVariantRegistry;
-import dev.patina_pandemonium.registry.ItemVariantData;
-import dev.patina_pandemonium.registry.VariantData;
-import dev.patina_pandemonium.registry.VariantForm;
+import dev.patina_pandemonium.registry.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.color.block.BlockTintSource;
 import net.minecraft.client.renderer.block.BlockAndTintGetter;
 import net.minecraft.client.renderer.block.BlockModelRenderState;
@@ -35,6 +33,10 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.util.RandomSource;
 import net.minecraft.util.context.ContextKey;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.inventory.AbstractCraftingMenu;
+import net.minecraft.world.inventory.CraftingContainer;
+import net.minecraft.world.inventory.ResultContainer;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
@@ -46,15 +48,10 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.attachment.AttachmentType;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
-import net.neoforged.neoforge.client.event.ModelEvent;
-import net.neoforged.neoforge.client.event.RegisterColorHandlersEvent;
-import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
-import net.neoforged.neoforge.client.event.ScreenEvent;
-import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
-import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
+import net.neoforged.neoforge.client.event.*;
 import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.client.model.quad.MutableQuad;
+import net.neoforged.neoforge.client.network.ClientPacketDistributor;
 import net.neoforged.neoforge.client.network.event.RegisterClientPayloadHandlersEvent;
 import net.neoforged.neoforge.client.settings.KeyConflictContext;
 import net.neoforged.neoforge.client.settings.KeyModifier;
@@ -62,14 +59,7 @@ import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEve
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.ArrayDeque;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Locale;
+import java.util.*;
 
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
@@ -79,13 +69,15 @@ import org.lwjgl.glfw.GLFW;
 public class PatinaClient {
 
     private static final KeyMapping.Category INSPECTION_CATEGORY = new KeyMapping.Category(PatinaPandemonium.id("inspection"));
+    private static final KeyMapping.Category CRAFTING_CATEGORY = new KeyMapping.Category(PatinaPandemonium.id("crafting"));
     private static final KeyMapping COPY_ITEM_NAME = new KeyMapping("key.patina_pandemonium.copy_item_name", KeyConflictContext.UNIVERSAL,
         KeyModifier.CONTROL_OR_COMMAND, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_C, INSPECTION_CATEGORY);
     private static final KeyMapping EXPORT_TOOLTIP = new KeyMapping("key.patina_pandemonium.export_tooltip", KeyConflictContext.UNIVERSAL,
         KeyModifier.ALT, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_P, INSPECTION_CATEGORY);
     private static final KeyMapping EXPORT_ISOMETRIC = new KeyMapping("key.patina_pandemonium.export_isometric", KeyConflictContext.IN_GAME,
         KeyModifier.ALT, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_I, INSPECTION_CATEGORY);
-
+    private static final KeyMapping BULK_CRAFT = new KeyMapping("key.patina_pandemonium.bulk_craft", KeyConflictContext.GUI,
+        InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_LEFT_ALT, CRAFTING_CATEGORY);
     private static final ContextKey<Integer> ENTITY_TINT = new ContextKey<>(PatinaPandemonium.id("entity_tint"));
     private static final ContextKey<Integer> FIRE_TINT = new ContextKey<>(PatinaPandemonium.id("fire_tint"));
     private static final ThreadLocal<ArrayDeque<Integer>> MODEL_TINTS = new ThreadLocal<>();
@@ -110,13 +102,27 @@ public class PatinaClient {
         VariantForm.BUTTON, Blocks.STONE_BUTTON,
         VariantForm.PRESSURE_PLATE, Blocks.STONE_PRESSURE_PLATE);
 
-
     @SubscribeEvent
     public static void registerKeyMappings(RegisterKeyMappingsEvent event) {
         event.registerCategory(INSPECTION_CATEGORY);
+        event.registerCategory(CRAFTING_CATEGORY);
         event.register(COPY_ITEM_NAME);
         event.register(EXPORT_TOOLTIP);
         event.register(EXPORT_ISOMETRIC);
+        event.register(BULK_CRAFT);
+    }
+
+    /** Replaces an Alt-left-click on a crafting result with one validated server-side bulk-craft request. */
+    @SubscribeEvent
+    public static void onScreenMouseButtonPressed(ScreenEvent.MouseButtonPressed.Pre event) {
+        if (event.getButton() != GLFW.GLFW_MOUSE_BUTTON_LEFT || !BULK_CRAFT.isDown()) return;
+        if (!(event.getScreen() instanceof AbstractContainerScreen<?> screen) || !(screen.getMenu() instanceof AbstractCraftingMenu menu)) return;
+        if (menu.getInputGridSlots().isEmpty()) return;
+        Slot resultSlot = menu.getResultSlot();
+        if (screen.getHoveredSlot() != resultSlot || resultSlot.getItem().isEmpty()) return;
+        if (!(resultSlot.container instanceof ResultContainer) || !(menu.getInputGridSlots().getFirst().container instanceof CraftingContainer)) return;
+        ClientPacketDistributor.sendToServer(new BulkCrafting.BulkCraftPayload(menu.containerId));
+        event.setCanceled(true);
     }
 
     @SubscribeEvent
@@ -231,14 +237,14 @@ public class PatinaClient {
         return BuiltInRegistries.BLOCK.getKey(state.getBlock()).equals(data.sourceId()) ? data : null;
     }
 
-    private static boolean exportHeldIsometric(int requestedSize) {
+    private static void exportHeldIsometric(int requestedSize) {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null) return false;
+        if (minecraft.player == null) return;
         ItemStack stack = minecraft.player.getMainHandItem();
         if (stack.isEmpty()) stack = minecraft.player.getOffhandItem();
         if (stack.isEmpty()) {
             minecraft.gui.getChat().addClientSystemMessage(Component.translatable("message.patina_pandemonium.isometric_export_requires_item"));
-            return true;
+            return;
         }
 
         int size = Math.clamp(requestedSize, PatinaClientSync.MIN_ISOMETRIC_SIZE, PatinaClientSync.MAX_ISOMETRIC_SIZE);
@@ -250,8 +256,6 @@ public class PatinaClient {
             minecraft.gui.getChat().addClientSystemMessage(Component.translatable("message.patina_pandemonium.isometric_export_failed",
                     exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage()));
         }
-
-        return true;
     }
 
     @SubscribeEvent

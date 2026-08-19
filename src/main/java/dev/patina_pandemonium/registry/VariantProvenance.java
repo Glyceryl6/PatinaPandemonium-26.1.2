@@ -121,12 +121,11 @@ public class VariantProvenance {
         for (int slot = 0; slot < input.size(); slot++) {
             ItemStack ingredient = input.getItem(slot);
             if (ingredient.isEmpty()) continue;
-            Data ingredientData = get(ingredient);
             int ingredientRoot = builder.stackRoot(ingredient, 0);
-            long ingredientFingerprint = ingredientData == null ? builder.fingerprint(ingredientRoot) : ingredientData.rootFingerprint();
+            long ingredientFingerprint = builder.fingerprint(ingredientRoot);
             roots.add(ingredientRoot);
             slots.add(slot);
-            inputFingerprints.add("input_" + slot + "=" + Long.toUnsignedString(ingredientFingerprint, 16));
+            inputFingerprints.add("input_" + slot + "=" + Long.toUnsignedString(ingredientFingerprint, 16) + "x" + ingredient.getCount());
             if (hasPigment(ingredient)) {
                 pigmentSlots.add(slot);
                 pigmentFingerprints.add(ingredientFingerprint);
@@ -520,6 +519,8 @@ public class VariantProvenance {
                 "enchantments", enchantmentSignature(stack),
                 "damage", stack.getOrDefault(DataComponents.DAMAGE, 0),
                 "brew", brewSignature(stack))) : this.importData(existing);
+            if (stack.getCount() > 1) root = this.node(NodeType.SPLIT_MERGE, "stack_multiplicity", List.of(root), List.of(-1), 0, 0,
+                attributes("count", stack.getCount()));
             if (!PatinaRules.INSTANCE.trackContainerProvenance || containerDepth >= PatinaRules.INSTANCE.maximumProvenanceContainerDepth) return root;
             ItemContainerContents contents = stack.get(DataComponents.CONTAINER);
             if (contents == null) return root;

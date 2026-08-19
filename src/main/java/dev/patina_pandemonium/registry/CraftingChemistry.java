@@ -55,12 +55,13 @@ public class CraftingChemistry {
         Codec.intRange(0, 4).fieldOf("topology").forGetter(Data::topology),
         Codec.LONG.fieldOf("signature").forGetter(Data::signature),
         Codec.INT.listOf().fieldOf("groups").forGetter(Data::groups),
-        Codec.STRING.listOf().optionalFieldOf("group_sources", List.of()).forGetter(Data::groupSources)).apply(instance, Data::new));
+        Codec.STRING.listOf().optionalFieldOf("group_sources", List.of()).forGetter(Data::groupSources),
+        Codec.intRange(1, Integer.MAX_VALUE).optionalFieldOf("units", 1).forGetter(Data::units)).apply(instance, Data::new));
     public static final StreamCodec<RegistryFriendlyByteBuf, Data> STREAM_CODEC = ByteBufCodecs.fromCodecWithRegistries(CODEC);
 
     public static Data emptyData() {
         return new Data(NO_COLOR, 0, 0, List.of("0", "0", "0", "0", "0", "0"),
-            "0", "1", 1, 0, 0L, List.of(), List.of());
+            "0", "1", 1, 0, 0L, List.of(), List.of(), 1);
     }
 
     public static Data retarget(Data data, OxidationStage stage, boolean waxed, @Nullable DyeColor dye, @Nullable Integer customColor) {
@@ -72,7 +73,7 @@ public class CraftingChemistry {
             ^ (waxed ? 0x5A5A5A5A5A5A5A5AL : 0L) ^ (color == NO_COLOR ? 0L : color));
         return new Data(color, stage.ordinal() * 1_000, waxed ? 1_000 : 0, data.elements(),
             data.molarMassMilli(), data.polymerDegree(), data.generation(), data.topology(), signature,
-            data.groups(), data.groupSources());
+            data.groups(), data.groupSources(), data.units());
     }
 
     @Nullable
@@ -100,6 +101,7 @@ public class CraftingChemistry {
         int occupied = 0;
         for (ItemStack ingredient : input.items()) if (!ingredient.isEmpty()) occupied++;
         int groupBudget = Math.max(1, PatinaRules.INSTANCE.maximumChemicalNameGroups / Math.max(1, occupied));
+        int units = 0;
 
         for (int index = 0; index < input.size(); index++) {
             ItemStack ingredient = input.getItem(index);
@@ -107,7 +109,9 @@ public class CraftingChemistry {
             int row = index / width;
             int column = index % width;
             int locant = index + 1;
-            long slotFactor = 1L + locant + (long) (row + 1) * (column + 2);
+            int count = ingredient.getCount();
+            units += count;
+            long slotFactor = (1L + locant + (long) (row + 1) * (column + 2)) * count;
             ItemVariantData variant = DynamicVariantRegistry.variantUseData(ingredient);
             Data prior = ingredient.get(DynamicVariantRegistry.CRAFTING_CHEMISTRY.get());
             Identifier sourceId = sourceId(ingredient, variant);
@@ -140,7 +144,8 @@ public class CraftingChemistry {
                 }
             }
 
-            polymerDegree = bounded(polymerDegree.multiply(BigInteger.valueOf(polymerFactor(locant, sourceHash, variant, prior))));
+            polymerDegree = bounded(polymerDegree.multiply(BigInteger.valueOf(polymerFactor(locant, sourceHash, variant, prior, count))));
+            if (count > 1) polymerDegree = bounded(polymerDegree.multiply(BigInteger.valueOf(count)));
             signature = mix64(signature ^ sourceHash ^ Long.rotateLeft(slotFactor, index & 63));
             if (variant == null) continue;
             hasVariant = true;
@@ -183,7 +188,7 @@ public class CraftingChemistry {
         BigInteger molarMass = molarMass(elements);
         Data data = new Data(customColor == null ? NO_COLOR : customColor, oxidationPermille, waxPermille,
             encodeElements(elements), molarMass.toString(), polymerDegree.toString(), generation, topology,
-            mix64(signature ^ molarMass.hashCode() ^ polymerDegree.hashCode()), List.copyOf(groups), List.copyOf(groupSources));
+            mix64(signature ^ molarMass.hashCode() ^ polymerDegree.hashCode()), List.copyOf(groups), List.copyOf(groupSources), units);
         return new Synthesis(stage, waxed, dye, customColor, data);
     }
 
@@ -220,12 +225,13 @@ public class CraftingChemistry {
             Component.translatable("item.patina_pandemonium.chemistry.stereo." + (data.signature() & 3L)));
         Component topology = Component.translatable("item.patina_pandemonium.chemistry.topology." + data.topology());
         Component polymerMode = Component.translatable("item.patina_pandemonium.chemistry.polymer_mode."
-            + (polymer ? Long.toString(data.signature() >>> 2 & 7L) : "mono"));
+            + (polymer ? polymerModeKey(data) : "mono"));
         Component generation = Component.translatable("item.patina_pandemonium.chemistry.generation",
             Component.literal(String.format(Locale.ROOT, "%,d", data.generation())));
+        Component degree = Component.literal(String.format(Locale.ROOT, "%,d", data.units()));
         return Component.translatable(polymer
                 ? "item.patina_pandemonium.chemistry.name.polymer" : "item.patina_pandemonium.chemistry.name.monomer",
-            stereo, groupList, polymerMode, topology, sourceName, currentStateDescriptor(data), generation);
+            stereo, groupList, polymerMode, topology, sourceName, currentStateDescriptor(data), generation, degree);
     }
 
     public static Component sourceName(ItemStack stack) {
@@ -252,6 +258,12 @@ public class CraftingChemistry {
         ItemStack sourceStack = sourceItem.getDefaultInstance();
         Component configured = sourceStack.get(DataComponents.ITEM_NAME);
         return configured == null ? Component.translatable(sourceItem.getDescriptionId()) : configured;
+    }
+
+    /** A single distinct monomer source yields a homopolymer; mixed sources keep the signature-derived mode. */
+    private static String polymerModeKey(Data data) {
+        long distinct = data.groupSources().stream().filter(source -> !source.isEmpty()).distinct().count();
+        return distinct <= 1L ? "0" : Long.toString(data.signature() >>> 2 & 7L);
     }
 
     private static Component groupName(int packed, List<Integer> locants, String sourceId) {
@@ -461,8 +473,8 @@ public class CraftingChemistry {
         return result;
     }
 
-    private static long polymerFactor(int locant, long sourceHash, @Nullable ItemVariantData variant, @Nullable Data prior) {
-        long factor = 2L + locant + Math.floorMod(sourceHash, 11L);
+    private static long polymerFactor(int locant, long sourceHash, @Nullable ItemVariantData variant, @Nullable Data prior, int count) {
+        long factor = 2L + locant + Math.floorMod(sourceHash, 11L) + Math.min(63, count - 1);
         if (variant != null) factor += variant.stage().ordinal() * 3L + (variant.waxed() ? 5L : 0L) + (postColor(variant, prior) == null ? 0L : 7L);
         if (prior != null) factor += Math.min(97, prior.generation() * 2L + prior.groups().size());
         return Math.max(2L, factor);
@@ -530,11 +542,12 @@ public class CraftingChemistry {
 
     public record Data(int color, int oxidationPermille, int waxPermille, List<String> elements,
                        String molarMassMilli, String polymerDegree, int generation, int topology,
-                       long signature, List<Integer> groups, List<String> groupSources) {
+                       long signature, List<Integer> groups, List<String> groupSources, int units) {
 
         public Data {
             elements = List.copyOf(elements);
             groups = List.copyOf(groups);
+            units = Math.max(1, units);
             ArrayList<String> normalizedSources = new ArrayList<>(groups.size());
             for (int index = 0; index < groups.size(); index++) {
                 normalizedSources.add(index < groupSources.size() ? groupSources.get(index) : "");

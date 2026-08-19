@@ -2,6 +2,7 @@ package dev.patina_pandemonium;
 
 import dev.patina_pandemonium.network.PatinaClientSync;
 import dev.patina_pandemonium.network.PatinaHudSync;
+import dev.patina_pandemonium.registry.BulkCrafting;
 import dev.patina_pandemonium.registry.DynamicVariantRegistry;
 import dev.patina_pandemonium.registry.ModCreativeTab;
 import dev.patina_pandemonium.resource.RuntimePack;
@@ -18,6 +19,7 @@ public class PatinaPandemonium {
         RuntimePack.register(modBus);
         modBus.addListener(PatinaHudSync::register);
         modBus.addListener(PatinaClientSync::register);
+        modBus.addListener(BulkCrafting::register);
         DynamicVariantRegistry.register(modBus);
         ModCreativeTab.register(modBus);
     }
